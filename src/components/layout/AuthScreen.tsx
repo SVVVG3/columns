@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import columnsLogo from "../../../public/columns-logo.png";
+import farcasterLogoWhite from "../../../public/farcaster-logo-white.png";
 
 export function AuthScreen() {
   const { user } = useNeynarContext();
@@ -54,8 +55,17 @@ export function AuthScreen() {
         <div className="w-full flex flex-col items-center gap-4">
           <div className="auth-screen-signin w-full">
             <NeynarAuthButton
-              label="Sign in with Neynar"
-              icon={<></>}
+              label="Sign in with Farcaster"
+              icon={
+                <Image
+                  src={farcasterLogoWhite}
+                  alt=""
+                  width={22}
+                  height={22}
+                  className="columns-signin-fc-logo"
+                  aria-hidden
+                />
+              }
               className="columns-neynar-signin"
             />
           </div>
