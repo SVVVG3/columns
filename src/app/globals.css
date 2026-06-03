@@ -46,6 +46,22 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* Auth screen — purple primary sign-in button */
+.auth-screen-signin > button {
+  width: 100%;
+  min-height: 3rem;
+  border-radius: 0.75rem;
+  background-color: var(--accent) !important;
+  color: #fff !important;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: none !important;
+  transition: background-color 0.15s ease;
+}
+.auth-screen-signin > button:hover {
+  background-color: var(--accent-hover) !important;
+}
+
 /* Custom scrollbar — thin for column feeds */
 .feed-scroll::-webkit-scrollbar {
   width: 4px;
