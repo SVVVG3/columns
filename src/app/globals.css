@@ -46,20 +46,44 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* Auth screen — purple primary sign-in button */
+/* Auth screen — purple primary sign-in button (override Neynar SDK layout) */
+.auth-screen-signin .columns-neynar-signin,
 .auth-screen-signin > button {
-  width: 100%;
-  min-height: 3rem;
-  border-radius: 0.75rem;
+  width: 100% !important;
+  min-height: 3rem !important;
+  height: auto !important;
+  padding: 0.75rem 1rem !important;
+  border-radius: 0.75rem !important;
   background-color: var(--accent) !important;
   color: #fff !important;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  font-family: inherit !important;
   border: none !important;
+  box-shadow: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0 !important;
+  position: relative !important;
   transition: background-color 0.15s ease;
 }
+.auth-screen-signin .columns-neynar-signin:hover,
 .auth-screen-signin > button:hover {
   background-color: var(--accent-hover) !important;
+}
+/* Hide default Neynar planet/logo — empty icon prop still renders a node */
+.auth-screen-signin .columns-neynar-signin > svg,
+.auth-screen-signin .columns-neynar-signin > img,
+.auth-screen-signin > button > svg,
+.auth-screen-signin > button > img {
+  display: none !important;
+}
+.auth-screen-signin .columns-neynar-signin > span,
+.auth-screen-signin > button > span {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.25 !important;
 }
 
 /* Custom scrollbar — thin for column feeds */

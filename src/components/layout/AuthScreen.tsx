@@ -45,7 +45,7 @@ export function AuthScreen() {
           <div className="text-center">
             <h1 className="text-2xl font-bold text-white">Columns</h1>
             <p className="text-sm text-[var(--muted)] mt-1">
-              Multi-column desktop client
+              Multi-Column Farcaster Desktop Client
             </p>
           </div>
         </div>
@@ -53,10 +53,14 @@ export function AuthScreen() {
         {/* Sign in button */}
         <div className="w-full flex flex-col items-center gap-4">
           <div className="auth-screen-signin w-full">
-            <NeynarAuthButton label="Sign in with Neynar" />
+            <NeynarAuthButton
+              label="Sign in with Neynar"
+              icon={<></>}
+              className="columns-neynar-signin"
+            />
           </div>
           <p className="text-xs text-[var(--muted)] text-center">
-            Sign in with your Farcaster account using Warpcast or any compatible wallet.
+            Sign in with your Farcaster account to grant Columns permissions.
           </p>
         </div>
       </div>
