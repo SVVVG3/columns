@@ -16,9 +16,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Columns",
   description: "Multi-column Farcaster desktop client",
+  // Tab icon: src/app/icon.png and apple-icon.png (Next.js file convention)
   icons: {
-    icon: "/favicon.png",
-    apple: "/favicon.png",
+    icon: [{ url: "/favicon.png", type: "image/png" }],
+    apple: [{ url: "/favicon.png", type: "image/png" }],
   },
 };
 
