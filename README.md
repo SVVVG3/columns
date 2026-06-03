@@ -1,4 +1,4 @@
-# Farcaster Desktop Client
+# Columns
 
 A multi-column Farcaster client inspired by TweetDeck — home, trending, channels, users, and keyword feeds side by side in the browser. Built with Next.js and deployed on Vercel.
 
