@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useQuery } from "@tanstack/react-query";
 import type { ProfileLink } from "@/lib/profileLinks";
@@ -16,7 +16,7 @@ import {
   type ProfileDetails,
   type ProfilePreviewSeed,
 } from "@/lib/profilePreview";
-import { shortenAddress, type ProfileWallet } from "@/lib/profileWallets";
+import type { ProfileWallet } from "@/lib/profileWallets";
 import type { FollowRelationship } from "@/lib/followCheck";
 import { renderLinkifiedText } from "@/lib/linkifyText";
 import { profileFollowStatusLines } from "@/lib/profileFollowLabels";
@@ -166,16 +166,14 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
           <p className="text-sm text-[var(--muted)]">@{username}</p>
 
           {(fid != null || wallets.length > 0) && (
-            <div className="mt-1.5 w-full flex items-center justify-center gap-3 flex-wrap">
-              {fid != null && (
-                <span className="text-[10px] text-[var(--muted)] font-mono">
+            <div className="mt-1.5 w-full">
+              {fid != null && wallets.length === 0 && (
+                <p className="text-[10px] text-[var(--muted)] font-mono text-center">
                   FID {fid}
-                </span>
+                </p>
               )}
               {wallets.length > 0 && (
-                <div className="relative">
-                  <ProfileWalletsDropdown wallets={wallets} inline />
-                </div>
+                <ProfileWalletsDropdown wallets={wallets} fid={fid} />
               )}
             </div>
           )}
@@ -186,10 +184,6 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
               {followers != null && following != null && <span> · </span>}
               {following != null && <span>{following} following</span>}
             </p>
-          )}
-
-          {joined && (
-            <p className="text-xs text-[var(--muted)] mt-1">Joined {joined}</p>
           )}
 
           {showFollowStatus && followLoading && (
@@ -209,10 +203,6 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
             </div>
           )}
 
-          {profileLinks.length > 0 && (
-            <ProfileLinksRow links={profileLinks} />
-          )}
-
           {isLoading && !bio && (
             <div className="w-full mt-3 space-y-1.5 animate-pulse">
               <div className="h-2 rounded bg-[var(--surface-hover)] w-full" />
@@ -228,6 +218,10 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
                 onChannelClick: handleChannelClick,
               })}
             </p>
+          )}
+
+          {(profileLinks.length > 0 || joined) && (
+            <ProfileMetaLinksRow links={profileLinks} joined={joined} />
           )}
 
           {isError && (
@@ -259,72 +253,113 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
   );
 }
 
-function ProfileLinksRow({ links }: { links: ProfileLink[] }) {
+function ProfileMetaSeparator() {
+  return <span> · </span>;
+}
+
+function ProfileMetaLinksRow({
+  links,
+  joined,
+}: {
+  links: ProfileLink[];
+  joined?: string | null;
+}) {
   return (
-    <div className="mt-2 flex flex-wrap items-center justify-center gap-2 w-full">
-      {links.map((link) => (
-        <a
-          key={link.href}
-          href={link.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-[var(--accent)] hover:underline"
-        >
-          {link.kind === "url" ? link.label : link.kind === "twitter" ? `X ${link.label}` : `GitHub ${link.label}`}
-        </a>
+    <p className="mt-3 text-xs text-[var(--muted)] w-full text-center">
+      {links.map((link, index) => (
+        <span key={link.href}>
+          {index > 0 && <ProfileMetaSeparator />}
+          <a
+            href={link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--accent)] hover:underline"
+          >
+            {link.kind === "url"
+              ? link.label
+              : link.kind === "twitter"
+                ? `X ${link.label}`
+                : `GitHub ${link.label}`}
+          </a>
+        </span>
       ))}
-    </div>
+      {links.length > 0 && joined && <ProfileMetaSeparator />}
+      {joined && <span>Joined {joined}</span>}
+    </p>
   );
 }
 
 function ProfileWalletsDropdown({
   wallets,
-  inline = false,
+  fid,
 }: {
   wallets: ProfileWallet[];
-  inline?: boolean;
+  fid?: number | null;
 }) {
   return (
-    <details className={`group ${inline ? "" : "w-full mt-2"} text-left`}>
-      <summary
-        className={`text-xs text-[var(--muted)] cursor-pointer list-none flex items-center gap-1 hover:text-[var(--foreground)] transition-colors [&::-webkit-details-marker]:hidden ${
-          inline ? "justify-center" : "justify-center"
-        }`}
-      >
-        <span>Wallets ({wallets.length})</span>
-        <svg
-          className="w-3 h-3 transition-transform group-open:rotate-180"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          aria-hidden
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+    <details className="group w-full text-left">
+      <summary className="text-xs text-[var(--muted)] cursor-pointer list-none text-center hover:text-[var(--foreground)] transition-colors [&::-webkit-details-marker]:hidden">
+        {fid != null && <span className="font-mono">FID {fid}</span>}
+        {fid != null && <ProfileMetaSeparator />}
+        <span className="inline-flex items-center gap-0.5 align-middle">
+          Wallets ({wallets.length})
+          <svg
+            className="w-3 h-3 transition-transform group-open:rotate-180"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </span>
       </summary>
-      <ul
-        className={`mt-2 rounded-xl border border-[var(--border)] bg-[var(--surface-hover)]/50 divide-y divide-[var(--border)] overflow-hidden ${
-          inline ? "absolute z-20 left-1/2 -translate-x-1/2 min-w-[240px] shadow-xl" : ""
-        }`}
-      >
+      <ul className="w-full mt-2 rounded-xl border border-[var(--border)] bg-[var(--background)] divide-y divide-[var(--border)] overflow-hidden">
         {wallets.map((wallet) => (
-          <li key={wallet.id}>
-            <a
-              href={wallet.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-between gap-2 px-3 py-2 hover:bg-[var(--surface-hover)] transition-colors"
-            >
-              <span className="text-[10px] font-medium text-[var(--muted)] shrink-0">
-                {wallet.label}
-              </span>
-              <span className="text-xs font-mono text-[var(--foreground)] truncate">
-                {shortenAddress(wallet.address)}
-              </span>
-            </a>
-          </li>
+          <ProfileWalletRow key={wallet.id} wallet={wallet} />
         ))}
       </ul>
     </details>
+  );
+}
+
+function ProfileWalletRow({ wallet }: { wallet: ProfileWallet }) {
+  const [copied, setCopied] = useState(false);
+  const explorerLabel = wallet.address.startsWith("0x") ? "Basescan" : "Solscan";
+
+  async function copyAddress() {
+    try {
+      await navigator.clipboard.writeText(wallet.address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return (
+    <li className="px-3 py-2.5">
+      <p className="text-[10px] font-medium text-[var(--muted)] mb-1">{wallet.label}</p>
+      <p className="text-xs font-mono text-[var(--foreground)] break-all leading-snug">
+        {wallet.address}
+      </p>
+      <div className="mt-2 flex gap-2">
+        <button
+          type="button"
+          onClick={() => void copyAddress()}
+          className="flex-1 py-1.5 rounded-lg border border-[var(--border)] text-[11px] font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors"
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+        <a
+          href={wallet.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 py-1.5 rounded-lg border border-[var(--border)] text-[11px] font-medium text-center text-[var(--accent)] hover:bg-[var(--surface-hover)] transition-colors"
+        >
+          {explorerLabel}
+        </a>
+      </div>
+    </li>
   );
 }

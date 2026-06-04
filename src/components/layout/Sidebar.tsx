@@ -81,7 +81,9 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
               open={notificationsOpen}
               onClose={closeNotifications}
               viewerFid={user.fid}
-              onFreshLoad={markNotificationsSeen}
+              onFreshLoad={(latestMs) =>
+                markNotificationsSeen(latestMs > 0 ? latestMs : undefined)
+              }
             />
           </>
         ) : (

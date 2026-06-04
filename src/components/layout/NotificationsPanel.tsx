@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useUiStore } from "@/store/ui";
@@ -11,6 +11,7 @@ import {
   aggregateNotifications,
   formatNotificationTime,
   isCastTargetNotification,
+  latestNotificationTimestampMs,
   notificationActionSuffix,
   notificationActor,
   notificationActorCount,
@@ -27,8 +28,8 @@ interface NotificationsPanelProps {
   open: boolean;
   onClose: () => void;
   viewerFid: number;
-  /** Called after a successful fresh load — clears unread badge. */
-  onFreshLoad?: () => void;
+  /** Called after a successful fresh load — clears unread badge (ms = newest item). */
+  onFreshLoad?: (latestMs: number) => void;
 }
 
 interface NotificationsResponse {
@@ -49,6 +50,7 @@ export function NotificationsPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const markedFreshRef = useRef(false);
+  const [freshReady, setFreshReady] = useState(false);
 
   const {
     data,
@@ -59,6 +61,7 @@ export function NotificationsPanel({
     hasNextPage,
     isFetchingNextPage,
     refetch,
+    isFetched,
   } = useInfiniteQuery({
     queryKey: ["notifications", viewerFid, "list"],
     queryFn: async ({ pageParam }) => {
@@ -81,22 +84,39 @@ export function NotificationsPanel({
     data?.pages.flatMap((p) => p.notifications ?? []) ?? []
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) {
       markedFreshRef.current = false;
+      setFreshReady(false);
       return;
     }
     markedFreshRef.current = false;
-    queryClient.invalidateQueries({ queryKey: ["notifications", viewerFid, "list"] });
-    void refetch();
-  }, [open, viewerFid, queryClient, refetch]);
+    setFreshReady(false);
+    void queryClient.resetQueries({
+      queryKey: ["notifications", viewerFid, "list"],
+    });
+  }, [open, viewerFid, queryClient]);
 
   useEffect(() => {
-    if (!open || isFetching || isLoading || markedFreshRef.current) return;
-    if (!data?.pages.length) return;
+    if (!open || markedFreshRef.current) return;
+    if (!isFetched || isLoading || isFetching) return;
     markedFreshRef.current = true;
-    onFreshLoad?.();
-  }, [open, isFetching, isLoading, data?.pages.length, onFreshLoad]);
+    setFreshReady(true);
+    const latestMs = latestNotificationTimestampMs(items);
+    onFreshLoad?.(latestMs);
+    void queryClient.invalidateQueries({
+      queryKey: ["notifications", viewerFid, "peek"],
+    });
+  }, [
+    open,
+    isFetched,
+    isLoading,
+    isFetching,
+    items,
+    onFreshLoad,
+    queryClient,
+    viewerFid,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -149,7 +169,7 @@ export function NotificationsPanel({
         </p>
       )}
 
-      {isLoading && items.length === 0 && (
+      {items.length === 0 && (isLoading || isFetching) && (
         <div className="flex flex-col gap-2 p-3">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="flex gap-2.5 animate-pulse p-2">
@@ -176,7 +196,7 @@ export function NotificationsPanel({
         </div>
       )}
 
-      {!isLoading && !isError && items.length === 0 && !isFetching && (
+      {freshReady && !isError && items.length === 0 && !isFetching && (
         <div className="flex items-center justify-center py-16 px-4 text-sm text-[var(--muted)] text-center">
           No notifications yet.
         </div>

@@ -16,7 +16,7 @@ function isEthAddress(address: string): boolean {
 
 function walletExplorerUrl(address: string): string {
   if (isEthAddress(address)) {
-    return `https://etherscan.io/address/${address}`;
+    return `https://basescan.org/address/${address}`;
   }
   return `https://solscan.io/account/${address}`;
 }
