@@ -37,6 +37,7 @@ interface ProfilePreviewModalProps {
 export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
   const seed = useUiStore((s) => s.profilePreview);
   const closeProfilePreview = useUiStore((s) => s.closeProfilePreview);
+  const openProfilePreview = useUiStore((s) => s.openProfilePreview);
 
   const { data: profile, isLoading, isError } = useQuery<ProfileDetails>({
     queryKey: ["profile", seed?.fid, seed?.username],
@@ -149,7 +150,10 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
 
           {bio && (
             <p className="text-xs text-[var(--foreground)] opacity-85 mt-3 leading-relaxed whitespace-pre-wrap break-words max-h-28 overflow-y-auto w-full">
-              {renderLinkifiedText(bio)}
+              {renderLinkifiedText(bio, {
+                onMentionClick: (username) =>
+                  openProfilePreview({ username }),
+              })}
             </p>
           )}
 
