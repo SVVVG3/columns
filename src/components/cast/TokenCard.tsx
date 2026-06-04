@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import type { TokenData } from "@/app/api/token/route";
 
 function formatTokenAge(createdAtMs?: number): string {
@@ -55,18 +55,7 @@ export function TokenCard({ url }: { url: string }) {
       className="mt-2 block rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-hover)] transition-colors overflow-hidden"
     >
       <div className="px-3 py-2.5 flex items-center gap-2 border-b border-[var(--border)]">
-        {token?.imageUrl ? (
-          <Image
-            src={token.imageUrl}
-            alt={name}
-            width={32}
-            height={32}
-            className="rounded-full shrink-0"
-            unoptimized
-          />
-        ) : (
-          <div className="w-8 h-8 rounded-full bg-[var(--surface-hover)] shrink-0" />
-        )}
+        <UserAvatar src={token?.imageUrl} alt={name} size="token" />
         <div className="min-w-0 flex-1">
           {loading ? (
             <div className="h-3.5 w-28 rounded bg-[var(--surface-hover)] animate-pulse" />

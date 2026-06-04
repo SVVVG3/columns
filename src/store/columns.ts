@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { migrateChannelColumnTitle } from "@/lib/channelDisplay";
 import type { FeedColumnConfig, PersistedLayout } from "@/types";
 
 const SCHEMA_VERSION = 3 as const;
@@ -16,6 +17,7 @@ const DEFAULT_COLUMNS: FeedColumnConfig[] = [
 function normalizeColumns(columns: FeedColumnConfig[]): FeedColumnConfig[] {
   return columns.map((c) => ({
     ...c,
+    title: migrateChannelColumnTitle(c),
     refreshInterval:
       c.refreshInterval == null || c.refreshInterval >= 120_000
         ? DEFAULT_REFRESH_MS
@@ -64,7 +66,7 @@ export const useColumnsStore = create<ColumnsState>()(
           };
         }),
 
-      replaceColumns: (columns) => set({ columns }),
+      replaceColumns: (columns) => set({ columns: normalizeColumns(columns) }),
 
       resetToDefaults: () => set({ columns: DEFAULT_COLUMNS }),
     }),

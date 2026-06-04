@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect } from "react";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useQuery } from "@tanstack/react-query";
 import {
   farcasterProfileUrl,
@@ -80,18 +80,7 @@ export function ProfilePreviewModal() {
         </div>
 
         <div className="px-4 pb-4 flex flex-col items-center text-center">
-          {pfpUrl ? (
-            <Image
-              src={pfpUrl}
-              alt=""
-              width={72}
-              height={72}
-              className="rounded-full object-cover mb-3"
-              unoptimized
-            />
-          ) : (
-            <div className="w-[72px] h-[72px] rounded-full bg-[var(--surface-hover)] mb-3" />
-          )}
+          <UserAvatar src={pfpUrl} alt={displayName} size="xl" className="mb-3" />
 
           <p className="text-base font-semibold text-[var(--foreground)] leading-tight">
             {displayName}

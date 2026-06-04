@@ -3,6 +3,12 @@
 import Image from "next/image";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import {
+  channelColumnTitle,
+  formatChannelLabel,
+  migrateChannelColumnTitle,
+} from "@/lib/channelDisplay";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useColumnsStore } from "@/store/columns";
 import type { FeedColumnConfig, FeedColumnType } from "@/types";
 
@@ -303,7 +309,12 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
 
   // Channel multi-select — pre-fill from existing channelIds
   const [channelChips, setChannelChips] = useState<{ id: string; label: string; name: string }[]>(
-    () => (editColumn?.channelIds ?? []).map((id) => ({ id, label: `#${id}`, name: id }))
+    () =>
+      (editColumn?.channelIds ?? []).map((id) => ({
+        id,
+        label: formatChannelLabel(id),
+        name: id,
+      }))
   );
   // User multi-select — pre-fill from existing targetFids (initially show FIDs, then resolve)
   const [userChips, setUserChips] = useState<{ id: string; label: string; fid: number; username: string; pfpUrl?: string | null }[]>(
@@ -348,7 +359,7 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
     }
     return (data.channels ?? []).map((ch: { id: string; name: string; image_url?: string }) => ({
       id: ch.id,
-      label: `#${ch.id}`,
+      label: formatChannelLabel(ch.id),
       name: ch.name,
       image_url: ch.image_url ?? null,
     }));
@@ -403,7 +414,7 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
       case "channel": {
         if (channelChips.length === 0) return null;
         const ids = channelChips.map((c) => c.id);
-        const title = channelChips.length === 1 ? `#${ids[0]}` : `${channelChips.length} channels`;
+        const title = channelColumnTitle(ids);
         return { ...base, title, channelIds: ids };
       }
       case "user": {
@@ -431,7 +442,11 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
         queries: column.queries,
         // Always preserve the user's custom title — only use the auto-generated
         // title if the column never had one (shouldn't happen in practice)
-        title: editColumn.title || column.title,
+        title: migrateChannelColumnTitle({
+          type: column.type,
+          title: editColumn.title || column.title,
+          channelIds: column.channelIds,
+        }),
       });
     } else {
       addColumn(column);
@@ -497,11 +512,11 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
                   return (
                     <span className="flex items-center gap-2">
                       {ch.image_url ? (
-                        <Image src={ch.image_url} alt="" width={20} height={20} className="rounded-full shrink-0" unoptimized />
+                        <Image src={ch.image_url} alt="" width={20} height={20} className="w-5 h-5 rounded-full object-cover shrink-0" unoptimized />
                       ) : (
-                        <span className="w-5 h-5 rounded-full bg-[var(--surface-hover)] shrink-0 flex items-center justify-center text-[8px] text-[var(--muted)]">#</span>
+                        <span className="w-5 h-5 rounded-full bg-[var(--surface-hover)] shrink-0 flex items-center justify-center text-[8px] text-[var(--muted)]">/</span>
                       )}
-                      <span className="text-[var(--foreground)] font-medium">#{ch.id}</span>
+                      <span className="text-[var(--foreground)] font-medium">{formatChannelLabel(ch.id)}</span>
                       <span className="text-[var(--muted)] text-xs">{ch.name}</span>
                     </span>
                   );
@@ -526,11 +541,7 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
                   const u = item as { username: string; displayName?: string; pfpUrl?: string | null };
                   return (
                     <span className="flex items-center gap-2">
-                      {u.pfpUrl ? (
-                        <Image src={u.pfpUrl} alt="" width={24} height={24} className="rounded-full shrink-0" unoptimized />
-                      ) : (
-                        <span className="w-6 h-6 rounded-full bg-[var(--surface-hover)] shrink-0" />
-                      )}
+                      <UserAvatar src={u.pfpUrl} alt={u.username} size="sm" />
                       <span className="text-[var(--foreground)] font-medium">@{u.username}</span>
                       <span className="text-[var(--muted)] text-xs">{u.displayName}</span>
                     </span>

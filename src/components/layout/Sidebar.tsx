@@ -9,6 +9,7 @@ import { ComposeModal } from "@/components/cast/ComposeModal";
 import { AddColumnModal } from "@/components/feed/AddColumnModal";
 import { ImportColumnModal } from "@/components/feed/ImportColumnModal";
 import { SidebarColumnList } from "@/components/layout/SidebarColumnList";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { NotificationsPanel } from "@/components/layout/NotificationsPanel";
 import { useNotificationUnread } from "@/hooks/useNotificationUnread";
 
@@ -147,17 +148,12 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
                 onClick={() => setProfileOpen((o) => !o)}
                 className={`w-full flex items-center gap-2.5 rounded-xl px-2 py-2 hover:bg-[var(--surface-hover)] transition-colors ${collapsed ? "justify-center" : ""}`}
               >
-                {user.pfpUrl ? (
-                  <Image
-                    src={user.pfpUrl}
-                    alt={user.displayName}
-                    width={28}
-                    height={28}
-                    className="rounded-full shrink-0 ring-2 ring-transparent group-hover:ring-[var(--accent)]"
-                  />
-                ) : (
-                  <div className="w-7 h-7 rounded-full bg-[var(--surface-hover)] shrink-0" />
-                )}
+                <UserAvatar
+                  src={user.pfpUrl}
+                  alt={user.displayName}
+                  size="md"
+                  className="ring-2 ring-transparent group-hover:ring-[var(--accent)]"
+                />
                 {!collapsed && (
                   <div className="min-w-0 text-left">
                     <p className="text-xs font-medium text-[var(--foreground)] truncate">

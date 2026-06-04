@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import type { SessionUser } from "@/types";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useState } from "react";
 import { ComposeModal } from "@/components/cast/ComposeModal";
 import { AddColumnModal } from "@/components/feed/AddColumnModal";
@@ -54,17 +54,12 @@ export function TopBar({ user, onLogout }: TopBarProps) {
           </button>
 
           <div className="relative group">
-            {user.pfpUrl ? (
-              <Image
-                src={user.pfpUrl}
-                alt={user.displayName}
-                width={28}
-                height={28}
-                className="rounded-full cursor-pointer ring-2 ring-transparent group-hover:ring-[var(--accent)] transition-all"
-              />
-            ) : (
-              <div className="w-7 h-7 rounded-full bg-[var(--surface-hover)] cursor-pointer" />
-            )}
+            <UserAvatar
+              src={user.pfpUrl}
+              alt={user.displayName}
+              size="md"
+              className="cursor-pointer ring-2 ring-transparent group-hover:ring-[var(--accent)] transition-all"
+            />
             {/* Dropdown */}
             <div className="absolute right-0 top-full mt-2 w-48 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity z-50">
               <div className="px-3 py-2 border-b border-[var(--border)]">

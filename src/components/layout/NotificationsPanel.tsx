@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef } from "react";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useUiStore } from "@/store/ui";
 import type { HypersnapNotification } from "@/lib/notifications";
@@ -300,17 +300,7 @@ function NotificationActorAvatar({
       }}
       className="shrink-0 rounded-full hover:ring-2 hover:ring-[var(--accent)] transition-shadow focus:outline-none"
     >
-      {pfp ? (
-        <Image
-          src={pfp}
-          alt=""
-          width={36}
-          height={36}
-          className="rounded-full object-cover block"
-        />
-      ) : (
-        <div className="w-9 h-9 rounded-full bg-[var(--surface-hover)]" />
-      )}
+      <UserAvatar src={pfp} alt={username ? `@${username}` : ""} size="lg" />
     </button>
   );
 }

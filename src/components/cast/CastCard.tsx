@@ -24,6 +24,7 @@ import { SnapCard } from "@/components/cast/SnapCard";
 import { useOgMetadata } from "@/hooks/useOgMetadata";
 import { SpaceCard } from "@/components/cast/SpaceCard";
 import { TokenCard } from "@/components/cast/TokenCard";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 
 // Load VideoPlayer client-only — hls.js requires browser APIs unavailable during SSR
 const VideoPlayer = dynamic(
@@ -439,18 +440,11 @@ export function CastCard({ cast, viewerFid, threadRootHash }: CastCardProps) {
             onClick={(e) => { e.stopPropagation(); openProfile(); }}
             className="p-0 shrink-0 rounded-full hover:opacity-80 transition-opacity focus:outline-none mt-0.5"
           >
-            {author?.pfp_url ? (
-              <Image
-                src={author.pfp_url}
-                alt={author.display_name ?? author.username ?? ""}
-                width={36}
-                height={36}
-                className="rounded-full block"
-                unoptimized
-              />
-            ) : (
-              <div className="w-9 h-9 rounded-full bg-[var(--surface-hover)]" />
-            )}
+            <UserAvatar
+              src={author?.pfp_url}
+              alt={author?.display_name ?? author?.username ?? ""}
+              size="lg"
+            />
           </button>
 
           <div className="flex-1 min-w-0">
@@ -804,18 +798,7 @@ function QuotedCast({
             onClick={openAuthorProfile}
             className="shrink-0 rounded-full hover:opacity-80 focus:outline-none"
           >
-            {author?.pfp_url ? (
-              <Image
-                src={author.pfp_url}
-                alt={author.username ?? ""}
-                width={16}
-                height={16}
-                className="rounded-full block"
-                unoptimized
-              />
-            ) : (
-              <div className="w-4 h-4 rounded-full bg-[var(--surface-hover)]" />
-            )}
+            <UserAvatar src={author?.pfp_url} alt={author?.username ?? ""} size="xs" />
           </button>
           <button
             type="button"

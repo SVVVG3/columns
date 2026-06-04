@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import type { SpaceData } from "@/app/api/space/route";
 
 interface MentionedProfile {
@@ -99,18 +99,7 @@ export function SpaceCard({ url, mentionedProfiles = [], castAuthorFid }: SpaceC
 
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
-            {host?.pfp_url ? (
-              <Image
-                src={host.pfp_url}
-                alt={host.display_name}
-                width={28}
-                height={28}
-                className="rounded-full shrink-0"
-                unoptimized
-              />
-            ) : (
-              <div className="w-7 h-7 rounded-full bg-[var(--surface-hover)] shrink-0" />
-            )}
+            <UserAvatar src={host?.pfp_url} alt={host?.display_name ?? ""} size="md" />
             <div className="min-w-0">
               {host ? (
                 <p className="text-xs text-[var(--muted)] truncate">

@@ -1,3 +1,4 @@
+import { migrateChannelColumnTitle } from "@/lib/channelDisplay";
 import type { FeedColumnConfig, FeedColumnType } from "@/types";
 
 export const LAYOUT_SCHEMA_VERSION = 3 as const;
@@ -96,10 +97,19 @@ function normalizeColumn(col: Omit<FeedColumnConfig, "id">): FeedColumnConfig {
   const queries =
     col.queries ?? (col.query != null ? [col.query] : undefined);
 
-  return {
+  const normalized = {
     ...col,
-    id: crypto.randomUUID(),
     title: col.title.trim(),
+  };
+
+  return {
+    ...normalized,
+    id: crypto.randomUUID(),
+    title: migrateChannelColumnTitle({
+      type: normalized.type,
+      title: normalized.title,
+      channelIds: normalized.channelIds,
+    }),
     targetFids,
     queries,
     targetFid: undefined,
