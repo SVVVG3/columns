@@ -1,14 +1,18 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect } from "react";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useQuery } from "@tanstack/react-query";
+import type { ProfileLink } from "@/lib/profileLinks";
 import {
   farcasterProfileUrl,
   formatProfileCount,
+  formatProfileJoinedDate,
   type ProfileDetails,
   type ProfilePreviewSeed,
 } from "@/lib/profilePreview";
+import { shortenAddress, type ProfileWallet } from "@/lib/profileWallets";
 import type { FollowRelationship } from "@/lib/followCheck";
 import { renderLinkifiedText } from "@/lib/linkifyText";
 import { profileFollowStatusLines } from "@/lib/profileFollowLabels";
@@ -72,9 +76,14 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
   const username = profile?.username ?? seed.username;
   const pfpUrl = profile?.pfpUrl ?? seed.pfpUrl;
   const profileUrl = farcasterProfileUrl(username);
+  const fid = profile?.fid ?? seed.fid;
+  const joined = formatProfileJoinedDate(profile?.registeredAt);
   const followers = formatProfileCount(profile?.followerCount);
   const following = formatProfileCount(profile?.followingCount);
   const bio = profile?.bio;
+  const bannerUrl = profile?.bannerUrl;
+  const wallets = profile?.wallets ?? [];
+  const profileLinks = profile?.profileLinks ?? [];
   const followLines =
     followRel && username
       ? profileFollowStatusLines(username, followRel)
@@ -92,29 +101,73 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
         role="dialog"
         aria-labelledby="profile-preview-title"
       >
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
-          <h2 id="profile-preview-title" className="text-sm font-semibold text-[var(--foreground)]">
-            Profile
-          </h2>
-          <button
-            type="button"
-            onClick={closeProfilePreview}
-            className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors p-1"
-            aria-label="Close"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        {bannerUrl ? (
+          <div className="relative h-28 w-full bg-[var(--surface-hover)] shrink-0">
+            <Image
+              src={bannerUrl}
+              alt=""
+              fill
+              className="object-cover"
+              unoptimized
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/10 to-[var(--surface)]" />
+            <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 py-3">
+              <h2
+                id="profile-preview-title"
+                className="text-sm font-semibold text-white drop-shadow-sm"
+              >
+                Profile
+              </h2>
+              <button
+                type="button"
+                onClick={closeProfilePreview}
+                className="text-white/90 hover:text-white transition-colors p-1 rounded-lg hover:bg-black/20"
+                aria-label="Close"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between px-4 pt-4 pb-2">
+            <h2 id="profile-preview-title" className="text-sm font-semibold text-[var(--foreground)]">
+              Profile
+            </h2>
+            <button
+              type="button"
+              onClick={closeProfilePreview}
+              className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors p-1"
+              aria-label="Close"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
 
-        <div className="px-4 pb-4 flex flex-col items-center text-center">
-          <UserAvatar src={pfpUrl} alt={displayName} size="xl" className="mb-3" />
+        <div className="px-4 pb-4 flex flex-col items-center text-center max-h-[min(60vh,520px)] overflow-y-auto feed-scroll">
+          <UserAvatar
+            src={pfpUrl}
+            alt={displayName}
+            size="xl"
+            className={`mb-3 ${bannerUrl ? "-mt-10 ring-4 ring-[var(--surface)]" : ""}`}
+          />
 
           <p className="text-base font-semibold text-[var(--foreground)] leading-tight">
             {displayName}
           </p>
           <p className="text-sm text-[var(--muted)]">@{username}</p>
+
+          {fid != null && (
+            <p className="text-[10px] text-[var(--muted)] mt-1 font-mono">FID {fid}</p>
+          )}
+
+          {joined && (
+            <p className="text-xs text-[var(--muted)] mt-1">Joined {joined}</p>
+          )}
 
           {(followers != null || following != null) && (
             <p className="text-xs text-[var(--muted)] mt-2">
@@ -140,6 +193,12 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
               ))}
             </div>
           )}
+
+          {profileLinks.length > 0 && (
+            <ProfileLinksRow links={profileLinks} />
+          )}
+
+          {wallets.length > 0 && <ProfileWalletsDropdown wallets={wallets} />}
 
           {isLoading && !bio && (
             <div className="w-full mt-3 space-y-1.5 animate-pulse">
@@ -183,5 +242,61 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+function ProfileLinksRow({ links }: { links: ProfileLink[] }) {
+  return (
+    <div className="mt-2 flex flex-wrap items-center justify-center gap-2 w-full">
+      {links.map((link) => (
+        <a
+          key={link.href}
+          href={link.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-[var(--accent)] hover:underline"
+        >
+          {link.kind === "url" ? link.label : link.kind === "twitter" ? `X ${link.label}` : `GitHub ${link.label}`}
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function ProfileWalletsDropdown({ wallets }: { wallets: ProfileWallet[] }) {
+  return (
+    <details className="w-full mt-2 text-left group">
+      <summary className="text-xs text-[var(--muted)] cursor-pointer list-none flex items-center justify-center gap-1 hover:text-[var(--foreground)] transition-colors [&::-webkit-details-marker]:hidden">
+        <span>Wallets ({wallets.length})</span>
+        <svg
+          className="w-3 h-3 transition-transform group-open:rotate-180"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </summary>
+      <ul className="mt-2 rounded-xl border border-[var(--border)] bg-[var(--surface-hover)]/50 divide-y divide-[var(--border)] overflow-hidden">
+        {wallets.map((wallet) => (
+          <li key={wallet.id}>
+            <a
+              href={wallet.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between gap-2 px-3 py-2 hover:bg-[var(--surface-hover)] transition-colors"
+            >
+              <span className="text-[10px] font-medium text-[var(--muted)] shrink-0">
+                {wallet.label}
+              </span>
+              <span className="text-xs font-mono text-[var(--foreground)] truncate">
+                {shortenAddress(wallet.address)}
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
