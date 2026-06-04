@@ -9,7 +9,16 @@ import {
   type ProfileDetails,
   type ProfilePreviewSeed,
 } from "@/lib/profilePreview";
+import type { FollowRelationship } from "@/lib/followCheck";
+import { renderLinkifiedText } from "@/lib/linkifyText";
+import { profileFollowStatusLines } from "@/lib/profileFollowLabels";
 import { useUiStore } from "@/store/ui";
+
+async function fetchFollowRelationship(fid: number): Promise<FollowRelationship> {
+  const res = await fetch(`/api/user/follow-relationship?fid=${fid}`);
+  if (!res.ok) throw new Error("Failed to load follow relationship");
+  return res.json() as Promise<FollowRelationship>;
+}
 
 async function fetchProfile(seed: ProfilePreviewSeed): Promise<ProfileDetails> {
   const params = new URLSearchParams();
@@ -21,7 +30,11 @@ async function fetchProfile(seed: ProfilePreviewSeed): Promise<ProfileDetails> {
   return data.user;
 }
 
-export function ProfilePreviewModal() {
+interface ProfilePreviewModalProps {
+  viewerFid: number;
+}
+
+export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
   const seed = useUiStore((s) => s.profilePreview);
   const closeProfilePreview = useUiStore((s) => s.closeProfilePreview);
 
@@ -29,6 +42,17 @@ export function ProfilePreviewModal() {
     queryKey: ["profile", seed?.fid, seed?.username],
     queryFn: () => fetchProfile(seed!),
     enabled: !!seed,
+    staleTime: 60_000,
+  });
+
+  const targetFid = profile?.fid ?? seed?.fid;
+  const showFollowStatus =
+    targetFid != null && targetFid !== viewerFid;
+
+  const { data: followRel, isLoading: followLoading } = useQuery({
+    queryKey: ["follow-relationship", viewerFid, targetFid],
+    queryFn: () => fetchFollowRelationship(targetFid!),
+    enabled: !!showFollowStatus,
     staleTime: 60_000,
   });
 
@@ -50,6 +74,10 @@ export function ProfilePreviewModal() {
   const followers = formatProfileCount(profile?.followerCount);
   const following = formatProfileCount(profile?.followingCount);
   const bio = profile?.bio;
+  const followLines =
+    followRel && username
+      ? profileFollowStatusLines(username, followRel)
+      : [];
 
   return (
     <div
@@ -95,6 +123,23 @@ export function ProfilePreviewModal() {
             </p>
           )}
 
+          {showFollowStatus && followLoading && (
+            <div className="w-32 h-3 mt-2 rounded bg-[var(--surface-hover)] animate-pulse" />
+          )}
+
+          {followLines.length > 0 && (
+            <div className="mt-2 flex flex-col gap-0.5 w-full">
+              {followLines.map((line) => (
+                <p
+                  key={line}
+                  className="text-xs font-medium text-[var(--accent)]"
+                >
+                  {line}
+                </p>
+              ))}
+            </div>
+          )}
+
           {isLoading && !bio && (
             <div className="w-full mt-3 space-y-1.5 animate-pulse">
               <div className="h-2 rounded bg-[var(--surface-hover)] w-full" />
@@ -104,7 +149,7 @@ export function ProfilePreviewModal() {
 
           {bio && (
             <p className="text-xs text-[var(--foreground)] opacity-85 mt-3 leading-relaxed whitespace-pre-wrap break-words max-h-28 overflow-y-auto w-full">
-              {bio}
+              {renderLinkifiedText(bio)}
             </p>
           )}
 

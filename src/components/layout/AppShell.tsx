@@ -28,7 +28,7 @@ export function AppShell({ user }: AppShellProps) {
         <ColumnContainer viewerFid={user.fid} />
       </div>
       <ConversationPanel viewerFid={user.fid} />
-      <ProfilePreviewModal />
+      <ProfilePreviewModal viewerFid={user.fid} />
     </div>
   );
 }

@@ -554,22 +554,29 @@ export function CastCard({ cast, viewerFid, threadRootHash }: CastCardProps) {
                       unoptimized
                     />
                   )}
-                  <div className="flex items-center justify-between px-3 py-2 bg-[var(--surface-hover)]">
-                    <span className="text-xs font-medium text-[var(--foreground)] truncate">{frameTitle}</span>
-                    <span className="text-[10px] font-semibold text-[var(--accent)] shrink-0 ml-2 px-1.5 py-0.5 rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10">
-                      {isMiniApp ? "Cast ↗" : "Cast ↗"}
-                    </span>
-                  </div>
-                  {/* Frame buttons if present */}
+                  {!isMiniApp && (
+                    <div className="flex items-center justify-between px-3 py-2 bg-[var(--surface-hover)]">
+                      <span className="text-xs font-medium text-[var(--foreground)] truncate">
+                        {frameTitle}
+                      </span>
+                      <span className="text-[10px] font-semibold text-[var(--accent)] shrink-0 ml-2 px-1.5 py-0.5 rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10">
+                        Cast ↗
+                      </span>
+                    </div>
+                  )}
                   {matchedFrame?.buttons && matchedFrame.buttons.length > 0 && (
-                    <div className="flex gap-1.5 px-3 pb-2 flex-wrap">
+                    <div className={`px-3 pb-2.5 ${isMiniApp ? "pt-0" : ""}`}>
                       {matchedFrame.buttons.map((btn) => (
-                        <span
+                        <div
                           key={btn.index}
-                          className="text-xs px-2.5 py-1 rounded-lg border border-[var(--border)] text-[var(--muted)] bg-[var(--surface)]"
+                          className={
+                            isMiniApp
+                              ? "w-full text-center text-xs font-medium text-[var(--accent)] py-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10"
+                              : "text-xs px-2.5 py-1 rounded-lg border border-[var(--border)] text-[var(--muted)] bg-[var(--surface)] inline-block mr-1.5"
+                          }
                         >
                           {btn.title}
-                        </span>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -866,7 +873,8 @@ function OGCard({ embed, castHash }: { embed: Embed; castHash: string }) {
   const desc = og?.description || embed.metadata?.html?.ogDescription || "";
   const image = og?.image || embed.metadata?.html?.ogImage?.[0]?.url;
   const showImg = image && !imgFailed && !isXTwitter;
-  const isFrame = !!(og?.isFrame || seed?.isFrame || isMiniAppUrl(url));
+  const isMiniApp = isMiniAppUrl(url) || !!embed.metadata?.miniapp;
+  const isFrame = !!(og?.isFrame || seed?.isFrame || isMiniApp);
 
   // ── Frame / Mini App card ────────────────────────────────────────────────
   if (isFrame) {
@@ -889,14 +897,16 @@ function OGCard({ embed, castHash }: { embed: Embed; castHash: string }) {
             className="object-cover w-full max-h-48"
           />
         )}
-        <div className="flex items-center justify-between px-3 py-2 bg-[var(--surface-hover)]">
-          <span className="text-xs font-medium text-[var(--foreground)] truncate">
-            {title || hostname}
-          </span>
-          <span className="text-[10px] font-semibold text-[var(--accent)] shrink-0 ml-2 px-1.5 py-0.5 rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10">
-            Cast ↗
-          </span>
-        </div>
+        {!isMiniApp && (
+          <div className="flex items-center justify-between px-3 py-2 bg-[var(--surface-hover)]">
+            <span className="text-xs font-medium text-[var(--foreground)] truncate">
+              {title || hostname}
+            </span>
+            <span className="text-[10px] font-semibold text-[var(--accent)] shrink-0 ml-2 px-1.5 py-0.5 rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10">
+              Cast ↗
+            </span>
+          </div>
+        )}
         {frameButton && (
           <div className="px-3 pb-2.5">
             <div className="w-full text-center text-xs font-medium text-[var(--accent)] py-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 transition-colors">
