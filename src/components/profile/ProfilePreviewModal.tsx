@@ -6,6 +6,10 @@ import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useQuery } from "@tanstack/react-query";
 import type { ProfileLink } from "@/lib/profileLinks";
 import {
+  channelColumnFromSlug,
+  columnHasChannel,
+} from "@/lib/channelColumn";
+import {
   farcasterProfileUrl,
   formatProfileCount,
   formatProfileJoinedDate,
@@ -16,6 +20,7 @@ import { shortenAddress, type ProfileWallet } from "@/lib/profileWallets";
 import type { FollowRelationship } from "@/lib/followCheck";
 import { renderLinkifiedText } from "@/lib/linkifyText";
 import { profileFollowStatusLines } from "@/lib/profileFollowLabels";
+import { useColumnsStore } from "@/store/columns";
 import { useUiStore } from "@/store/ui";
 
 async function fetchFollowRelationship(fid: number): Promise<FollowRelationship> {
@@ -34,6 +39,31 @@ async function fetchProfile(seed: ProfilePreviewSeed): Promise<ProfileDetails> {
   return data.user;
 }
 
+function ModalCloseButton({
+  onClose,
+  onBanner,
+}: {
+  onClose: () => void;
+  onBanner?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClose}
+      className={
+        onBanner
+          ? "absolute top-2 right-2 z-10 text-white/90 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-black/25"
+          : "text-[var(--muted)] hover:text-[var(--foreground)] transition-colors p-1"
+      }
+      aria-label="Close"
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+  );
+}
+
 interface ProfilePreviewModalProps {
   viewerFid: number;
 }
@@ -42,6 +72,8 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
   const seed = useUiStore((s) => s.profilePreview);
   const closeProfilePreview = useUiStore((s) => s.closeProfilePreview);
   const openProfilePreview = useUiStore((s) => s.openProfilePreview);
+  const columns = useColumnsStore((s) => s.columns);
+  const addColumn = useColumnsStore((s) => s.addColumn);
 
   const { data: profile, isLoading, isError } = useQuery<ProfileDetails>({
     queryKey: ["profile", seed?.fid, seed?.username],
@@ -89,6 +121,13 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
       ? profileFollowStatusLines(username, followRel)
       : [];
 
+  function handleChannelClick(channelId: string) {
+    if (!columnHasChannel(columns, channelId)) {
+      addColumn(channelColumnFromSlug(channelId));
+    }
+    closeProfilePreview();
+  }
+
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
@@ -99,10 +138,10 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
         className="w-full max-w-sm bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-labelledby="profile-preview-title"
+        aria-label={`Profile: ${displayName}`}
       >
         {bannerUrl ? (
-          <div className="relative h-28 w-full bg-[var(--surface-hover)] shrink-0">
+          <div className="relative w-full aspect-[3/1] bg-[var(--surface-hover)] shrink-0">
             <Image
               src={bannerUrl}
               alt=""
@@ -110,63 +149,35 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
               className="object-cover"
               unoptimized
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/10 to-[var(--surface)]" />
-            <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 py-3">
-              <h2
-                id="profile-preview-title"
-                className="text-sm font-semibold text-white drop-shadow-sm"
-              >
-                Profile
-              </h2>
-              <button
-                type="button"
-                onClick={closeProfilePreview}
-                className="text-white/90 hover:text-white transition-colors p-1 rounded-lg hover:bg-black/20"
-                aria-label="Close"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+            <ModalCloseButton onClose={closeProfilePreview} onBanner />
           </div>
         ) : (
-          <div className="flex items-center justify-between px-4 pt-4 pb-2">
-            <h2 id="profile-preview-title" className="text-sm font-semibold text-[var(--foreground)]">
-              Profile
-            </h2>
-            <button
-              type="button"
-              onClick={closeProfilePreview}
-              className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors p-1"
-              aria-label="Close"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+          <div className="flex justify-end px-3 pt-3 pb-0">
+            <ModalCloseButton onClose={closeProfilePreview} />
           </div>
         )}
 
         <div className="px-4 pb-4 flex flex-col items-center text-center max-h-[min(60vh,520px)] overflow-y-auto feed-scroll">
-          <UserAvatar
-            src={pfpUrl}
-            alt={displayName}
-            size="xl"
-            className={`mb-3 ${bannerUrl ? "-mt-10 ring-4 ring-[var(--surface)]" : ""}`}
-          />
+          <UserAvatar src={pfpUrl} alt={displayName} size="xl" className="mb-3 mt-3" />
 
           <p className="text-base font-semibold text-[var(--foreground)] leading-tight">
             {displayName}
           </p>
           <p className="text-sm text-[var(--muted)]">@{username}</p>
 
-          {fid != null && (
-            <p className="text-[10px] text-[var(--muted)] mt-1 font-mono">FID {fid}</p>
-          )}
-
-          {joined && (
-            <p className="text-xs text-[var(--muted)] mt-1">Joined {joined}</p>
+          {(fid != null || wallets.length > 0) && (
+            <div className="mt-1.5 w-full flex items-center justify-center gap-3 flex-wrap">
+              {fid != null && (
+                <span className="text-[10px] text-[var(--muted)] font-mono">
+                  FID {fid}
+                </span>
+              )}
+              {wallets.length > 0 && (
+                <div className="relative">
+                  <ProfileWalletsDropdown wallets={wallets} inline />
+                </div>
+              )}
+            </div>
           )}
 
           {(followers != null || following != null) && (
@@ -175,6 +186,10 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
               {followers != null && following != null && <span> · </span>}
               {following != null && <span>{following} following</span>}
             </p>
+          )}
+
+          {joined && (
+            <p className="text-xs text-[var(--muted)] mt-1">Joined {joined}</p>
           )}
 
           {showFollowStatus && followLoading && (
@@ -198,8 +213,6 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
             <ProfileLinksRow links={profileLinks} />
           )}
 
-          {wallets.length > 0 && <ProfileWalletsDropdown wallets={wallets} />}
-
           {isLoading && !bio && (
             <div className="w-full mt-3 space-y-1.5 animate-pulse">
               <div className="h-2 rounded bg-[var(--surface-hover)] w-full" />
@@ -210,8 +223,9 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
           {bio && (
             <p className="text-xs text-[var(--foreground)] opacity-85 mt-3 leading-relaxed whitespace-pre-wrap break-words max-h-28 overflow-y-auto w-full">
               {renderLinkifiedText(bio, {
-                onMentionClick: (username) =>
-                  openProfilePreview({ username }),
+                onMentionClick: (mentionUsername) =>
+                  openProfilePreview({ username: mentionUsername }),
+                onChannelClick: handleChannelClick,
               })}
             </p>
           )}
@@ -263,10 +277,20 @@ function ProfileLinksRow({ links }: { links: ProfileLink[] }) {
   );
 }
 
-function ProfileWalletsDropdown({ wallets }: { wallets: ProfileWallet[] }) {
+function ProfileWalletsDropdown({
+  wallets,
+  inline = false,
+}: {
+  wallets: ProfileWallet[];
+  inline?: boolean;
+}) {
   return (
-    <details className="w-full mt-2 text-left group">
-      <summary className="text-xs text-[var(--muted)] cursor-pointer list-none flex items-center justify-center gap-1 hover:text-[var(--foreground)] transition-colors [&::-webkit-details-marker]:hidden">
+    <details className={`group ${inline ? "" : "w-full mt-2"} text-left`}>
+      <summary
+        className={`text-xs text-[var(--muted)] cursor-pointer list-none flex items-center gap-1 hover:text-[var(--foreground)] transition-colors [&::-webkit-details-marker]:hidden ${
+          inline ? "justify-center" : "justify-center"
+        }`}
+      >
         <span>Wallets ({wallets.length})</span>
         <svg
           className="w-3 h-3 transition-transform group-open:rotate-180"
@@ -278,7 +302,11 @@ function ProfileWalletsDropdown({ wallets }: { wallets: ProfileWallet[] }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </summary>
-      <ul className="mt-2 rounded-xl border border-[var(--border)] bg-[var(--surface-hover)]/50 divide-y divide-[var(--border)] overflow-hidden">
+      <ul
+        className={`mt-2 rounded-xl border border-[var(--border)] bg-[var(--surface-hover)]/50 divide-y divide-[var(--border)] overflow-hidden ${
+          inline ? "absolute z-20 left-1/2 -translate-x-1/2 min-w-[240px] shadow-xl" : ""
+        }`}
+      >
         {wallets.map((wallet) => (
           <li key={wallet.id}>
             <a

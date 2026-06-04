@@ -55,10 +55,17 @@ function linkFromVerifiedAccount(entry: unknown): ProfileLink | null {
   return null;
 }
 
-/** Profile URL / X / GitHub from `profile` object and `verified_accounts`. */
+export type ProfileUserDataOverrides = {
+  twitter?: string;
+  github?: string;
+  url?: string;
+};
+
+/** Profile URL / X / GitHub from profile, verified_accounts, and optional user data. */
 export function buildProfileLinks(
   profile: Record<string, unknown> | undefined,
-  verifiedAccounts: unknown[] | undefined
+  verifiedAccounts: unknown[] | undefined,
+  userData?: ProfileUserDataOverrides
 ): ProfileLink[] {
   const links: ProfileLink[] = [];
   const seen = new Set<string>();
@@ -82,17 +89,30 @@ export function buildProfileLinks(
   }
 
   const twitter =
-    profile &&
-    (readProfileString(profile.twitter) || readProfileString(profile.x));
+    (profile &&
+      (readProfileString(profile.twitter) || readProfileString(profile.x))) ||
+    userData?.twitter;
   if (twitter) {
-    const clean = twitter.replace(/^@/, "");
+    const clean = twitter.replace(/^@/, "").replace(/^_/, "");
     push({ kind: "twitter", label: `@${clean}`, href: twitterHref(clean) });
   }
 
-  const github = profile && readProfileString(profile.github);
+  const github = (profile && readProfileString(profile.github)) || userData?.github;
   if (github) {
     const clean = github.replace(/^@/, "");
     push({ kind: "github", label: `@${clean}`, href: githubHref(clean) });
+  }
+
+  const urlFromData = userData?.url;
+  if (urlFromData && !seen.has(normalizeUrl(urlFromData))) {
+    const href = normalizeUrl(urlFromData);
+    let label = urlFromData;
+    try {
+      label = new URL(href).hostname.replace(/^www\./, "");
+    } catch {
+      /* keep raw */
+    }
+    push({ kind: "url", label, href });
   }
 
   for (const entry of verifiedAccounts ?? []) {

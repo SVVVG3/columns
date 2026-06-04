@@ -3,7 +3,9 @@ import { getSession } from "@/lib/session";
 import { withCache } from "@/lib/feedCache";
 import { hsnap, apiErrorFromHypersnap } from "@/lib/hypersnap";
 import { normalizeProfileDetails, type ProfileDetails } from "@/lib/profilePreview";
+import { buildProfileLinks } from "@/lib/profileLinks";
 import { resolveUserBannerUrl } from "@/lib/userBanner";
+import { fetchProfileUserDataFields } from "@/lib/userProfileData";
 import { lookupUserByUsername } from "@/lib/userSearch";
 
 const TTL = 60_000;
@@ -17,8 +19,22 @@ async function enrichProfile(
   const profile = (raw as Record<string, unknown>).profile as
     | Record<string, unknown>
     | undefined;
-  const bannerUrl = await resolveUserBannerUrl(fid, profile);
-  return bannerUrl ? { ...base, bannerUrl } : base;
+  const profileObj = profile;
+  const [bannerUrl, userData] = await Promise.all([
+    resolveUserBannerUrl(fid, profileObj),
+    fetchProfileUserDataFields(fid),
+  ]);
+  const profileLinks = buildProfileLinks(
+    profileObj,
+    (raw as Record<string, unknown>).verified_accounts as unknown[] | undefined,
+    userData
+  );
+
+  return {
+    ...base,
+    ...(bannerUrl ? { bannerUrl } : {}),
+    profileLinks,
+  };
 }
 
 export async function GET(req: NextRequest) {

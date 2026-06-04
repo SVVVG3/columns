@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
-/** @user, https://…, or bare domains like diviswap.com */
+/** @user, /channel, https://…, or bare domains like diviswap.com */
 const TOKEN_RE =
-  /@([\w.]+)|(https?:\/\/[^\s]+)|(?<![/@\w])((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s]*)?)/gi;
+  /@([\w.]+)|(?<![^\s/])\/([a-z][a-z0-9-]*)|(https?:\/\/[^\s]+)|(?<![/@\w])((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s]*)?)/gi;
 
 function splitTrailingPunctuation(value: string): { core: string; trailing: string } {
   const core = value.replace(/[.,!?)\]|;:]+$/, "");
@@ -12,9 +12,11 @@ function splitTrailingPunctuation(value: string): { core: string; trailing: stri
 export interface LinkifyTextOptions {
   /** Open in-app profile preview when an @mention is clicked. */
   onMentionClick?: (username: string) => void;
+  /** Add a channel column when a /channel slug is clicked. */
+  onChannelClick?: (channelId: string) => void;
 }
 
-/** Turn @mentions and URLs in plain text into interactive elements. */
+/** Turn @mentions, /channels, and URLs in plain text into interactive elements. */
 export function renderLinkifiedText(
   text: string,
   options?: LinkifyTextOptions
@@ -25,7 +27,7 @@ export function renderLinkifiedText(
   let match: RegExpExecArray | null;
 
   while ((match = re.exec(text)) !== null) {
-    const [full, mentionUser, protocolUrl, bareDomain] = match;
+    const [full, mentionUser, channelSlug, protocolUrl, bareDomain] = match;
     if (match.index > lastIndex) {
       nodes.push(text.slice(lastIndex, match.index));
     }
@@ -42,6 +44,28 @@ export function renderLinkifiedText(
             onClick={(e) => {
               e.stopPropagation();
               options.onMentionClick!(username);
+            }}
+            className="text-[var(--accent)] hover:underline focus:outline-none"
+          >
+            {label}
+          </button>
+        );
+      } else {
+        nodes.push(label);
+      }
+      if (trailing) nodes.push(trailing);
+    } else if (channelSlug !== undefined) {
+      const { core: slug, trailing } = splitTrailingPunctuation(channelSlug);
+      const label = `/${slug}`;
+
+      if (options?.onChannelClick && slug) {
+        nodes.push(
+          <button
+            key={match.index}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              options.onChannelClick!(slug);
             }}
             className="text-[var(--accent)] hover:underline focus:outline-none"
           >

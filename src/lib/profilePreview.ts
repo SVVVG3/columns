@@ -96,7 +96,7 @@ export function normalizeProfileDetails(raw: unknown): ProfileDetails | null {
     custodyAddress,
     verifiedAddresses: parseVerifiedAddresses(u.verified_addresses),
   });
-  const profileLinks = buildProfileLinks(profile, verifiedAccounts);
+  const profileLinks = buildProfileLinks(profile, verifiedAccounts, undefined);
 
   return {
     fid,
