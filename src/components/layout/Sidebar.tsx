@@ -12,6 +12,9 @@ import { SidebarColumnList } from "@/components/layout/SidebarColumnList";
 import { NotificationsPanel } from "@/components/layout/NotificationsPanel";
 import { useNotificationUnread } from "@/hooks/useNotificationUnread";
 
+const SIDEBAR_WIDTH = 200;
+const NOTIFICATIONS_WIDTH = 360;
+
 interface SidebarProps {
   user: SessionUser;
   onLogout: () => void;
@@ -30,140 +33,188 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
     notificationsOpen
   );
 
-  const w = collapsed ? "w-14" : "w-[200px]";
+  const widthPx = notificationsOpen
+    ? NOTIFICATIONS_WIDTH
+    : collapsed
+      ? 56
+      : SIDEBAR_WIDTH;
+
+  function openNotifications() {
+    setProfileOpen(false);
+    setNotificationsOpen(true);
+  }
+
+  function closeNotifications() {
+    setNotificationsOpen(false);
+  }
 
   return (
     <>
       <aside
-        className={`${w} shrink-0 flex flex-col h-full border-r border-[var(--border)] bg-[var(--background)] transition-all duration-200 z-20 relative`}
+        style={{ width: widthPx }}
+        className="shrink-0 flex flex-col h-full border-r border-[var(--border)] bg-[var(--background)] transition-[width] duration-200 ease-out z-30 overflow-hidden"
       >
-        <NotificationsPanel
-          open={notificationsOpen}
-          onClose={() => setNotificationsOpen(false)}
-          viewerFid={user.fid}
-        />
-        {/* Logo + collapse toggle */}
-        <div className="flex items-center h-12 shrink-0 border-b border-[var(--border)] px-2 gap-2">
-          {!collapsed && (
-            <>
-              <ColumnsLogo />
-              <span className="font-semibold text-sm text-[var(--foreground)] truncate flex-1">Columns</span>
-            </>
-          )}
-          <button
-            onClick={() => setCollapsed((c) => !c)}
-            className={`p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors shrink-0 ${collapsed ? "mx-auto" : "ml-auto"}`}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {collapsed ? <IconChevronRight /> : <IconChevronLeft />}
-          </button>
-        </div>
-
-        {/* Nav actions */}
-        <nav className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto min-h-0">
-          {/* Compose */}
-          <SidebarButton
-            collapsed={collapsed}
-            icon={<IconPlus />}
-            label="New Cast"
-            accent
-            onClick={() => setComposeOpen(true)}
-          />
-
-          <SidebarButton
-            collapsed={collapsed}
-            icon={<IconBell />}
-            label="Notifications"
-            active={notificationsOpen}
-            badge={hasUnreadNotifications && !notificationsOpen}
-            title={
-              hasUnreadNotifications && !notificationsOpen
-                ? "Notifications — new activity"
-                : "Notifications"
-            }
-            onClick={() => setNotificationsOpen((o) => !o)}
-          />
-
-          {/* Add column */}
-          <SidebarButton
-            collapsed={collapsed}
-            icon={<IconColumns />}
-            label="Add column"
-            onClick={() => setAddColumnOpen(true)}
-          />
-
-          {/* Import a shared column */}
-          <SidebarButton
-            collapsed={collapsed}
-            icon={<IconImport />}
-            label="Import column"
-            onClick={() => setImportColumnOpen(true)}
-          />
-
-          {!collapsed && <SidebarColumnList />}
-
-          <div className="mt-auto" />
-
-          {/* Theme toggle */}
-          <SidebarButton
-            collapsed={collapsed}
-            icon={theme === "dark" ? <IconSun /> : <IconMoon />}
-            label={theme === "dark" ? "Light mode" : "Dark mode"}
-            onClick={toggleTheme}
-          />
-        </nav>
-
-        {/* Profile */}
-        <div className="shrink-0 border-t border-[var(--border)] p-2 relative">
-          <button
-            onClick={() => setProfileOpen((o) => !o)}
-            className={`w-full flex items-center gap-2.5 rounded-xl px-2 py-2 hover:bg-[var(--surface-hover)] transition-colors ${collapsed ? "justify-center" : ""}`}
-          >
-            {user.pfpUrl ? (
-              <Image
-                src={user.pfpUrl}
-                alt={user.displayName}
-                width={28}
-                height={28}
-                className="rounded-full shrink-0 ring-2 ring-transparent group-hover:ring-[var(--accent)]"
-              />
-            ) : (
-              <div className="w-7 h-7 rounded-full bg-[var(--surface-hover)] shrink-0" />
-            )}
-            {!collapsed && (
-              <div className="min-w-0 text-left">
-                <p className="text-xs font-medium text-[var(--foreground)] truncate">{user.displayName}</p>
-                <p className="text-[10px] text-[var(--muted)] truncate">@{user.username}</p>
-              </div>
-            )}
-          </button>
-
-          {/* Profile dropdown */}
-          {profileOpen && (
-            <div
-              className="absolute bottom-full mb-1 left-2 right-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-50"
-              onMouseLeave={() => setProfileOpen(false)}
-            >
-              <a
-                href={`https://farcaster.xyz/${user.username}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setProfileOpen(false)}
-                className="flex flex-col px-3 py-2 border-b border-[var(--border)] hover:bg-[var(--surface-hover)] rounded-t-xl transition-colors"
-              >
-                <p className="text-sm font-medium text-[var(--foreground)] truncate">{user.displayName}</p>
-                <p className="text-xs text-[var(--muted)] truncate">@{user.username} ↗</p>
-              </a>
+        {notificationsOpen ? (
+          <>
+            <div className="flex items-center h-12 shrink-0 border-b border-[var(--border)] px-2 gap-2">
               <button
-                onClick={() => { setProfileOpen(false); onLogout(); }}
-                className="w-full text-left px-3 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] rounded-b-xl transition-colors"
+                type="button"
+                onClick={closeNotifications}
+                className="p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors shrink-0"
+                title="Back to sidebar (Esc)"
               >
-                Sign out
+                <IconChevronLeft />
+              </button>
+              <span className="font-semibold text-sm text-[var(--foreground)] truncate flex-1">
+                Notifications
+              </span>
+            </div>
+            <NotificationsPanel
+              open={notificationsOpen}
+              onClose={closeNotifications}
+              viewerFid={user.fid}
+            />
+          </>
+        ) : (
+          <>
+            <div className="flex items-center h-12 shrink-0 border-b border-[var(--border)] px-2 gap-2">
+              {!collapsed && (
+                <>
+                  <ColumnsLogo />
+                  <span className="font-semibold text-sm text-[var(--foreground)] truncate flex-1">
+                    Columns
+                  </span>
+                </>
+              )}
+              <button
+                onClick={() => setCollapsed((c) => !c)}
+                className={`p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors shrink-0 ${collapsed ? "mx-auto" : "ml-auto"}`}
+                title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                {collapsed ? <IconChevronRight /> : <IconChevronLeft />}
               </button>
             </div>
-          )}
-        </div>
+
+            <nav className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto min-h-0">
+              <SidebarButton
+                collapsed={collapsed}
+                icon={<IconPlus />}
+                label="New Cast"
+                accent
+                onClick={() => setComposeOpen(true)}
+              />
+
+              <SidebarButton
+                collapsed={collapsed}
+                icon={<IconBell />}
+                label="Notifications"
+                badge={hasUnreadNotifications}
+                title={
+                  hasUnreadNotifications
+                    ? "Notifications — new activity"
+                    : "Notifications"
+                }
+                onClick={openNotifications}
+              />
+
+              <SidebarButton
+                collapsed={collapsed}
+                icon={<IconColumns />}
+                label="Add column"
+                onClick={() => setAddColumnOpen(true)}
+              />
+
+              <SidebarButton
+                collapsed={collapsed}
+                icon={<IconImport />}
+                label="Import column"
+                onClick={() => setImportColumnOpen(true)}
+              />
+
+              {!collapsed && <SidebarColumnList />}
+
+              <div className="mt-auto" />
+
+              <SidebarButton
+                collapsed={collapsed}
+                icon={theme === "dark" ? <IconSun /> : <IconMoon />}
+                label={theme === "dark" ? "Light mode" : "Dark mode"}
+                onClick={toggleTheme}
+              />
+            </nav>
+
+            <div className="shrink-0 border-t border-[var(--border)] p-2 relative">
+              <button
+                onClick={() => setProfileOpen((o) => !o)}
+                className={`w-full flex items-center gap-2.5 rounded-xl px-2 py-2 hover:bg-[var(--surface-hover)] transition-colors ${collapsed ? "justify-center" : ""}`}
+              >
+                {user.pfpUrl ? (
+                  <Image
+                    src={user.pfpUrl}
+                    alt={user.displayName}
+                    width={28}
+                    height={28}
+                    className="rounded-full shrink-0 ring-2 ring-transparent group-hover:ring-[var(--accent)]"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-[var(--surface-hover)] shrink-0" />
+                )}
+                {!collapsed && (
+                  <div className="min-w-0 text-left">
+                    <p className="text-xs font-medium text-[var(--foreground)] truncate">
+                      {user.displayName}
+                    </p>
+                    <p className="text-[10px] text-[var(--muted)] truncate">
+                      @{user.username}
+                    </p>
+                  </div>
+                )}
+              </button>
+
+              {profileOpen && (
+                <div
+                  className="absolute bottom-full mb-1 left-2 right-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-50"
+                  onMouseLeave={() => setProfileOpen(false)}
+                >
+                  <a
+                    href={`https://farcaster.xyz/${user.username}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setProfileOpen(false)}
+                    className="flex flex-col px-3 py-2 border-b border-[var(--border)] hover:bg-[var(--surface-hover)] rounded-t-xl transition-colors"
+                  >
+                    <p className="text-sm font-medium text-[var(--foreground)] truncate">
+                      {user.displayName}
+                    </p>
+                    <p className="text-xs text-[var(--muted)] truncate">
+                      @{user.username} ↗
+                    </p>
+                  </a>
+                  <button
+                    onClick={() => {
+                      setProfileOpen(false);
+                      onLogout();
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] rounded-b-xl transition-colors"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </aside>
+
+      {notificationsOpen && (
+        <button
+          type="button"
+          className="fixed top-0 right-0 bottom-0 z-20 cursor-default bg-black/20"
+          style={{ left: NOTIFICATIONS_WIDTH }}
+          aria-label="Close notifications"
+          onClick={closeNotifications}
+        />
+      )}
 
       {composeOpen && <ComposeModal onClose={() => setComposeOpen(false)} />}
       {addColumnOpen && <AddColumnModal onClose={() => setAddColumnOpen(false)} />}
@@ -188,7 +239,6 @@ function SidebarButton({
   label: string;
   accent?: boolean;
   active?: boolean;
-  /** Purple dot when there are unread notifications */
   badge?: boolean;
   title?: string;
   onClick: () => void;

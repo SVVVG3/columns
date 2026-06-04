@@ -8,12 +8,16 @@ import type { HypersnapNotification } from "@/lib/notifications";
 import {
   aggregateNotificationKey,
   aggregateNotifications,
-  formatNotificationSummary,
+  farcasterProfileUrl,
   formatNotificationTime,
+  isCastTargetNotification,
+  notificationActionSuffix,
   notificationActor,
+  notificationActorCount,
+  notificationActorDisplayName,
   notificationCastHash,
-  notificationCastPreview,
 } from "@/lib/notifications";
+import { NotificationCastPreview } from "@/components/notifications/NotificationCastPreview";
 
 function isFollowNotification(n: HypersnapNotification): boolean {
   return n.type === "follows" || n.type === "follow";
@@ -30,6 +34,7 @@ interface NotificationsResponse {
   next?: { cursor?: string } | null;
 }
 
+/** Notifications list — rendered inside the sidebar when open. */
 export function NotificationsPanel({ open, onClose, viewerFid }: NotificationsPanelProps) {
   const openConversation = useUiStore((s) => s.openConversation);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -107,86 +112,56 @@ export function NotificationsPanel({ open, onClose, viewerFid }: NotificationsPa
     }
   }
 
+  if (!open) return null;
+
   return (
-    <>
-      <div
-        className={`absolute left-full top-0 bottom-0 w-[360px] flex flex-col bg-[var(--background)] border-r border-[var(--border)] shadow-xl z-50 transition-transform duration-200 ease-out ${
-          open ? "translate-x-0" : "-translate-x-2 pointer-events-none opacity-0"
-        }`}
-        aria-hidden={!open}
-      >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)] shrink-0">
-          <span className="text-sm font-semibold text-[var(--foreground)]">Notifications</span>
+    <div ref={scrollRef} className="flex-1 overflow-y-auto feed-scroll min-h-0">
+      {isLoading && (
+        <div className="flex flex-col gap-2 p-3">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="flex gap-2.5 animate-pulse p-2">
+              <div className="w-9 h-9 rounded-full bg-[var(--surface-hover)] shrink-0" />
+              <div className="flex-1 space-y-2 pt-1">
+                <div className="h-2.5 w-32 rounded bg-[var(--surface-hover)]" />
+                <div className="h-2 w-full rounded bg-[var(--surface-hover)]" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isError && (
+        <div className="flex flex-col items-center gap-2 py-12 px-4 text-center">
+          <p className="text-sm text-red-400">Couldn&apos;t load notifications.</p>
           <button
             type="button"
-            onClick={onClose}
-            className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors p-1 rounded-lg"
-            title="Close (Esc)"
+            onClick={() => refetch()}
+            className="text-xs text-[var(--accent)] hover:underline"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            Try again
           </button>
         </div>
-
-        <div ref={scrollRef} className="flex-1 overflow-y-auto feed-scroll">
-          {isLoading && (
-            <div className="flex flex-col gap-2 p-3">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="flex gap-2.5 animate-pulse p-2">
-                  <div className="w-9 h-9 rounded-full bg-[var(--surface-hover)] shrink-0" />
-                  <div className="flex-1 space-y-2 pt-1">
-                    <div className="h-2.5 w-32 rounded bg-[var(--surface-hover)]" />
-                    <div className="h-2 w-full rounded bg-[var(--surface-hover)]" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {isError && (
-            <div className="flex flex-col items-center gap-2 py-12 px-4 text-center">
-              <p className="text-sm text-red-400">Couldn&apos;t load notifications.</p>
-              <button
-                type="button"
-                onClick={() => refetch()}
-                className="text-xs text-[var(--accent)] hover:underline"
-              >
-                Try again
-              </button>
-            </div>
-          )}
-
-          {!isLoading && !isError && items.length === 0 && (
-            <div className="flex items-center justify-center py-16 px-4 text-sm text-[var(--muted)] text-center">
-              No notifications yet.
-            </div>
-          )}
-
-          {items.map((n) => (
-            <NotificationRow
-              key={aggregateNotificationKey(n)}
-              notification={n}
-              onClick={() => handleClick(n)}
-            />
-          ))}
-
-          {isFetchingNextPage && (
-            <p className="text-center text-xs text-[var(--muted)] py-3">Loading more…</p>
-          )}
-          <div ref={loadMoreRef} className="h-1 shrink-0" />
-        </div>
-      </div>
-
-      {open && (
-        <button
-          type="button"
-          className="fixed inset-0 z-40 cursor-default"
-          aria-label="Close notifications"
-          onClick={onClose}
-        />
       )}
-    </>
+
+      {!isLoading && !isError && items.length === 0 && (
+        <div className="flex items-center justify-center py-16 px-4 text-sm text-[var(--muted)] text-center">
+          No notifications yet.
+        </div>
+      )}
+
+      {items.map((n) => (
+        <NotificationRow
+          key={aggregateNotificationKey(n)}
+          notification={n}
+          onClick={() => handleClick(n)}
+        />
+      ))}
+
+      {isFetchingNextPage && (
+        <p className="text-center text-xs text-[var(--muted)] py-3">Loading more…</p>
+      )}
+      <div ref={loadMoreRef} className="h-1 shrink-0" />
+    </div>
   );
 }
 
@@ -199,45 +174,132 @@ function NotificationRow({
 }) {
   const actor = notificationActor(n);
   const pfp = actor?.pfp_url ?? actor?.pfpUrl ?? "";
-  const hash = notificationCastHash(n);
-  const preview = notificationCastPreview(n);
-  const clickable = !!hash || isFollowNotification(n);
+  const profileUrl = farcasterProfileUrl(actor?.username as string | undefined);
+  const clickable = !!notificationCastHash(n) || isFollowNotification(n);
+  const showCastPreview = isCastTargetNotification(n) && !!n.cast;
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!clickable}
-      className={`w-full text-left flex gap-2.5 px-3 py-3 border-b border-[var(--border)] transition-colors ${
-        clickable
-          ? "hover:bg-[var(--surface-hover)] cursor-pointer"
-          : "cursor-default opacity-90"
+    <div
+      className={`w-full text-left px-3 py-3 border-b border-[var(--border)] transition-colors ${
+        clickable ? "hover:bg-[var(--surface-hover)]" : ""
       }`}
     >
-      {pfp ? (
-        <Image
-          src={pfp}
-          alt=""
-          width={36}
-          height={36}
-          className="rounded-full shrink-0 object-cover"
-        />
-      ) : (
-        <div className="w-9 h-9 rounded-full bg-[var(--surface-hover)] shrink-0" />
-      )}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-2">
-          <p className="text-xs font-medium text-[var(--foreground)] leading-snug">
-            {formatNotificationSummary(n)}
-          </p>
-          <span className="text-[10px] text-[var(--muted)] shrink-0">
-            {formatNotificationTime(n)}
-          </span>
+      <div
+        role={clickable ? "button" : undefined}
+        tabIndex={clickable ? 0 : undefined}
+        onClick={clickable ? onClick : undefined}
+        onKeyDown={
+          clickable
+            ? (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onClick();
+                }
+              }
+            : undefined
+        }
+        className={clickable ? "cursor-pointer" : ""}
+      >
+        <div className="flex gap-2.5">
+          <NotificationActorAvatar
+            pfp={pfp}
+            profileUrl={profileUrl}
+            username={actor?.username as string | undefined}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <NotificationSummaryLine notification={n} />
+              <span className="text-[10px] text-[var(--muted)] shrink-0">
+                {formatNotificationTime(n)}
+              </span>
+            </div>
+          </div>
         </div>
-        {preview && (
-          <p className="text-xs text-[var(--muted)] mt-1 line-clamp-2">{preview}</p>
-        )}
       </div>
-    </button>
+      {showCastPreview && (
+        <div
+          className={`pl-[46px] ${clickable ? "cursor-pointer" : ""}`}
+          role={clickable ? "button" : undefined}
+          tabIndex={clickable ? 0 : undefined}
+          onClick={clickable ? onClick : undefined}
+          onKeyDown={
+            clickable
+              ? (e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onClick();
+                  }
+                }
+              : undefined
+          }
+        >
+          <NotificationCastPreview notification={n} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NotificationActorAvatar({
+  pfp,
+  profileUrl,
+  username,
+}: {
+  pfp: string;
+  profileUrl: string | null;
+  username?: string;
+}) {
+  const img = pfp ? (
+    <Image
+      src={pfp}
+      alt=""
+      width={36}
+      height={36}
+      className="rounded-full shrink-0 object-cover"
+    />
+  ) : (
+    <div className="w-9 h-9 rounded-full bg-[var(--surface-hover)] shrink-0" />
+  );
+
+  if (!profileUrl) return <div className="shrink-0">{img}</div>;
+
+  return (
+    <a
+      href={profileUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={username ? `@${username} on Farcaster` : "Profile on Farcaster"}
+      onClick={(e) => e.stopPropagation()}
+      className="shrink-0 rounded-full hover:ring-2 hover:ring-[var(--accent)] transition-shadow"
+    >
+      {img}
+    </a>
+  );
+}
+
+function NotificationSummaryLine({ notification: n }: { notification: HypersnapNotification }) {
+  const actor = notificationActor(n);
+  const name = notificationActorDisplayName(actor);
+  const username = actor?.username as string | undefined;
+  const profileUrl = farcasterProfileUrl(username);
+  const suffix = notificationActionSuffix(n, notificationActorCount(n));
+
+  return (
+    <p className="text-xs font-medium text-[var(--foreground)] leading-snug">
+      {profileUrl ? (
+        <a
+          href={profileUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-[var(--accent)] hover:underline"
+        >
+          {name}
+        </a>
+      ) : (
+        <span>{name}</span>
+      )}
+      <span>{suffix}</span>
+    </p>
   );
 }

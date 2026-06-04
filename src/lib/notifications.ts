@@ -176,33 +176,61 @@ export function notificationActorCount(n: HypersnapNotification): number {
   return 1;
 }
 
-export function formatNotificationSummary(n: HypersnapNotification): string {
-  const actor = notificationActor(n);
-  const name =
-    actor?.display_name ?? actor?.displayName ?? actor?.username ?? "Someone";
-  const count = notificationActorCount(n);
+export function farcasterProfileUrl(
+  username: string | undefined | null
+): string | null {
+  if (!username || typeof username !== "string") return null;
+  const clean = username.replace(/^@/, "").trim();
+  return clean ? `https://farcaster.xyz/${clean}` : null;
+}
+
+export function notificationActorDisplayName(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  actor: Record<string, any> | null
+): string {
+  if (!actor) return "Someone";
+  return (
+    (actor.display_name as string) ??
+    (actor.displayName as string) ??
+    (actor.username as string) ??
+    "Someone"
+  );
+}
+
+/** Text after the actor name(s), e.g. " liked your cast". */
+export function notificationActionSuffix(
+  n: HypersnapNotification,
+  count: number
+): string {
   const others =
     count > 1 ? ` and ${count - 1} other${count === 2 ? "" : "s"}` : "";
 
   switch (n.type) {
     case "likes":
-      return `${name}${others} liked your cast`;
+      return `${others} liked your cast`;
     case "recasts":
-      return `${name}${others} recasted your cast`;
+      return `${others} recasted your cast`;
     case "reaction":
-      return `${name}${others} reacted to your cast`;
+      return `${others} reacted to your cast`;
     case "follows":
     case "follow":
-      return `${name}${others} followed you`;
+      return `${others} followed you`;
     case "reply":
     case "cast-reply":
-      return `${name} replied to your cast`;
+      return " replied to your cast";
     case "mention":
     case "cast-mention":
-      return `${name} mentioned you`;
+      return " mentioned you";
     default:
-      return `${name} interacted with you`;
+      return `${others} interacted with you`;
   }
+}
+
+export function formatNotificationSummary(n: HypersnapNotification): string {
+  const actor = notificationActor(n);
+  const name = notificationActorDisplayName(actor);
+  const count = notificationActorCount(n);
+  return `${name}${notificationActionSuffix(n, count)}`;
 }
 
 /** Cast hash to open in the thread panel (reply → reply cast; like → your cast). */
@@ -216,6 +244,26 @@ export function notificationCastPreview(n: HypersnapNotification): string {
   if (text) return text.length > 120 ? `${text.slice(0, 120)}…` : text;
   if (n.cast?.embeds?.length) return "Embedded media";
   return "";
+}
+
+export function isReplyNotification(n: HypersnapNotification): boolean {
+  return n.type === "reply" || n.type === "cast-reply";
+}
+
+export function isCastTargetNotification(n: HypersnapNotification): boolean {
+  return (
+    n.type === "likes" ||
+    n.type === "recasts" ||
+    n.type === "reaction" ||
+    isReplyNotification(n) ||
+    n.type === "mention" ||
+    n.type === "cast-mention"
+  );
+}
+
+export function notificationParentHash(n: HypersnapNotification): string | null {
+  const hash = n.cast?.parent_hash;
+  return typeof hash === "string" && hash.length > 0 ? hash : null;
 }
 
 /** Unix ms for comparing unread state. */
