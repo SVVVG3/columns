@@ -176,13 +176,7 @@ export function notificationActorCount(n: HypersnapNotification): number {
   return 1;
 }
 
-export function farcasterProfileUrl(
-  username: string | undefined | null
-): string | null {
-  if (!username || typeof username !== "string") return null;
-  const clean = username.replace(/^@/, "").trim();
-  return clean ? `https://farcaster.xyz/${clean}` : null;
-}
+export { farcasterProfileUrl } from "@/lib/profilePreview";
 
 export function notificationActorDisplayName(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

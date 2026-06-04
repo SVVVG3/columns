@@ -16,12 +16,16 @@ export async function GET(req: NextRequest) {
   const cursor = searchParams.get("cursor") ?? undefined;
   const limit = Math.min(50, Math.max(1, Number(searchParams.get("limit")) || 20));
   const fid = session.user.fid;
+  const fresh = searchParams.get("fresh") === "1";
   const cacheKey = `${fid}:notifications:${cursor ?? ""}:${limit}`;
 
   try {
-    const data = await withCache(cacheKey, TTL, () =>
-      fetchNotificationsPage(fid, { cursor, limit })
-    );
+    const data =
+      fresh && !cursor
+        ? await fetchNotificationsPage(fid, { cursor, limit })
+        : await withCache(cacheKey, TTL, () =>
+            fetchNotificationsPage(fid, { cursor, limit })
+          );
     return NextResponse.json(data);
   } catch (err: unknown) {
     return apiErrorFromHypersnap(err, "[/api/notifications]");

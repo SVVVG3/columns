@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCache } from "@/lib/feedCache";
-import { parseTokenUrl } from "@/lib/tokenEmbed";
+import { parseTokenUrl, tokenCacheKey, type ParsedTokenUrl } from "@/lib/tokenEmbed";
+import { resolveTokenCaFromTx } from "@/lib/resolveTokenFromTx";
 
 const TTL = 60_000; // 1 min — holder count / age can shift
 
@@ -47,19 +48,43 @@ async function fetchToken(chain: string, ca: string, url: string): Promise<Token
 
   const data = (await res.json()) as FcTokenResponse;
   const t = data.result?.token;
-  if (!t?.ticker) {
+  const ticker = t?.ticker?.trim();
+  if (!t || !ticker) {
     throw new Error("Token not found");
   }
 
   return {
-    name: t.name?.trim() || t.ticker,
-    ticker: t.ticker,
+    name: t.name?.trim() || ticker,
+    ticker,
     imageUrl: t.imageUrl,
     chain: t.chain ?? chain,
     ca: t.ca ?? ca,
     holderCount: t.holderCount,
     createdAt: t.source?.createdAt,
     description: t.description,
+    url,
+  };
+}
+
+async function resolveParsed(parsed: ParsedTokenUrl): Promise<{ chain: string; ca: string } | null> {
+  if (parsed.ca) return { chain: parsed.chain, ca: parsed.ca };
+  const ca = await resolveTokenCaFromTx(parsed);
+  if (!ca) return null;
+  return { chain: parsed.chain, ca };
+}
+
+function fallbackToken(
+  parsed: ParsedTokenUrl,
+  url: string,
+  ca: string,
+  label?: string
+): TokenData {
+  const short = ca.slice(2, 8).toUpperCase();
+  return {
+    name: label ?? "Onchain token",
+    ticker: label ? label.replace(/^\$/, "") : short,
+    chain: parsed.chain,
+    ca,
     url,
   };
 }
@@ -75,25 +100,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "valid token url required" }, { status: 400 });
   }
 
+  const cacheKey = `token:${tokenCacheKey(parsed)}`;
+  if (!cacheKey || cacheKey === "token:") {
+    return NextResponse.json({ error: "valid token url required" }, { status: 400 });
+  }
+
   try {
-    const data = await withCache(
-      `token:${parsed.chain}:${parsed.ca}`,
-      TTL,
-      () => fetchToken(parsed.chain, parsed.ca, url)
-    );
+    const data = await withCache(cacheKey, TTL, async () => {
+      const resolved = await resolveParsed(parsed);
+      if (!resolved) {
+        if (parsed.txHash) {
+          return fallbackToken(parsed, url, parsed.txHash, "TX");
+        }
+        throw new Error("Token not found");
+      }
+      try {
+        return await fetchToken(resolved.chain, resolved.ca, url);
+      } catch {
+        return fallbackToken(parsed, url, resolved.ca);
+      }
+    });
     return NextResponse.json(data, {
       headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" },
     });
   } catch {
-    return NextResponse.json(
-      {
-        name: "Token",
-        ticker: parsed.ca.slice(0, 6).toUpperCase(),
-        chain: parsed.chain,
-        ca: parsed.ca,
-        url,
-      } satisfies TokenData,
-      { status: 200 }
-    );
+    const ca = parsed.ca ?? parsed.txHash ?? "0x0";
+    return NextResponse.json(fallbackToken(parsed, url, ca), { status: 200 });
   }
 }

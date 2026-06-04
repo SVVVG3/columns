@@ -57,10 +57,6 @@ export function useNotificationUnread(viewerFid: number, panelOpen: boolean) {
     setLastSeenMs(seen);
   }, [latestMs, storageKey]);
 
-  useEffect(() => {
-    if (panelOpen) markSeen();
-  }, [panelOpen, markSeen]);
-
   const hasUnread = unreadCount > 0;
 
   const invalidate = useCallback(() => {

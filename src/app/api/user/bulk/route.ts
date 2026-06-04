@@ -3,7 +3,7 @@ import { hsnap, apiErrorFromHypersnap } from "@/lib/hypersnap";
 import { getSession } from "@/lib/session";
 import { withCache } from "@/lib/feedCache";
 
-const TTL = 120_000;
+const TTL = 60_000; // ~1 min per Hypersnap read-client guidance
 
 export async function GET(req: NextRequest) {
   const session = await getSession();

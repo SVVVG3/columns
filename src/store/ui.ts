@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import type { ProfilePreviewSeed } from "@/lib/profilePreview";
 
 interface UiState {
   /** Navigation stack of cast hashes — current is last, empty means panel closed */
@@ -12,6 +13,9 @@ interface UiState {
   /** Pop the current cast off the stack (go back, or close if at root) */
   goBack: () => void;
   closeConversation: () => void;
+  profilePreview: ProfilePreviewSeed | null;
+  openProfilePreview: (seed: ProfilePreviewSeed) => void;
+  closeProfilePreview: () => void;
 }
 
 export const useUiStore = create<UiState>()((set) => ({
@@ -32,4 +36,7 @@ export const useUiStore = create<UiState>()((set) => ({
     }),
   closeConversation: () =>
     set({ conversationHistory: [], selectedCastHash: null }),
+  profilePreview: null,
+  openProfilePreview: (seed) => set({ profilePreview: seed }),
+  closeProfilePreview: () => set({ profilePreview: null }),
 }));

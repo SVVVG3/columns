@@ -1,6 +1,6 @@
 import { isSpaceEmbedUrl } from "@/lib/spaceEmbed";
 import { isSnapEmbedUrl } from "@/lib/snapEmbed";
-import { isTokenEmbedUrl } from "@/lib/tokenEmbed";
+import { isEip155EmbedUri, isTokenEmbedUrl } from "@/lib/tokenEmbed";
 
 export interface OGData {
   title?: string;
@@ -82,7 +82,9 @@ export function embedNeedsOgFetch(
   const url = embed.url;
   if (!url) return false;
   if (isImageUrl(url, embed) || isVideoUrl(url, embed)) return false;
-  if (isSpaceEmbedUrl(url) || isTokenEmbedUrl(url) || isSnapEmbedUrl(url)) return false;
+  if (isSpaceEmbedUrl(url) || isTokenEmbedUrl(url) || isEip155EmbedUri(url) || isSnapEmbedUrl(url)) {
+    return false;
+  }
 
   const castFrames: Array<{ frames_url?: string; image?: string; title?: string }> =
     cast.frames ?? [];

@@ -7,11 +7,17 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ComposeModal } from "@/components/cast/ComposeModal";
 import { ReplyModal } from "@/components/cast/ReplyModal";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
+import { profileSeedFromUnknown } from "@/lib/profilePreview";
 import { useUiStore } from "@/store/ui";
 import { useQuotedCast } from "@/hooks/useQuotedCast";
 import { isQuotedCastSeed } from "@/lib/castLookup";
 import { isSpaceEmbedUrl } from "@/lib/spaceEmbed";
-import { collectTokenEmbedUrls, isSameTokenUrl, isTokenEmbedUrl } from "@/lib/tokenEmbed";
+import {
+  collectTokenEmbedUrls,
+  isEip155EmbedUri,
+  isSameTokenUrl,
+  isTokenEmbedUrl,
+} from "@/lib/tokenEmbed";
 import { isMiniAppUrl, ogSeedFromEmbed } from "@/lib/ogLookup";
 import { castConversationUrl, isSnapEmbedUrl, normalizeSnapUrl } from "@/lib/snapEmbed";
 import { SnapCard } from "@/components/cast/SnapCard";
@@ -84,7 +90,8 @@ function renderCastText(
   /** URLs that already have an embed card — omit them from inline text */
   embedUrlSet?: Set<string>,
   /** Token URLs rendered as TokenCard — suppress inline link even if not in embedUrlSet */
-  tokenUrls?: string[]
+  tokenUrls?: string[],
+  onProfileMentionClick?: (username: string) => void
 ): React.ReactNode[] {
   const knownUsernames = new Set<string>(
     (mentionedProfiles ?? []).map((u: { username: string }) => u.username)
@@ -111,16 +118,17 @@ function renderCastText(
       const username = full.slice(1);
       if (knownUsernames.has(username)) {
         nodes.push(
-          <a
+          <button
             key={match.index}
-            href={`https://farcaster.xyz/${username}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="text-[var(--accent)] hover:underline"
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onProfileMentionClick?.(username);
+            }}
+            className="text-[var(--accent)] hover:underline focus:outline-none"
           >
             {full}
-          </a>
+          </button>
         );
       } else {
         nodes.push(full);
@@ -228,7 +236,7 @@ function isFrameEmbed(e: Embed, castFrameUrls: Set<string>): boolean {
 // ─── Component ────────────────────────────────────────────────────────────────
 export function CastCard({ cast, viewerFid, threadRootHash }: CastCardProps) {
   const queryClient = useQueryClient();
-  const { openConversation } = useUiStore();
+  const { openConversation, openProfilePreview } = useUiStore();
   const [replyOpen, setReplyOpen] = useState(false);
   const [quoteComposeOpen, setQuoteComposeOpen] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
@@ -258,8 +266,17 @@ export function CastCard({ cast, viewerFid, threadRootHash }: CastCardProps) {
   }, [recastMenuOpen]);
 
   function openProfile() {
-    const username = author?.username;
-    if (username) window.open(`https://farcaster.xyz/${username}`, "_blank", "noopener,noreferrer");
+    const seed = profileSeedFromUnknown(author);
+    if (seed) openProfilePreview(seed);
+  }
+
+  function openMentionProfile(username: string) {
+    const list = (cast.mentioned_profiles ?? []) as Record<string, unknown>[];
+    const match = list.find(
+      (p) => typeof p.username === "string" && p.username.toLowerCase() === username.toLowerCase()
+    );
+    const seed = profileSeedFromUnknown(match ?? { username });
+    if (seed) openProfilePreview(seed);
   }
 
   function openCast() {
@@ -405,7 +422,9 @@ export function CastCard({ cast, viewerFid, threadRootHash }: CastCardProps) {
       !!e.url &&
       !isSpaceEmbedUrl(e.url) &&
       !isTokenEmbedUrl(e.url) &&
-      !isSnapEmbedUrl(e.url)
+      !isEip155EmbedUri(e.url) &&
+      !isSnapEmbedUrl(e.url) &&
+      (e.url.startsWith("http://") || e.url.startsWith("https://"))
   );
 
   return (
@@ -466,7 +485,8 @@ export function CastCard({ cast, viewerFid, threadRootHash }: CastCardProps) {
                     ...spaceEmbeds.map((e) => e.url),
                     ...tokenUrls,
                   ].filter(Boolean) as string[]),
-                  tokenUrls
+                  tokenUrls,
+                  openMentionProfile
                 )}
               </p>
             )}
@@ -721,7 +741,7 @@ function QuotedCast({
   hash: string;
   seed: Record<string, unknown> | null;
 }) {
-  const { openConversation } = useUiStore();
+  const { openConversation, openProfilePreview } = useUiStore();
   const seedForQuery = seed && isQuotedCastSeed(seed) ? seed : null;
   const { data: cast, isPending, isFetching } = useQuotedCast(hash, seedForQuery);
   const loading = (isPending || isFetching) && !cast;
@@ -737,12 +757,28 @@ function QuotedCast({
 
   if (!cast) return null;
 
+  const quotedCast = cast;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const author = cast.author as any;
-  const text = cast.text as string | undefined;
+  const author = quotedCast.author as any;
+  const text = quotedCast.text as string | undefined;
+
+  function openAuthorProfile(e: React.MouseEvent) {
+    e.stopPropagation();
+    const profile = profileSeedFromUnknown(author);
+    if (profile) openProfilePreview(profile);
+  }
+
+  function openMentionProfile(username: string) {
+    const list = (quotedCast.mentioned_profiles ?? []) as Record<string, unknown>[];
+    const match = list.find(
+      (p) => typeof p.username === "string" && p.username.toLowerCase() === username.toLowerCase()
+    );
+    const profile = profileSeedFromUnknown(match ?? { username });
+    if (profile) openProfilePreview(profile);
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const embeds: any[] = (cast.embeds as any[]) ?? [];
+  const embeds: any[] = (quotedCast.embeds as any[]) ?? [];
   const firstVideo = embeds.find((e) => e.url && isVideoEmbed(e as Embed))?.url as string | undefined;
   const firstImage = !firstVideo
     ? embeds.find((e) => e.url && isImageEmbed(e as Embed))?.url as string | undefined
@@ -762,24 +798,40 @@ function QuotedCast({
       <div className="h-px bg-[var(--accent)]/30 w-full" />
       <div className="px-3 py-2.5">
         {/* Author row */}
-        <div className="flex items-center gap-1.5 mb-1.5">
-          {author?.pfp_url ? (
-            <Image
-              src={author.pfp_url}
-              alt={author.username ?? ""}
-              width={16}
-              height={16}
-              className="rounded-full shrink-0"
-              unoptimized
-            />
-          ) : (
-            <div className="w-4 h-4 rounded-full bg-[var(--surface-hover)] shrink-0" />
-          )}
-          <span className="text-xs font-semibold text-[var(--foreground)] truncate">
+        <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
+          <button
+            type="button"
+            onClick={openAuthorProfile}
+            className="shrink-0 rounded-full hover:opacity-80 focus:outline-none"
+          >
+            {author?.pfp_url ? (
+              <Image
+                src={author.pfp_url}
+                alt={author.username ?? ""}
+                width={16}
+                height={16}
+                className="rounded-full block"
+                unoptimized
+              />
+            ) : (
+              <div className="w-4 h-4 rounded-full bg-[var(--surface-hover)]" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={openAuthorProfile}
+            className="text-xs font-semibold text-[var(--foreground)] truncate hover:underline focus:outline-none"
+          >
             {author?.display_name ?? author?.username ?? "Unknown"}
-          </span>
+          </button>
           {author?.username && (
-            <span className="text-xs text-[var(--muted)] truncate">@{author.username}</span>
+            <button
+              type="button"
+              onClick={openAuthorProfile}
+              className="text-xs text-[var(--muted)] truncate hover:underline focus:outline-none"
+            >
+              @{author.username}
+            </button>
           )}
         </div>
         {/* Cast text */}
@@ -787,8 +839,11 @@ function QuotedCast({
           <p className="text-xs text-[var(--foreground)] opacity-75 whitespace-pre-wrap break-words leading-relaxed">
             {renderCastText(
               text,
-              (cast as { mentioned_profiles?: unknown[] }).mentioned_profiles ?? [],
-              (cast as { mentioned_channels?: unknown[] }).mentioned_channels ?? []
+              (quotedCast as { mentioned_profiles?: unknown[] }).mentioned_profiles ?? [],
+              (quotedCast as { mentioned_channels?: unknown[] }).mentioned_channels ?? [],
+              undefined,
+              undefined,
+              openMentionProfile
             )}
           </p>
         ) : (

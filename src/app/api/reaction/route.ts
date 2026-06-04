@@ -3,7 +3,7 @@ import { neynar } from "@/lib/neynar";
 import { getSession } from "@/lib/session";
 import { verifyCsrf } from "@/lib/csrf";
 import { ReactionType } from "@neynar/nodejs-sdk/build/api";
-import { deleteCached } from "@/lib/feedCache";
+import { deleteCached, invalidateFeedCaches } from "@/lib/feedCache";
 
 /** Hypersnap omits the 0x prefix; Neynar requires it. */
 function withHexPrefix(hash: string): string {
@@ -34,9 +34,10 @@ export async function POST(req: NextRequest) {
     targetAuthorFid: castAuthorFid,
   });
 
-  // Bust the viewer-context cache so the next feed/conversation load reflects this reaction.
+  // Bust viewer-context and feed list caches so columns pick up reaction state.
   deleteCached(`viewer:${session.user.fid}:likes`);
   deleteCached(`viewer:${session.user.fid}:recasts`);
+  invalidateFeedCaches(session.user.fid);
 
   return NextResponse.json({ ok: true });
 }
@@ -65,9 +66,9 @@ export async function DELETE(req: NextRequest) {
     targetAuthorFid: castAuthorFid,
   });
 
-  // Bust the viewer-context cache so the next feed/conversation load reflects this reaction.
   deleteCached(`viewer:${session.user.fid}:likes`);
   deleteCached(`viewer:${session.user.fid}:recasts`);
+  invalidateFeedCaches(session.user.fid);
 
   return NextResponse.json({ ok: true });
 }

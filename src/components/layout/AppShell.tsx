@@ -5,6 +5,7 @@ import type { SessionUser } from "@/types";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { ColumnContainer } from "@/components/feed/ColumnContainer";
 import { ConversationPanel } from "@/components/cast/ConversationPanel";
+import { ProfilePreviewModal } from "@/components/profile/ProfilePreviewModal";
 import { LayoutImportHandler } from "@/components/layout/LayoutImportHandler";
 
 interface AppShellProps {
@@ -27,6 +28,7 @@ export function AppShell({ user }: AppShellProps) {
         <ColumnContainer viewerFid={user.fid} />
       </div>
       <ConversationPanel viewerFid={user.fid} />
+      <ProfilePreviewModal />
     </div>
   );
 }

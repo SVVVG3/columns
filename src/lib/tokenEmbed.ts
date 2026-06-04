@@ -1,5 +1,9 @@
 /** Farcaster coin URL — https://farcaster.xyz/~/c/{chain}:{contractAddress} */
 
+import { chainIdToSlug } from "@/lib/eip155Token";
+
+export { isEip155EmbedUri } from "@/lib/eip155Token";
+
 const TOKEN_IN_TEXT_RE =
   /https?:\/\/(?:www\.)?(?:farcaster\.xyz|warpcast\.com)\/~\/c\/([a-z0-9_-]+):(0x[a-fA-F0-9]{40})\b[^\s]*/gi;
 
@@ -8,7 +12,10 @@ const CLANKER_URL_RE =
 
 export interface ParsedTokenUrl {
   chain: string;
-  ca: string;
+  /** Token contract (Farcaster coin CA). */
+  ca?: string;
+  /** CAIP-style transaction reference — resolved to `ca` when possible. */
+  txHash?: string;
 }
 
 /** Strip trailing sentence punctuation often glued to URLs in cast text. */
@@ -16,9 +23,25 @@ export function cleanTokenUrlCandidate(url: string): string {
   return url.replace(/[.,!?)\]]+$/, "").trim();
 }
 
+function parseEip155Uri(raw: string): ParsedTokenUrl | null {
+  const cleaned = raw.replace(/^chain:\/\//i, "").trim();
+  const tx = cleaned.match(/^eip155:(\d+)\/tx:(0x[a-fA-F0-9]{64})$/i);
+  if (tx) {
+    return { chain: chainIdToSlug(tx[1]), txHash: tx[2].toLowerCase() };
+  }
+  const erc20 = cleaned.match(/^eip155:(\d+)\/erc20:(0x[a-fA-F0-9]{40})$/i);
+  if (erc20) {
+    return { chain: chainIdToSlug(erc20[1]), ca: erc20[2] };
+  }
+  return null;
+}
+
 export function parseTokenUrl(url: string): ParsedTokenUrl | null {
   try {
     const cleaned = cleanTokenUrlCandidate(url);
+    const eip = parseEip155Uri(cleaned);
+    if (eip) return eip;
+
     const fc = cleaned.match(
       /^https?:\/\/(?:www\.)?(?:farcaster\.xyz|warpcast\.com)\/~\/c\/([a-z0-9_-]+):(0x[a-fA-F0-9]{40})(?:[/?#].*)?$/i
     );
@@ -34,7 +57,24 @@ export function parseTokenUrl(url: string): ParsedTokenUrl | null {
 }
 
 export function canonicalTokenUrl(parsed: ParsedTokenUrl): string {
-  return `https://farcaster.xyz/~/c/${parsed.chain}:${parsed.ca}`;
+  if (parsed.ca) {
+    return `https://farcaster.xyz/~/c/${parsed.chain}:${parsed.ca}`;
+  }
+  if (parsed.txHash) {
+    const chainId =
+      Object.entries({ "1": "ethereum", "8453": "base", "10": "optimism", "42161": "arbitrum" }).find(
+        ([, slug]) => slug === parsed.chain
+      )?.[0] ?? "8453";
+    return `eip155:${chainId}/tx:${parsed.txHash}`;
+  }
+  return "";
+}
+
+/** Stable cache/fetch key for token cards. */
+export function tokenCacheKey(parsed: ParsedTokenUrl): string {
+  if (parsed.ca) return `${parsed.chain}:${parsed.ca.toLowerCase()}`;
+  if (parsed.txHash) return `${parsed.chain}:tx:${parsed.txHash.toLowerCase()}`;
+  return "";
 }
 
 export function isTokenEmbedUrl(url: string): boolean {
@@ -52,7 +92,7 @@ export function collectTokenEmbedUrls(
   const add = (raw: string) => {
     const parsed = parseTokenUrl(raw);
     if (!parsed) return;
-    const key = `${parsed.chain}:${parsed.ca.toLowerCase()}`;
+    const key = tokenCacheKey(parsed);
     if (seen.has(key)) return;
     seen.add(key);
     out.push(canonicalTokenUrl(parsed));
@@ -63,6 +103,11 @@ export function collectTokenEmbedUrls(
   }
 
   if (text) {
+    for (const m of text.matchAll(
+      /(?:chain:\/\/)?eip155:\d+\/(?:tx|erc20):0x[a-fA-F0-9]+/gi
+    )) {
+      add(m[0]);
+    }
     for (const m of text.matchAll(TOKEN_IN_TEXT_RE)) {
       add(m[0]);
     }
@@ -88,9 +133,9 @@ export function collectTokenEmbedUrls(
 export function isSameTokenUrl(url: string, tokenUrls: string[]): boolean {
   const parsed = parseTokenUrl(url);
   if (!parsed) return false;
-  const key = `${parsed.chain}:${parsed.ca.toLowerCase()}`;
+  const key = tokenCacheKey(parsed);
   return tokenUrls.some((u) => {
     const p = parseTokenUrl(u);
-    return p && `${p.chain}:${p.ca.toLowerCase()}` === key;
+    return p && tokenCacheKey(p) === key;
   });
 }

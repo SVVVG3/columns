@@ -2,13 +2,13 @@
 
 import Image from "next/image";
 import { useEffect, useRef } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useUiStore } from "@/store/ui";
 import type { HypersnapNotification } from "@/lib/notifications";
+import { profileSeedFromUnknown } from "@/lib/profilePreview";
 import {
   aggregateNotificationKey,
   aggregateNotifications,
-  farcasterProfileUrl,
   formatNotificationTime,
   isCastTargetNotification,
   notificationActionSuffix,
@@ -27,6 +27,8 @@ interface NotificationsPanelProps {
   open: boolean;
   onClose: () => void;
   viewerFid: number;
+  /** Called after a successful fresh load — clears unread badge. */
+  onFreshLoad?: () => void;
 }
 
 interface NotificationsResponse {
@@ -35,15 +37,24 @@ interface NotificationsResponse {
 }
 
 /** Notifications list — rendered inside the sidebar when open. */
-export function NotificationsPanel({ open, onClose, viewerFid }: NotificationsPanelProps) {
+export function NotificationsPanel({
+  open,
+  onClose,
+  viewerFid,
+  onFreshLoad,
+}: NotificationsPanelProps) {
+  const queryClient = useQueryClient();
   const openConversation = useUiStore((s) => s.openConversation);
+  const openProfilePreview = useUiStore((s) => s.openProfilePreview);
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const markedFreshRef = useRef(false);
 
   const {
     data,
     isLoading,
     isError,
+    isFetching,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -53,6 +64,7 @@ export function NotificationsPanel({ open, onClose, viewerFid }: NotificationsPa
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: "20" });
       if (pageParam) params.set("cursor", String(pageParam));
+      else params.set("fresh", "1");
       const res = await fetch(`/api/notifications?${params}`);
       if (!res.ok) throw new Error("Failed to load notifications");
       return res.json() as Promise<NotificationsResponse>;
@@ -60,13 +72,31 @@ export function NotificationsPanel({ open, onClose, viewerFid }: NotificationsPa
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next?.cursor ?? undefined,
     enabled: open,
-    staleTime: 30_000,
-    refetchInterval: open ? 60_000 : false,
+    staleTime: 0,
+    gcTime: 5 * 60_000,
+    refetchOnMount: "always",
   });
 
   const items = aggregateNotifications(
     data?.pages.flatMap((p) => p.notifications ?? []) ?? []
   );
+
+  useEffect(() => {
+    if (!open) {
+      markedFreshRef.current = false;
+      return;
+    }
+    markedFreshRef.current = false;
+    queryClient.invalidateQueries({ queryKey: ["notifications", viewerFid, "list"] });
+    void refetch();
+  }, [open, viewerFid, queryClient, refetch]);
+
+  useEffect(() => {
+    if (!open || isFetching || isLoading || markedFreshRef.current) return;
+    if (!data?.pages.length) return;
+    markedFreshRef.current = true;
+    onFreshLoad?.();
+  }, [open, isFetching, isLoading, data?.pages.length, onFreshLoad]);
 
   useEffect(() => {
     if (!open) return;
@@ -76,11 +106,6 @@ export function NotificationsPanel({ open, onClose, viewerFid }: NotificationsPa
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
-
-  useEffect(() => {
-    if (!open) return;
-    refetch();
-  }, [open, refetch]);
 
   useEffect(() => {
     const el = loadMoreRef.current;
@@ -114,9 +139,17 @@ export function NotificationsPanel({ open, onClose, viewerFid }: NotificationsPa
 
   if (!open) return null;
 
+  const showRefreshing = isFetching && items.length > 0;
+
   return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto feed-scroll min-h-0">
-      {isLoading && (
+    <div ref={scrollRef} className="flex-1 overflow-y-auto feed-scroll min-h-0 flex flex-col">
+      {showRefreshing && (
+        <p className="text-center text-[10px] text-[var(--muted)] py-1.5 shrink-0 border-b border-[var(--border)]">
+          Updating…
+        </p>
+      )}
+
+      {isLoading && items.length === 0 && (
         <div className="flex flex-col gap-2 p-3">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="flex gap-2.5 animate-pulse p-2">
@@ -143,7 +176,7 @@ export function NotificationsPanel({ open, onClose, viewerFid }: NotificationsPa
         </div>
       )}
 
-      {!isLoading && !isError && items.length === 0 && (
+      {!isLoading && !isError && items.length === 0 && !isFetching && (
         <div className="flex items-center justify-center py-16 px-4 text-sm text-[var(--muted)] text-center">
           No notifications yet.
         </div>
@@ -154,6 +187,10 @@ export function NotificationsPanel({ open, onClose, viewerFid }: NotificationsPa
           key={aggregateNotificationKey(n)}
           notification={n}
           onClick={() => handleClick(n)}
+          onOpenProfile={(actor) => {
+            const seed = profileSeedFromUnknown(actor);
+            if (seed) openProfilePreview(seed);
+          }}
         />
       ))}
 
@@ -168,13 +205,14 @@ export function NotificationsPanel({ open, onClose, viewerFid }: NotificationsPa
 function NotificationRow({
   notification: n,
   onClick,
+  onOpenProfile,
 }: {
   notification: HypersnapNotification;
   onClick: () => void;
+  onOpenProfile: (actor: Record<string, unknown>) => void;
 }) {
   const actor = notificationActor(n);
   const pfp = actor?.pfp_url ?? actor?.pfpUrl ?? "";
-  const profileUrl = farcasterProfileUrl(actor?.username as string | undefined);
   const clickable = !!notificationCastHash(n) || isFollowNotification(n);
   const showCastPreview = isCastTargetNotification(n) && !!n.cast;
 
@@ -201,14 +239,17 @@ function NotificationRow({
         className={clickable ? "cursor-pointer" : ""}
       >
         <div className="flex gap-2.5">
-          <NotificationActorAvatar
+            <NotificationActorAvatar
             pfp={pfp}
-            profileUrl={profileUrl}
             username={actor?.username as string | undefined}
+            onOpenProfile={() => actor && onOpenProfile(actor as Record<string, unknown>)}
           />
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline justify-between gap-2">
-              <NotificationSummaryLine notification={n} />
+              <NotificationSummaryLine
+                notification={n}
+                onOpenProfile={() => actor && onOpenProfile(actor as Record<string, unknown>)}
+              />
               <span className="text-[10px] text-[var(--muted)] shrink-0">
                 {formatNotificationTime(n)}
               </span>
@@ -242,63 +283,61 @@ function NotificationRow({
 
 function NotificationActorAvatar({
   pfp,
-  profileUrl,
   username,
+  onOpenProfile,
 }: {
   pfp: string;
-  profileUrl: string | null;
   username?: string;
+  onOpenProfile: () => void;
 }) {
-  const img = pfp ? (
-    <Image
-      src={pfp}
-      alt=""
-      width={36}
-      height={36}
-      className="rounded-full shrink-0 object-cover"
-    />
-  ) : (
-    <div className="w-9 h-9 rounded-full bg-[var(--surface-hover)] shrink-0" />
-  );
-
-  if (!profileUrl) return <div className="shrink-0">{img}</div>;
-
   return (
-    <a
-      href={profileUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      title={username ? `@${username} on Farcaster` : "Profile on Farcaster"}
-      onClick={(e) => e.stopPropagation()}
-      className="shrink-0 rounded-full hover:ring-2 hover:ring-[var(--accent)] transition-shadow"
+    <button
+      type="button"
+      title={username ? `@${username}` : "Profile"}
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpenProfile();
+      }}
+      className="shrink-0 rounded-full hover:ring-2 hover:ring-[var(--accent)] transition-shadow focus:outline-none"
     >
-      {img}
-    </a>
+      {pfp ? (
+        <Image
+          src={pfp}
+          alt=""
+          width={36}
+          height={36}
+          className="rounded-full object-cover block"
+        />
+      ) : (
+        <div className="w-9 h-9 rounded-full bg-[var(--surface-hover)]" />
+      )}
+    </button>
   );
 }
 
-function NotificationSummaryLine({ notification: n }: { notification: HypersnapNotification }) {
+function NotificationSummaryLine({
+  notification: n,
+  onOpenProfile,
+}: {
+  notification: HypersnapNotification;
+  onOpenProfile: () => void;
+}) {
   const actor = notificationActor(n);
   const name = notificationActorDisplayName(actor);
-  const username = actor?.username as string | undefined;
-  const profileUrl = farcasterProfileUrl(username);
   const suffix = notificationActionSuffix(n, notificationActorCount(n));
 
   return (
     <p className="text-xs font-medium text-[var(--foreground)] leading-snug">
-      {profileUrl ? (
-        <a
-          href={profileUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="text-[var(--accent)] hover:underline"
-        >
-          {name}
-        </a>
-      ) : (
-        <span>{name}</span>
-      )}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenProfile();
+        }}
+        className="text-[var(--accent)] hover:underline focus:outline-none"
+      >
+        {name}
+      </button>
       <span>{suffix}</span>
     </p>
   );

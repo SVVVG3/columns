@@ -28,10 +28,8 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const [importColumnOpen, setImportColumnOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const { unreadCount: unreadNotificationCount } = useNotificationUnread(
-    user.fid,
-    notificationsOpen
-  );
+  const { unreadCount: unreadNotificationCount, markSeen: markNotificationsSeen } =
+    useNotificationUnread(user.fid, notificationsOpen);
 
   const widthPx = notificationsOpen
     ? NOTIFICATIONS_WIDTH
@@ -73,6 +71,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
               open={notificationsOpen}
               onClose={closeNotifications}
               viewerFid={user.fid}
+              onFreshLoad={markNotificationsSeen}
             />
           </>
         ) : (
