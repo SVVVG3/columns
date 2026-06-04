@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { withCache } from "@/lib/feedCache";
 import { fetchCastByHash, normalizeCastHash } from "@/lib/castLookup";
+import { apiErrorFromHypersnap } from "@/lib/hypersnap";
 
 const TTL = 120_000;
 const MAX_HASHES = 40;
@@ -33,16 +34,9 @@ export async function GET(req: NextRequest) {
     const casts = await withCache(cacheKey, TTL, async () => {
       const entries = await Promise.all(
         hashes.map(async (hash) => {
-          try {
-            const cast = await withCache(
-              `cast:${hash}`,
-              TTL,
-              () => fetchCastByHash(hash)
-            );
-            return [hash, cast] as const;
-          } catch {
-            return null;
-          }
+          const cast = await withCache(`cast:${hash}`, TTL, () => fetchCastByHash(hash));
+          if (!cast) return null;
+          return [hash, cast] as const;
         })
       );
       return Object.fromEntries(
@@ -52,8 +46,6 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ casts });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[/api/cast/bulk]", msg);
-    return NextResponse.json({ error: msg }, { status: 502 });
+    return apiErrorFromHypersnap(err, "[/api/cast/bulk]");
   }
 }

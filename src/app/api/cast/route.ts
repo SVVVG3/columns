@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { PostCastReqBodyEmbeds } from "@neynar/nodejs-sdk/build/api";
 import { neynar } from "@/lib/neynar";
 import { getSession } from "@/lib/session";
 import { verifyCsrf } from "@/lib/csrf";
@@ -7,6 +8,27 @@ import { deleteCached, invalidateFeedCaches } from "@/lib/feedCache";
 /** Hypersnap omits the 0x prefix; Neynar requires it. */
 function withHexPrefix(hash: string): string {
   return hash.startsWith("0x") ? hash : `0x${hash}`;
+}
+
+function parsePublishEmbeds(embeds: unknown): PostCastReqBodyEmbeds[] {
+  if (!Array.isArray(embeds)) return [];
+  const out: PostCastReqBodyEmbeds[] = [];
+  for (const e of embeds) {
+    if (!e || typeof e !== "object") continue;
+    const row = e as Record<string, unknown>;
+    if (typeof row.url === "string" && row.url.startsWith("http")) {
+      out.push({ url: row.url } as PostCastReqBodyEmbeds);
+      continue;
+    }
+    const raw = (row.cast_id ?? row.castId) as Record<string, unknown> | undefined;
+    const fid = raw?.fid != null ? Number(raw.fid) : NaN;
+    const hash = typeof raw?.hash === "string" ? raw.hash : "";
+    if (Number.isFinite(fid) && fid > 0 && hash) {
+      const castId = { fid, hash: withHexPrefix(hash) };
+      out.push({ cast_id: castId, castId, url: "" } as PostCastReqBodyEmbeds);
+    }
+  }
+  return out;
 }
 
 /** POST /api/cast — publish a new cast or reply */
@@ -23,12 +45,10 @@ export async function POST(req: NextRequest) {
   const { text, parentHash, channelId, embeds, threadRootHash } = await req.json();
 
   const trimmedText = typeof text === "string" ? text.trim() : "";
-  const embedList = Array.isArray(embeds)
-    ? embeds.filter((e: { url?: string }) => typeof e?.url === "string" && e.url.startsWith("http"))
-    : [];
+  const embedList = parsePublishEmbeds(embeds);
 
   if (!trimmedText && embedList.length === 0) {
-    return NextResponse.json({ error: "Text or at least one image is required" }, { status: 400 });
+    return NextResponse.json({ error: "Text, image, or quoted cast is required" }, { status: 400 });
   }
 
   try {

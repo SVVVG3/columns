@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { hsnap } from "@/lib/hypersnap";
+import { hsnap, apiErrorFromHypersnap } from "@/lib/hypersnap";
 import { getSession } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
@@ -15,16 +15,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ channels: [] });
   }
 
-  const data = await hsnap<{ channels: Record<string, unknown>[] }>(
-    "/v2/farcaster/channel/search",
-    { q, limit: 10 }
-  );
+  try {
+    const data = await hsnap<{ channels: Record<string, unknown>[] }>(
+      "/v2/farcaster/channel/search",
+      { q, limit: 10 }
+    );
 
-  const channels = (data.channels ?? []).map((ch) => ({
-    id: ch.id,
-    name: ch.name,
-    image_url: ch.image_url ?? null,
-    follower_count: ch.follower_count ?? 0,
-  }));
-  return NextResponse.json({ channels });
+    const channels = (data.channels ?? []).map((ch) => ({
+      id: ch.id,
+      name: ch.name,
+      image_url: ch.image_url ?? null,
+      follower_count: ch.follower_count ?? 0,
+    }));
+    return NextResponse.json({ channels });
+  } catch (err: unknown) {
+    return apiErrorFromHypersnap(err, "[/api/channel/search]");
+  }
 }

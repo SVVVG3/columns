@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { withCache } from "@/lib/feedCache";
 import { buildFeedCastsResponse } from "@/lib/feedResponse";
 import { clampPageSize, fetchRootCastFeedPage } from "@/lib/feedPagination";
+import { apiErrorFromHypersnap } from "@/lib/hypersnap";
 
 const TTL = 45_000;
 
@@ -18,14 +19,18 @@ export async function GET(req: NextRequest) {
   const fid = session.user.fid;
   const cacheKey = `trending:${cursor ?? ""}:${pageSize}`;
 
-  const feedData = await withCache(cacheKey, TTL, () =>
-    fetchRootCastFeedPage("/v2/farcaster/feed/trending", { cursor }, pageSize)
-  );
+  try {
+    const feedData = await withCache(cacheKey, TTL, () =>
+      fetchRootCastFeedPage("/v2/farcaster/feed/trending", { cursor }, pageSize)
+    );
 
-  const casts = await buildFeedCastsResponse(feedData.casts ?? [], fid);
+    const casts = await buildFeedCastsResponse(feedData.casts ?? [], fid);
 
-  return NextResponse.json({
-    ...feedData,
-    casts,
-  });
+    return NextResponse.json({
+      ...feedData,
+      casts,
+    });
+  } catch (err: unknown) {
+    return apiErrorFromHypersnap(err, "[/api/feed/trending]");
+  }
 }

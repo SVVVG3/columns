@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { hsnap } from "@/lib/hypersnap";
+import { hsnap, apiErrorFromHypersnap } from "@/lib/hypersnap";
 import { getSession } from "@/lib/session";
 import { withCache } from "@/lib/feedCache";
 import { normalizeCastTree } from "@/lib/normalizeCast";
@@ -56,7 +56,6 @@ export async function GET(
 
     return NextResponse.json({ cast: annotatedCast });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 502 });
+    return apiErrorFromHypersnap(err, "[/api/cast/conversation]");
   }
 }

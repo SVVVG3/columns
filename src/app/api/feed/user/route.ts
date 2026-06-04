@@ -7,6 +7,7 @@ import {
   fetchMultiUserRootCastPage,
   fetchRootCastFeedPage,
 } from "@/lib/feedPagination";
+import { apiErrorFromHypersnap } from "@/lib/hypersnap";
 
 const TTL = 45_000;
 
@@ -51,8 +52,6 @@ export async function GET(req: NextRequest) {
       casts,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[/api/feed/user]", msg);
-    return NextResponse.json({ error: msg }, { status: 502 });
+    return apiErrorFromHypersnap(err, "[/api/feed/user]");
   }
 }

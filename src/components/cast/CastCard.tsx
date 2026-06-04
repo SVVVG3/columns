@@ -4,6 +4,7 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import { useState, useRef, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ComposeModal } from "@/components/cast/ComposeModal";
 import { ReplyModal } from "@/components/cast/ReplyModal";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { useUiStore } from "@/store/ui";
@@ -229,9 +230,12 @@ export function CastCard({ cast, viewerFid, threadRootHash }: CastCardProps) {
   const queryClient = useQueryClient();
   const { openConversation } = useUiStore();
   const [replyOpen, setReplyOpen] = useState(false);
+  const [quoteComposeOpen, setQuoteComposeOpen] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [recastMenuOpen, setRecastMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const recastMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -241,6 +245,17 @@ export function CastCard({ cast, viewerFid, threadRootHash }: CastCardProps) {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!recastMenuOpen) return;
+    function handler(e: MouseEvent) {
+      if (recastMenuRef.current && !recastMenuRef.current.contains(e.target as Node)) {
+        setRecastMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [recastMenuOpen]);
 
   function openProfile() {
     const username = author?.username;
@@ -316,7 +331,7 @@ export function CastCard({ cast, viewerFid, threadRootHash }: CastCardProps) {
     likeMutation.mutate(liked);
   }
 
-  function handleRecast() {
+  function confirmRecastToggle() {
     if (recastMutation.isPending) return;
     const next = !recasted;
     setRecasted(next);
@@ -591,16 +606,53 @@ export function CastCard({ cast, viewerFid, threadRootHash }: CastCardProps) {
                 {replyCount > 0 && <span className="text-xs">{formatCount(replyCount)}</span>}
               </button>
 
-              {/* Recast */}
-              <button
-                onClick={handleRecast}
-                className={`flex items-center gap-1 transition-colors ${recasted ? "text-[var(--recast)]" : "text-[var(--muted)] hover:text-[var(--recast)]"}`}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                {recastCount > 0 && <span className="text-xs">{formatCount(recastCount)}</span>}
-              </button>
+              {/* Recast — menu: recast / remove recast or quote cast */}
+              <div ref={recastMenuRef} className="relative">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRecastMenuOpen((o) => !o);
+                  }}
+                  className={`flex items-center gap-1 transition-colors ${recasted ? "text-[var(--recast)]" : "text-[var(--muted)] hover:text-[var(--recast)]"}`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {recastCount > 0 && <span className="text-xs">{formatCount(recastCount)}</span>}
+                </button>
+                {recastMenuOpen && (
+                  <div className="absolute left-0 bottom-full mb-1 w-40 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-50 py-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRecastMenuOpen(false);
+                        confirmRecastToggle();
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      {recasted ? "Remove recast" : "Recast"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRecastMenuOpen(false);
+                        setQuoteComposeOpen(true);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--surface-hover)] rounded-b-xl transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                      </svg>
+                      Quote cast
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Like */}
               <button
@@ -653,6 +705,9 @@ export function CastCard({ cast, viewerFid, threadRootHash }: CastCardProps) {
       </article>
 
       {replyOpen && <ReplyModal parentCast={cast} onClose={() => setReplyOpen(false)} threadRootHash={threadRootHash} />}
+      {quoteComposeOpen && (
+        <ComposeModal quoteCast={cast} onClose={() => setQuoteComposeOpen(false)} />
+      )}
       {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
     </>
   );

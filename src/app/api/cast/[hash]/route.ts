@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { withCache } from "@/lib/feedCache";
 import { fetchCastByHash, normalizeCastHash } from "@/lib/castLookup";
+import { apiErrorFromHypersnap } from "@/lib/hypersnap";
 
 const TTL = 120_000;
 
@@ -23,9 +24,11 @@ export async function GET(
 
   try {
     const cast = await withCache(`cast:${id}`, TTL, () => fetchCastByHash(id));
+    if (!cast) {
+      return NextResponse.json({ error: "Cast not found" }, { status: 404 });
+    }
     return NextResponse.json(cast);
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 502 });
+    return apiErrorFromHypersnap(err, "[/api/cast/[hash]]");
   }
 }

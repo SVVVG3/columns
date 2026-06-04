@@ -10,8 +10,14 @@ interface ComposeModalProps {
   onClose: () => void;
   parentHash?: string;
   parentCast?: Record<string, unknown>;
+  /** Cast to embed as a quote (no parent — publishes a new cast with cast_id embed). */
+  quoteCast?: Record<string, unknown>;
   /** Root cast hash of the conversation being replied in — used to bust the server + client cache. */
   threadRootHash?: string;
+}
+
+function withHexPrefix(hash: string): string {
+  return hash.startsWith("0x") ? hash : `0x${hash}`;
 }
 
 interface PendingImage {
@@ -20,7 +26,7 @@ interface PendingImage {
   previewUrl: string;
 }
 
-export function ComposeModal({ onClose, parentHash, parentCast, threadRootHash }: ComposeModalProps) {
+export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threadRootHash }: ComposeModalProps) {
   const [text, setText] = useState("");
   const [images, setImages] = useState<PendingImage[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -116,7 +122,7 @@ export function ComposeModal({ onClose, parentHash, parentCast, threadRootHash }
 
   async function handleSubmit() {
     const trimmed = text.trim();
-    if ((!trimmed && images.length === 0) || isSubmitting) return;
+    if ((!trimmed && images.length === 0 && !quoteCast) || isSubmitting) return;
     setIsSubmitting(true);
     setError(null);
     setSubmitStatus("Casting…");
@@ -128,6 +134,17 @@ export function ComposeModal({ onClose, parentHash, parentCast, threadRootHash }
       }
 
       setSubmitStatus("Casting…");
+      const quoteEmbed =
+        quoteCast?.hash && (quoteCast.author as { fid?: number })?.fid
+          ? [
+              {
+                cast_id: {
+                  fid: (quoteCast.author as { fid: number }).fid,
+                  hash: withHexPrefix(String(quoteCast.hash)),
+                },
+              },
+            ]
+          : [];
       const res = await fetchWithTimeout("/api/cast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -135,7 +152,7 @@ export function ComposeModal({ onClose, parentHash, parentCast, threadRootHash }
           text: trimmed,
           parentHash,
           threadRootHash,
-          embeds: imageUrls.map((url) => ({ url })),
+          embeds: [...quoteEmbed, ...imageUrls.map((url) => ({ url }))],
         }),
       });
       if (!res.ok) {
@@ -158,7 +175,8 @@ export function ComposeModal({ onClose, parentHash, parentCast, threadRootHash }
   const charCount = text.length;
   const maxChars = 1024;
   const overLimit = charCount > maxChars;
-  const canSubmit = (text.trim().length > 0 || images.length > 0) && !overLimit && !isSubmitting;
+  const canSubmit =
+    (text.trim().length > 0 || images.length > 0 || !!quoteCast) && !overLimit && !isSubmitting;
 
   return (
     <div
@@ -171,7 +189,7 @@ export function ComposeModal({ onClose, parentHash, parentCast, threadRootHash }
       >
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <h2 className="text-sm font-semibold text-[var(--foreground)]">
-            {parentHash ? "Reply" : "New Cast"}
+            {parentHash ? "Reply" : quoteCast ? "Quote cast" : "New Cast"}
           </h2>
           <button
             onClick={onClose}
@@ -183,13 +201,13 @@ export function ComposeModal({ onClose, parentHash, parentCast, threadRootHash }
           </button>
         </div>
 
-        {parentCast && (
+        {(parentCast || quoteCast) && (
           <div className="mx-4 mb-2 px-3 py-2 rounded-lg bg-[var(--surface-hover)] border border-[var(--border)] text-xs text-[var(--muted)]">
             <span className="font-medium text-[var(--foreground)]">
-              @{(parentCast.author as { username: string })?.username}
+              @{((parentCast ?? quoteCast)!.author as { username: string })?.username}
             </span>{" "}
-            {String(parentCast.text ?? "").slice(0, 100)}
-            {String(parentCast.text ?? "").length > 100 && "…"}
+            {String((parentCast ?? quoteCast)!.text ?? "").slice(0, 100)}
+            {String((parentCast ?? quoteCast)!.text ?? "").length > 100 && "…"}
           </div>
         )}
 
@@ -198,7 +216,9 @@ export function ComposeModal({ onClose, parentHash, parentCast, threadRootHash }
             ref={textareaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder={parentHash ? "Write your reply…" : "What's on your mind?"}
+            placeholder={
+              parentHash ? "Write your reply…" : quoteCast ? "Add your thoughts…" : "What's on your mind?"
+            }
             rows={1}
             className="w-full bg-transparent text-[var(--foreground)] text-sm placeholder:text-[var(--muted)] resize-none outline-none leading-normal overflow-hidden"
             onKeyDown={(e) => {

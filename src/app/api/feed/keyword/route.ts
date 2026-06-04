@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { withCache } from "@/lib/feedCache";
 import { buildFeedCastsResponse } from "@/lib/feedResponse";
 import { clampPageSize, fetchKeywordRootCastPage } from "@/lib/feedPagination";
+import { apiErrorFromHypersnap } from "@/lib/hypersnap";
 
 const TTL = 45_000;
 
@@ -37,8 +38,6 @@ export async function GET(req: NextRequest) {
       casts,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[/api/feed/keyword]", msg);
-    return NextResponse.json({ error: msg }, { status: 502 });
+    return apiErrorFromHypersnap(err, "[/api/feed/keyword]");
   }
 }

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { hsnap } from "@/lib/hypersnap";
+import { hsnap, apiErrorFromHypersnap } from "@/lib/hypersnap";
 import { getSession } from "@/lib/session";
+import { withCache } from "@/lib/feedCache";
+
+const TTL = 120_000;
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -18,14 +21,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ users: [] });
   }
 
+  const sorted = [...fids].sort((a, b) => a - b);
+  const cacheKey = `users:${sorted.join(",")}`;
+
   try {
-    // Hypersnap returns { users: [...] } — same shape as Neynar's fetchBulkUsers
-    const data = await hsnap<{ users: unknown[] }>("/v2/farcaster/user/bulk", {
-      fids: fids.join(","),
-    });
+    const data = await withCache(cacheKey, TTL, () =>
+      hsnap<{ users: unknown[] }>("/v2/farcaster/user/bulk", {
+        fids: sorted.join(","),
+      })
+    );
     return NextResponse.json({ users: data.users ?? [] });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 502 });
+    return apiErrorFromHypersnap(err, "[/api/user/bulk]");
   }
 }

@@ -1,4 +1,4 @@
-import { hsnap } from "@/lib/hypersnap";
+import { hsnap, HSNAP_FEED } from "@/lib/hypersnap";
 import { fetchCastByHash } from "@/lib/castLookup";
 import { filterRootCasts } from "@/lib/castFilters";
 import { normalizeCastHash } from "@/lib/viewerContext";
@@ -112,7 +112,10 @@ async function resolvePendingHashes(
   if (unique.length === 0) return [];
   const settled = await Promise.allSettled(unique.map((hash) => fetchCastByHash(hash)));
   return settled
-    .filter((r): r is PromiseFulfilledResult<Record<string, unknown>> => r.status === "fulfilled")
+    .filter(
+      (r): r is PromiseFulfilledResult<Record<string, unknown>> =>
+        r.status === "fulfilled" && r.value != null
+    )
     .map((r) => r.value);
 }
 
@@ -134,11 +137,15 @@ export async function fetchRootCastFeedPage(
 
   const maxRounds = 8;
   for (let round = 0; round < maxRounds && pool.length < pageSize; round++) {
-    const res = await hsnap<FeedPage>(path, {
-      ...params,
-      cursor: apiCursor,
-      limit: hsnapLimit,
-    });
+    const res = await hsnap<FeedPage>(
+      path,
+      {
+        ...params,
+        cursor: apiCursor,
+        limit: hsnapLimit,
+      },
+      HSNAP_FEED
+    );
     pool = dedupeSortCasts([...pool, ...filterRootCasts(res.casts ?? [])]);
     lastApiNext = normalizeApiCursor(res.next?.cursor);
     if (!lastApiNext) break;
@@ -293,7 +300,10 @@ async function resolvePendingCasts(
     hashes.map((hash) => fetchCastByHash(hash))
   );
   return settled
-    .filter((r): r is PromiseFulfilledResult<Record<string, unknown>> => r.status === "fulfilled")
+    .filter(
+      (r): r is PromiseFulfilledResult<Record<string, unknown>> =>
+        r.status === "fulfilled" && r.value != null
+    )
     .map((r) => r.value);
 }
 
@@ -328,11 +338,15 @@ export async function fetchMultiUserRootCastPage(
       const settled = await Promise.allSettled(
         activeFids.map(async (fid) => {
           const key = String(fid);
-          const res = await hsnap<FeedPage>("/v2/farcaster/feed/user/casts", {
-            fid,
-            cursor: fidCursors[key],
-            limit: hsnapLimit,
-          });
+          const res = await hsnap<FeedPage>(
+            "/v2/farcaster/feed/user/casts",
+            {
+              fid,
+              cursor: fidCursors[key],
+              limit: hsnapLimit,
+            },
+            HSNAP_FEED
+          );
           return {
             fid,
             roots: filterRootCasts(res.casts ?? []),
@@ -391,18 +405,28 @@ interface SearchResponse {
   next?: { cursor?: string | null };
 }
 
-/** Keyword column — same page cap; multi-query uses full fetch depth per term. */
+/**
+ * Keyword column — same page cap per load.
+ *
+ * Single query: Hypersnap cursor pagination (load more works).
+ * Multiple queries: first page only — we fetch one batch per term, merge by time,
+ * and return `next.cursor: null` (no load more). See AddColumnModal copy for users.
+ */
 export async function fetchKeywordRootCastPage(
   queries: string[],
   cursor: string | undefined,
   pageSize = DEFAULT_PAGE_LIMIT
 ): Promise<FeedPage> {
   if (queries.length === 1) {
-    const res = await hsnap<SearchResponse>("/v2/farcaster/cast/search", {
-      q: queries[0],
-      limit: hsnapLimitForPage(pageSize),
-      cursor,
-    });
+    const res = await hsnap<SearchResponse>(
+      "/v2/farcaster/cast/search",
+      {
+        q: queries[0],
+        limit: hsnapLimitForPage(pageSize),
+        cursor,
+      },
+      HSNAP_FEED
+    );
     const roots = filterRootCasts(res.casts ?? []);
     return {
       casts: capPage(roots, pageSize),
@@ -414,10 +438,14 @@ export async function fetchKeywordRootCastPage(
 
   const results = await Promise.all(
     queries.map((q) =>
-      hsnap<SearchResponse>("/v2/farcaster/cast/search", {
-        q,
-        limit: hsnapLimit,
-      })
+      hsnap<SearchResponse>(
+        "/v2/farcaster/cast/search",
+        {
+          q,
+          limit: hsnapLimit,
+        },
+        HSNAP_FEED
+      )
     )
   );
 

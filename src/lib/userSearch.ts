@@ -1,4 +1,4 @@
-import { hsnap } from "@/lib/hypersnap";
+import { hsnap, isHypersnapError } from "@/lib/hypersnap";
 
 export interface HsnapUser {
   fid: number;
@@ -45,8 +45,9 @@ export async function lookupUserByUsernameProof(
       fid: proof.fid,
     });
     return data.user?.fid ? data.user : null;
-  } catch {
-    return null;
+  } catch (err: unknown) {
+    if (isHypersnapError(err) && err.status === 404) return null;
+    throw err;
   }
 }
 
@@ -70,8 +71,9 @@ export async function lookupUserByUsername(
     try {
       const data = await hsnap<{ user: HsnapUser }>(path, { username: n });
       if (data.user?.fid) return data.user;
-    } catch {
-      // try next path / proof fallback
+    } catch (err: unknown) {
+      if (isHypersnapError(err) && err.status === 404) continue;
+      throw err;
     }
   }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { withCache } from "@/lib/feedCache";
 import { fetchNotificationsPage } from "@/lib/notifications";
+import { apiErrorFromHypersnap } from "@/lib/hypersnap";
 
 const TTL = 30_000;
 
@@ -17,9 +18,12 @@ export async function GET(req: NextRequest) {
   const fid = session.user.fid;
   const cacheKey = `${fid}:notifications:${cursor ?? ""}:${limit}`;
 
-  const data = await withCache(cacheKey, TTL, () =>
-    fetchNotificationsPage(fid, { cursor, limit })
-  );
-
-  return NextResponse.json(data);
+  try {
+    const data = await withCache(cacheKey, TTL, () =>
+      fetchNotificationsPage(fid, { cursor, limit })
+    );
+    return NextResponse.json(data);
+  } catch (err: unknown) {
+    return apiErrorFromHypersnap(err, "[/api/notifications]");
+  }
 }

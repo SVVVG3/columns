@@ -1,4 +1,4 @@
-import { hsnap } from "@/lib/hypersnap";
+import { hsnap, isHypersnapError } from "@/lib/hypersnap";
 import { normalizeCast } from "@/lib/normalizeCast";
 import { normalizeCastHash } from "@/lib/viewerContext";
 
@@ -18,15 +18,21 @@ export function isQuotedCastSeed(
   );
 }
 
+/** Returns null when Hypersnap reports the cast does not exist (404). */
 export async function fetchCastByHash(
   hash: string
-): Promise<Record<string, unknown>> {
+): Promise<Record<string, unknown> | null> {
   const id = normalizeCastHash(hash);
-  const data = await hsnap<{ cast: Record<string, unknown> }>(
-    "/v2/farcaster/cast",
-    { identifier: id, type: "hash" }
-  );
-  return normalizeCast(data.cast);
+  try {
+    const data = await hsnap<{ cast: Record<string, unknown> }>(
+      "/v2/farcaster/cast",
+      { identifier: id, type: "hash" }
+    );
+    return normalizeCast(data.cast);
+  } catch (err: unknown) {
+    if (isHypersnapError(err) && err.status === 404) return null;
+    throw err;
+  }
 }
 
 /** Collect quote hashes from feed casts; return seeds when Hypersnap inlined them. */
@@ -40,17 +46,18 @@ export function collectQuotedCastRefs(
     const embeds = (cast.embeds as Record<string, unknown>[] | undefined) ?? [];
     for (const embed of embeds) {
       if (embed.url) continue;
-      const inner = embed.cast ?? embed.cast_id;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const row = embed as any;
+      const inner = row.cast ?? row.cast_id;
       const hash =
         typeof inner === "object" && inner !== null
           ? (inner as { hash?: string }).hash
-          : typeof embed.cast_id === "string"
-            ? embed.cast_id
+          : typeof row.cast_id === "string"
+            ? row.cast_id
             : null;
-      if (!hash) continue;
+      if (!hash || seen.has(hash)) continue;
+      seen.add(hash);
       const normalized = normalizeCastHash(String(hash));
-      if (seen.has(normalized)) continue;
-      seen.add(normalized);
       const seed =
         typeof inner === "object" && inner !== null && isQuotedCastSeed(inner)
           ? (inner as Record<string, unknown>)

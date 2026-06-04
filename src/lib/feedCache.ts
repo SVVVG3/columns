@@ -21,12 +21,13 @@ const store = new Map<string, CacheEntry>();
 /** Max entries before we start evicting the oldest. Keeps memory bounded. */
 const MAX_ENTRIES = 2000;
 
-export function getCached(key: string): unknown | null {
+/** `undefined` = miss; stored value may be `null` (e.g. cast not found). */
+export function getCached(key: string): unknown | undefined {
   const entry = store.get(key);
-  if (!entry) return null;
+  if (!entry) return undefined;
   if (Date.now() > entry.expiresAt) {
     store.delete(key);
-    return null;
+    return undefined;
   }
   return entry.data;
 }
@@ -73,7 +74,7 @@ export async function withCache<T>(
   fn: () => Promise<T>
 ): Promise<T> {
   const cached = getCached(key);
-  if (cached !== null) return cached as T;
+  if (cached !== undefined) return cached as T;
   const data = await fn();
   setCached(key, data, ttlMs);
   return data;

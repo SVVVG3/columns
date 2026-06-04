@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { searchUsersCombined } from "@/lib/userSearch";
+import { apiErrorFromHypersnap } from "@/lib/hypersnap";
 
 const LIMIT = 25;
 
@@ -21,8 +22,6 @@ export async function GET(req: NextRequest) {
     const users = await searchUsersCombined(q, LIMIT);
     return NextResponse.json({ users });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[/api/user/search]", msg);
-    return NextResponse.json({ error: msg }, { status: 502 });
+    return apiErrorFromHypersnap(err, "[/api/user/search]");
   }
 }

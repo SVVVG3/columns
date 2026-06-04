@@ -15,7 +15,10 @@ export interface FeedColumnConfig {
   targetFids?: number[];
   /** @deprecated use targetFids instead */
   targetFid?: number;
-  /** For "keyword" type: one or more search query strings */
+  /**
+   * For "keyword" type: one or more search query strings.
+   * Multiple queries = first merged page only (no infinite scroll).
+   */
   queries?: string[];
   /** @deprecated use queries instead */
   query?: string;

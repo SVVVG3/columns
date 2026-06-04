@@ -17,7 +17,7 @@ const COLUMN_TYPES: { type: FeedColumnType; label: string; description: string }
   { type: "trending", label: "Trending",   description: "Most popular casts right now" },
   { type: "channel",  label: "Channel",    description: "Casts from one or more channels" },
   { type: "user",     label: "User",       description: "Casts from one or more users" },
-  { type: "keyword",  label: "Keyword",    description: "Search across one or more topics" },
+  { type: "keyword",  label: "Keyword",    description: "Search one topic (scroll for more) or merge several (first page only)" },
 ];
 
 // ─── Generic chip-based multi-select with async autocomplete ─────────────────
@@ -544,6 +544,9 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
           {selectedType === "keyword" && (
             <div className="px-3 pb-3 space-y-1.5">
               <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wide">Keywords</label>
+              <p className="text-[11px] text-[var(--muted)] leading-snug">
+                One keyword supports load more. With two or more, Columns shows a single merged first page.
+              </p>
               <KeywordInput
                 tags={keywordTags}
                 onAdd={(t) => setKeywordTags((prev) => [...prev, t])}
