@@ -6,6 +6,8 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { useUiStore } from "@/store/ui";
 import type { HypersnapNotification } from "@/lib/notifications";
 import {
+  aggregateNotificationKey,
+  aggregateNotifications,
   formatNotificationSummary,
   formatNotificationTime,
   notificationActor,
@@ -57,7 +59,9 @@ export function NotificationsPanel({ open, onClose, viewerFid }: NotificationsPa
     refetchInterval: open ? 60_000 : false,
   });
 
-  const items = data?.pages.flatMap((p) => p.notifications ?? []) ?? [];
+  const items = aggregateNotifications(
+    data?.pages.flatMap((p) => p.notifications ?? []) ?? []
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -159,9 +163,9 @@ export function NotificationsPanel({ open, onClose, viewerFid }: NotificationsPa
             </div>
           )}
 
-          {items.map((n, i) => (
+          {items.map((n) => (
             <NotificationRow
-              key={`${n.type}-${n.timestamp}-${notificationCastHash(n) ?? i}-${i}`}
+              key={aggregateNotificationKey(n)}
               notification={n}
               onClick={() => handleClick(n)}
             />
