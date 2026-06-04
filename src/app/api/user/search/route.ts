@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { searchUsersCombined } from "@/lib/userSearch";
+import { searchUsersProfile } from "@/lib/userSearch";
 import { apiErrorFromHypersnap } from "@/lib/hypersnap";
 
 const LIMIT = 25;
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const users = await searchUsersCombined(q, LIMIT);
+    const users = await searchUsersProfile(q, LIMIT);
     return NextResponse.json({ users });
   } catch (err: unknown) {
     return apiErrorFromHypersnap(err, "[/api/user/search]");

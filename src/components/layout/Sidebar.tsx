@@ -11,6 +11,7 @@ import { ImportColumnModal } from "@/components/feed/ImportColumnModal";
 import { SidebarColumnList } from "@/components/layout/SidebarColumnList";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { NotificationsPanel } from "@/components/layout/NotificationsPanel";
+import { ProfileSearchModal } from "@/components/search/ProfileSearchModal";
 import { useNotificationUnread } from "@/hooks/useNotificationUnread";
 import { useUiStore } from "@/store/ui";
 
@@ -28,6 +29,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const { theme, toggleTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [addColumnOpen, setAddColumnOpen] = useState(false);
   const [importColumnOpen, setImportColumnOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -133,6 +135,13 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
 
               <SidebarButton
                 collapsed={collapsed}
+                icon={<IconSearch />}
+                label="Search"
+                onClick={() => setSearchOpen(true)}
+              />
+
+              <SidebarButton
+                collapsed={collapsed}
                 icon={<IconBell />}
                 label="Notifications"
                 badgeCount={unreadNotificationCount}
@@ -216,6 +225,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
       )}
 
       {composeOpen && <ComposeModal onClose={() => setComposeOpen(false)} />}
+      {searchOpen && <ProfileSearchModal open onClose={() => setSearchOpen(false)} />}
       {addColumnOpen && <AddColumnModal onClose={() => setAddColumnOpen(false)} />}
       {importColumnOpen && <ImportColumnModal onClose={() => setImportColumnOpen(false)} />}
     </>
@@ -291,6 +301,18 @@ function IconPlus() {
   return (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+    </svg>
+  );
+}
+function IconSearch() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+      />
     </svg>
   );
 }
