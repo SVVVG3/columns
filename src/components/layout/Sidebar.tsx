@@ -12,6 +12,7 @@ import { SidebarColumnList } from "@/components/layout/SidebarColumnList";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { NotificationsPanel } from "@/components/layout/NotificationsPanel";
 import { useNotificationUnread } from "@/hooks/useNotificationUnread";
+import { useUiStore } from "@/store/ui";
 
 const SIDEBAR_WIDTH = 200;
 const NOTIFICATIONS_WIDTH = 360;
@@ -27,8 +28,8 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const [composeOpen, setComposeOpen] = useState(false);
   const [addColumnOpen, setAddColumnOpen] = useState(false);
   const [importColumnOpen, setImportColumnOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const openProfilePreview = useUiStore((s) => s.openProfilePreview);
   const { unreadCount: unreadNotificationCount, markSeen: markNotificationsSeen } =
     useNotificationUnread(user.fid, notificationsOpen);
 
@@ -39,8 +40,16 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
       : SIDEBAR_WIDTH;
 
   function openNotifications() {
-    setProfileOpen(false);
     setNotificationsOpen(true);
+  }
+
+  function openMyProfile() {
+    openProfilePreview({
+      fid: user.fid,
+      username: user.username,
+      displayName: user.displayName,
+      pfpUrl: user.pfpUrl,
+    });
   }
 
   function closeNotifications() {
@@ -143,9 +152,17 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
               />
             </nav>
 
-            <div className="shrink-0 border-t border-[var(--border)] p-2 relative">
+            <div className="shrink-0 border-t border-[var(--border)] p-2 space-y-0.5">
+              <SidebarButton
+                collapsed={collapsed}
+                icon={<IconSignOut />}
+                label="Sign out"
+                onClick={onLogout}
+              />
               <button
-                onClick={() => setProfileOpen((o) => !o)}
+                type="button"
+                onClick={openMyProfile}
+                title={collapsed ? user.displayName : undefined}
                 className={`w-full flex items-center gap-2.5 rounded-xl px-2 py-2 hover:bg-[var(--surface-hover)] transition-colors ${collapsed ? "justify-center" : ""}`}
               >
                 <UserAvatar
@@ -165,37 +182,6 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
                   </div>
                 )}
               </button>
-
-              {profileOpen && (
-                <div
-                  className="absolute bottom-full mb-1 left-2 right-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-50"
-                  onMouseLeave={() => setProfileOpen(false)}
-                >
-                  <a
-                    href={`https://farcaster.xyz/${user.username}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setProfileOpen(false)}
-                    className="flex flex-col px-3 py-2 border-b border-[var(--border)] hover:bg-[var(--surface-hover)] rounded-t-xl transition-colors"
-                  >
-                    <p className="text-sm font-medium text-[var(--foreground)] truncate">
-                      {user.displayName}
-                    </p>
-                    <p className="text-xs text-[var(--muted)] truncate">
-                      @{user.username} ↗
-                    </p>
-                  </a>
-                  <button
-                    onClick={() => {
-                      setProfileOpen(false);
-                      onLogout();
-                    }}
-                    className="w-full text-left px-3 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] rounded-b-xl transition-colors"
-                  >
-                    Sign out
-                  </button>
-                </div>
-              )}
             </div>
           </>
         )}
@@ -325,6 +311,18 @@ function IconColumns() {
   return (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+    </svg>
+  );
+}
+function IconSignOut() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+      />
     </svg>
   );
 }
