@@ -15,6 +15,8 @@ import { useNotificationUnread } from "@/hooks/useNotificationUnread";
 import { useUiStore } from "@/store/ui";
 
 const SIDEBAR_WIDTH = 200;
+/** Narrow rail — fits md avatar (28px) + padding without clipping. */
+const SIDEBAR_COLLAPSED_WIDTH = 64;
 const NOTIFICATIONS_WIDTH = 360;
 
 interface SidebarProps {
@@ -36,7 +38,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const widthPx = notificationsOpen
     ? NOTIFICATIONS_WIDTH
     : collapsed
-      ? 56
+      ? SIDEBAR_COLLAPSED_WIDTH
       : SIDEBAR_WIDTH;
 
   function openNotifications() {
@@ -88,22 +90,36 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
           </>
         ) : (
           <>
-            <div className="flex items-center h-12 shrink-0 border-b border-[var(--border)] px-2 gap-2">
-              {!collapsed && (
+            <div
+              className={`flex h-12 shrink-0 border-b border-[var(--border)] px-2 ${
+                collapsed ? "items-center justify-center" : "items-center gap-2"
+              }`}
+            >
+              {collapsed ? (
+                <button
+                  type="button"
+                  onClick={() => setCollapsed(false)}
+                  className="p-1 rounded-lg hover:bg-[var(--surface-hover)] transition-colors shrink-0"
+                  title="Expand sidebar"
+                >
+                  <ColumnsLogo />
+                </button>
+              ) : (
                 <>
                   <ColumnsLogo />
                   <span className="font-semibold text-sm text-[var(--foreground)] truncate flex-1">
                     Columns
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => setCollapsed(true)}
+                    className="p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors shrink-0 ml-auto"
+                    title="Collapse sidebar"
+                  >
+                    <IconChevronLeft />
+                  </button>
                 </>
               )}
-              <button
-                onClick={() => setCollapsed((c) => !c)}
-                className={`p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors shrink-0 ${collapsed ? "mx-auto" : "ml-auto"}`}
-                title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              >
-                {collapsed ? <IconChevronRight /> : <IconChevronLeft />}
-              </button>
             </div>
 
             <nav className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto min-h-0">
@@ -268,13 +284,6 @@ function IconChevronLeft() {
   return (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-    </svg>
-  );
-}
-function IconChevronRight() {
-  return (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
     </svg>
   );
 }

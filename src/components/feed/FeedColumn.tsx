@@ -203,7 +203,7 @@ export function FeedColumn({ column, columnIndex, viewerFid }: FeedColumnProps) 
       id={`column-${column.id}`}
       ref={setNodeRef}
       style={style}
-      className="flex flex-col w-[310px] shrink-0 border-r border-[var(--border)] h-full scroll-mt-0"
+      className="flex flex-col w-[330px] shrink-0 border-r border-[var(--border)] h-full scroll-mt-0"
     >
       {/* Column header */}
       <div
