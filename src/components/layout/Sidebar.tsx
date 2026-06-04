@@ -28,7 +28,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const [importColumnOpen, setImportColumnOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const { hasUnread: hasUnreadNotifications } = useNotificationUnread(
+  const { unreadCount: unreadNotificationCount } = useNotificationUnread(
     user.fid,
     notificationsOpen
   );
@@ -108,10 +108,10 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
                 collapsed={collapsed}
                 icon={<IconBell />}
                 label="Notifications"
-                badge={hasUnreadNotifications}
+                badgeCount={unreadNotificationCount}
                 title={
-                  hasUnreadNotifications
-                    ? "Notifications — new activity"
+                  unreadNotificationCount > 0
+                    ? `Notifications — ${unreadNotificationCount} unread`
                     : "Notifications"
                 }
                 onClick={openNotifications}
@@ -230,7 +230,7 @@ function SidebarButton({
   label,
   accent,
   active,
-  badge,
+  badgeCount,
   title,
   onClick,
 }: {
@@ -239,7 +239,8 @@ function SidebarButton({
   label: string;
   accent?: boolean;
   active?: boolean;
-  badge?: boolean;
+  /** Unread notification count on the bell icon */
+  badgeCount?: number;
   title?: string;
   onClick: () => void;
 }) {
@@ -257,11 +258,13 @@ function SidebarButton({
     >
       <span className="relative shrink-0">
         {icon}
-        {badge && (
+        {badgeCount != null && badgeCount > 0 && (
           <span
-            className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--accent)] ring-2 ring-[var(--background)]"
+            className="absolute -top-1.5 -right-1.5 min-w-[1rem] h-4 px-1 flex items-center justify-center rounded-full bg-[var(--accent)] text-[10px] font-semibold leading-none text-white ring-2 ring-[var(--background)]"
             aria-hidden
-          />
+          >
+            {badgeCount > 99 ? "99+" : badgeCount}
+          </span>
         )}
       </span>
       {!collapsed && <span>{label}</span>}

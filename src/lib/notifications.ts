@@ -289,6 +289,18 @@ export function latestNotificationTimestampMs(
   return max;
 }
 
+/** Count aggregated notifications newer than last-seen (peek window capped by API limit). */
+export function countUnreadNotifications(
+  notifications: HypersnapNotification[],
+  lastSeenMs: number
+): number {
+  if (!notifications.length) return 0;
+  if (lastSeenMs <= 0) {
+    return notifications.length;
+  }
+  return notifications.filter((n) => notificationTimestampMs(n) > lastSeenMs).length;
+}
+
 export function notificationsSeenStorageKey(fid: number): string {
   return `columns:notificationsSeen:${fid}`;
 }
