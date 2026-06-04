@@ -9,6 +9,8 @@ import { ComposeModal } from "@/components/cast/ComposeModal";
 import { AddColumnModal } from "@/components/feed/AddColumnModal";
 import { ImportColumnModal } from "@/components/feed/ImportColumnModal";
 import { SidebarColumnList } from "@/components/layout/SidebarColumnList";
+import { NotificationsPanel } from "@/components/layout/NotificationsPanel";
+import { useNotificationUnread } from "@/hooks/useNotificationUnread";
 
 interface SidebarProps {
   user: SessionUser;
@@ -22,14 +24,24 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const [addColumnOpen, setAddColumnOpen] = useState(false);
   const [importColumnOpen, setImportColumnOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const { hasUnread: hasUnreadNotifications } = useNotificationUnread(
+    user.fid,
+    notificationsOpen
+  );
 
   const w = collapsed ? "w-14" : "w-[200px]";
 
   return (
     <>
       <aside
-        className={`${w} shrink-0 flex flex-col h-full border-r border-[var(--border)] bg-[var(--background)] transition-all duration-200 overflow-hidden z-20`}
+        className={`${w} shrink-0 flex flex-col h-full border-r border-[var(--border)] bg-[var(--background)] transition-all duration-200 z-20 relative`}
       >
+        <NotificationsPanel
+          open={notificationsOpen}
+          onClose={() => setNotificationsOpen(false)}
+          viewerFid={user.fid}
+        />
         {/* Logo + collapse toggle */}
         <div className="flex items-center h-12 shrink-0 border-b border-[var(--border)] px-2 gap-2">
           {!collapsed && (
@@ -48,7 +60,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
         </div>
 
         {/* Nav actions */}
-        <nav className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto">
+        <nav className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto min-h-0">
           {/* Compose */}
           <SidebarButton
             collapsed={collapsed}
@@ -56,6 +68,20 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
             label="New Cast"
             accent
             onClick={() => setComposeOpen(true)}
+          />
+
+          <SidebarButton
+            collapsed={collapsed}
+            icon={<IconBell />}
+            label="Notifications"
+            active={notificationsOpen}
+            badge={hasUnreadNotifications && !notificationsOpen}
+            title={
+              hasUnreadNotifications && !notificationsOpen
+                ? "Notifications — new activity"
+                : "Notifications"
+            }
+            onClick={() => setNotificationsOpen((o) => !o)}
           />
 
           {/* Add column */}
@@ -152,25 +178,42 @@ function SidebarButton({
   icon,
   label,
   accent,
+  active,
+  badge,
+  title,
   onClick,
 }: {
   collapsed: boolean;
   icon: React.ReactNode;
   label: string;
   accent?: boolean;
+  active?: boolean;
+  /** Purple dot when there are unread notifications */
+  badge?: boolean;
+  title?: string;
   onClick: () => void;
 }) {
   const base = accent
     ? "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white"
-    : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)]";
+    : active
+      ? "text-[var(--foreground)] bg-[var(--surface-hover)]"
+      : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)]";
 
   return (
     <button
       onClick={onClick}
-      title={collapsed ? label : undefined}
+      title={title ?? (collapsed ? label : undefined)}
       className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-medium transition-colors ${base} ${collapsed ? "justify-center" : ""} w-full`}
     >
-      <span className="shrink-0">{icon}</span>
+      <span className="relative shrink-0">
+        {icon}
+        {badge && (
+          <span
+            className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--accent)] ring-2 ring-[var(--background)]"
+            aria-hidden
+          />
+        )}
+      </span>
       {!collapsed && <span>{label}</span>}
     </button>
   );
@@ -203,6 +246,18 @@ function IconPlus() {
   return (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+    </svg>
+  );
+}
+function IconBell() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+      />
     </svg>
   );
 }
