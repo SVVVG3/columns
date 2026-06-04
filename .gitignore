@@ -22,6 +22,7 @@
 
 # local dev cast image uploads
 /public/cast-uploads/
+/public/column-shares/
 
 # cursor (local agent scratchpad / plans)
 .cursor/

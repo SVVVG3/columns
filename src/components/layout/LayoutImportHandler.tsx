@@ -6,6 +6,7 @@ import {
   columnsFromSharePayload,
   decodeShareParam,
   PENDING_COLUMN_KEY,
+  PENDING_COLUMN_SHARE_ID_KEY,
   PENDING_LAYOUT_KEY,
 } from "@/lib/layoutShare";
 
@@ -18,36 +19,49 @@ export function LayoutImportHandler() {
   useEffect(() => {
     if (applied.current) return;
 
+    const params = new URLSearchParams(window.location.search);
+    const shareId =
+      sessionStorage.getItem(PENDING_COLUMN_SHARE_ID_KEY) ?? params.get("c");
     const columnParam =
-      sessionStorage.getItem(PENDING_COLUMN_KEY) ??
-      new URLSearchParams(window.location.search).get("column");
+      sessionStorage.getItem(PENDING_COLUMN_KEY) ?? params.get("column");
     const layoutParam =
-      sessionStorage.getItem(PENDING_LAYOUT_KEY) ??
-      new URLSearchParams(window.location.search).get("layout");
+      sessionStorage.getItem(PENDING_LAYOUT_KEY) ?? params.get("layout");
 
-    const param = columnParam ?? layoutParam;
-    if (!param) return;
+    if (!shareId && !columnParam && !layoutParam) return;
     applied.current = true;
 
-    try {
-      const payload = decodeShareParam(param);
-      const toAdd = columnsFromSharePayload(payload, columns);
-      for (const col of toAdd) addColumn(col);
-    } catch (err) {
-      console.error("[column import]", err);
-    } finally {
-      sessionStorage.removeItem(PENDING_COLUMN_KEY);
-      sessionStorage.removeItem(PENDING_LAYOUT_KEY);
-      const params = new URLSearchParams(window.location.search);
-      params.delete("column");
-      params.delete("layout");
-      const qs = params.toString();
-      window.history.replaceState(
-        {},
-        "",
-        window.location.pathname + (qs ? `?${qs}` : "")
-      );
-    }
+    (async () => {
+      try {
+        let payload;
+        if (shareId) {
+          const res = await fetch(
+            `/api/share/column?id=${encodeURIComponent(shareId)}`
+          );
+          if (!res.ok) throw new Error("Share link not found or expired");
+          payload = await res.json();
+        } else {
+          payload = decodeShareParam(columnParam ?? layoutParam!);
+        }
+        const toAdd = columnsFromSharePayload(payload, columns);
+        for (const col of toAdd) addColumn(col);
+      } catch (err) {
+        console.error("[column import]", err);
+      } finally {
+        sessionStorage.removeItem(PENDING_COLUMN_SHARE_ID_KEY);
+        sessionStorage.removeItem(PENDING_COLUMN_KEY);
+        sessionStorage.removeItem(PENDING_LAYOUT_KEY);
+        const clean = new URLSearchParams(window.location.search);
+        clean.delete("c");
+        clean.delete("column");
+        clean.delete("layout");
+        const qs = clean.toString();
+        window.history.replaceState(
+          {},
+          "",
+          window.location.pathname + (qs ? `?${qs}` : "")
+        );
+      }
+    })();
   }, [columns, addColumn]);
 
   return null;

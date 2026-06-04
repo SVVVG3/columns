@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FeedColumnConfig } from "@/types";
 import {
+  createColumnShareUrl,
   exportShareableColumn,
-  getColumnShareUrl,
   slugifyColumnTitle,
 } from "@/lib/layoutShare";
 
@@ -17,11 +17,35 @@ export function ShareColumnModal({ column, onClose }: ShareColumnModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [copied, setCopied] = useState<"link" | "json" | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [linkLoading, setLinkLoading] = useState(true);
 
   const shareable = exportShareableColumn(column);
-  const shareUrl = getColumnShareUrl(column);
   const json = JSON.stringify(shareable, null, 2);
   const filename = `farcaster-column-${slugifyColumnTitle(column.title)}.json`;
+
+  useEffect(() => {
+    let cancelled = false;
+    setLinkLoading(true);
+    setError(null);
+    createColumnShareUrl(column)
+      .then((url) => {
+        if (!cancelled) setShareUrl(url);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : "Could not create share link"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLinkLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [column]);
 
   async function copyText(text: string, kind: "link" | "json") {
     try {
@@ -75,10 +99,21 @@ export function ShareColumnModal({ column, onClose }: ShareColumnModalProps) {
           <p className="text-xs text-[var(--muted)]">
             Others can open your share link to add this column to their board (they keep their existing columns).
           </p>
+
+          {shareUrl && !linkLoading && (
+            <p className="text-xs text-[var(--foreground)] break-all font-mono bg-[var(--surface-hover)] rounded-lg px-2.5 py-2 border border-[var(--border)]">
+              {shareUrl}
+            </p>
+          )}
+          {linkLoading && (
+            <p className="text-xs text-[var(--muted)] animate-pulse">Creating short link…</p>
+          )}
+
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => copyText(shareUrl, "link")}
-              className="px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-medium transition-colors"
+              onClick={() => shareUrl && copyText(shareUrl, "link")}
+              disabled={!shareUrl || linkLoading}
+              className="px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-white text-xs font-medium transition-colors"
             >
               {copied === "link" ? "Copied!" : "Copy share link"}
             </button>

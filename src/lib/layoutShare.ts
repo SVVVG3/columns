@@ -2,6 +2,8 @@ import type { FeedColumnConfig, FeedColumnType } from "@/types";
 
 export const LAYOUT_SCHEMA_VERSION = 3 as const;
 export const PENDING_COLUMN_KEY = "fc_pending_column";
+/** Short share link ?c= id (resolved via /api/share/column) */
+export const PENDING_COLUMN_SHARE_ID_KEY = "fc_pending_column_share_id";
 /** @deprecated Legacy full-layout links; still imported by appending columns */
 export const PENDING_LAYOUT_KEY = "fc_pending_layout";
 
@@ -133,10 +135,36 @@ export function columnFromSharePayload(
   return cols[0] ?? null;
 }
 
+/** Legacy inline URL (very long). Prefer createColumnShareUrl(). */
 export function getColumnShareUrl(column: FeedColumnConfig): string {
   if (typeof window === "undefined") return "";
   const param = encodeShareParam(exportShareableColumn(column));
   return `${window.location.origin}${window.location.pathname}?column=${param}`;
+}
+
+/** Create a short ?c= link via the server (R2 or local public storage). */
+export async function createColumnShareUrl(
+  column: FeedColumnConfig
+): Promise<string> {
+  const res = await fetch("/api/share/column", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ column }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      (data as { error?: string }).error ?? "Failed to create share link"
+    );
+  }
+  const url = (data as { url?: string }).url;
+  if (!url) throw new Error("No share URL returned");
+  return url;
+}
+
+export function getColumnShareUrlFromId(shareId: string): string {
+  if (typeof window === "undefined") return "";
+  return `${window.location.origin}${window.location.pathname}?c=${shareId}`;
 }
 
 export function slugifyColumnTitle(title: string): string {
