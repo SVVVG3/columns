@@ -109,18 +109,23 @@ function CastPreviewCard({
       </div>
       {images.length > 0 && (
         <div
-          className={`grid gap-px bg-[var(--border)] ${
+          className={`grid gap-px bg-[var(--border)] w-full ${
             images.length === 1 ? "grid-cols-1" : "grid-cols-2"
           }`}
         >
           {images.slice(0, images.length === 1 ? 1 : 2).map((url) => (
-            <div key={url} className="relative aspect-[16/10] bg-black/40 max-h-28">
+            <div
+              key={url}
+              className={`relative w-full bg-black/40 ${
+                images.length === 1 ? "h-28" : "aspect-square max-h-28"
+              }`}
+            >
               <Image
                 src={url}
                 alt=""
                 fill
                 className="object-cover"
-                sizes="180px"
+                sizes={images.length === 1 ? "320px" : "160px"}
                 unoptimized
               />
             </div>
