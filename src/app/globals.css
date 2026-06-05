@@ -90,6 +90,9 @@ button:disabled {
   padding: 0 !important;
   line-height: 1.25 !important;
 }
+.auth-screen-signin > button:disabled {
+  opacity: 0.6;
+}
 
 /* Custom scrollbar — thin for column feeds */
 .feed-scroll::-webkit-scrollbar {

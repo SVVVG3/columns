@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { verifyCsrf } from "@/lib/csrf";
+import {
+  isAllowlistEnforced,
+  isBetaGateEnabled,
+  isFidAllowed,
+} from "@/lib/betaGate";
 
 /** GET /api/auth/session — return current session user (or null) */
 export async function GET() {
@@ -22,7 +27,24 @@ export async function POST(req: NextRequest) {
   }
 
   const session = await getSession();
-  session.user = { fid, signerUuid, username, displayName, pfpUrl };
+
+  if (isBetaGateEnabled() && !session.betaUnlocked) {
+    return NextResponse.json({ error: "beta_required" }, { status: 403 });
+  }
+
+  const fidNum = Number(fid);
+  if (isAllowlistEnforced() && !isFidAllowed(fidNum)) {
+    return NextResponse.json(
+      {
+        error: "not_allowed",
+        fid: fidNum,
+        username: username ?? "",
+      },
+      { status: 403 }
+    );
+  }
+
+  session.user = { fid: fidNum, signerUuid, username, displayName, pfpUrl };
   await session.save();
 
   return NextResponse.json({ ok: true });
@@ -35,7 +57,8 @@ export async function DELETE(req: NextRequest) {
   }
 
   const session = await getSession();
-  session.destroy();
+  delete session.user;
+  await session.save();
 
   return NextResponse.json({ ok: true });
 }

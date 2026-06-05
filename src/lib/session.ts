@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import type { SessionUser } from "@/types";
 
 export interface SessionData {
+  /** Set after correct beta password — required before SIWN when gate is on. */
+  betaUnlocked?: boolean;
   user?: SessionUser;
 }
 
