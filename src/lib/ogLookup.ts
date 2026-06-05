@@ -16,6 +16,10 @@ export interface OGData {
   tweetText?: string;
   tweetAuthor?: string;
   tweetHandle?: string;
+  /** ISO timestamp when parsed from oEmbed; use with formatEmbedTime. */
+  tweetDate?: string;
+  /** Raw date label from oEmbed when ISO parse fails. */
+  tweetDateLabel?: string;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

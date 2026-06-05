@@ -28,6 +28,7 @@ import { SpaceCard } from "@/components/cast/SpaceCard";
 import { MiniAppFrameCard } from "@/components/cast/MiniAppFrameCard";
 import { TokenCard } from "@/components/cast/TokenCard";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { formatEmbedTime } from "@/lib/formatEmbedTime";
 import { channelColumnFromSlug, columnHasChannel } from "@/lib/channelColumn";
 import { formatChannelLabel } from "@/lib/channelDisplay";
 import { channelSlugFromCast } from "@/lib/castChannel";
@@ -810,6 +811,11 @@ function QuotedCast({
               @{author.username}
             </button>
           )}
+          {quotedCast.timestamp != null && (
+            <span className="text-xs text-[var(--muted)] ml-auto shrink-0">
+              {formatEmbedTime(quotedCast.timestamp as string | number)}
+            </span>
+          )}
         </div>
         {/* Cast text */}
         {text ? (
@@ -909,6 +915,10 @@ function OGCard({
     const tweetAuthor = og?.tweetAuthor;
     const tweetHandle = og?.tweetHandle;
     const tweetImage = og?.image;
+    const tweetWhen =
+      (og?.tweetDate ? formatEmbedTime(og.tweetDate) : "") ||
+      og?.tweetDateLabel ||
+      "";
     const loading = !og?.tweetText && !seed?.tweetText && isXTwitter;
 
     return (
@@ -928,7 +938,9 @@ function OGCard({
             {tweetHandle && (
               <span className="text-xs text-[var(--muted)] truncate">{tweetHandle}</span>
             )}
-            <span className="text-xs text-[var(--muted)] ml-auto shrink-0">x.com</span>
+            <span className="text-xs text-[var(--muted)] ml-auto shrink-0">
+              {tweetWhen || "x.com"}
+            </span>
           </div>
           {loading && !tweetText ? (
             <div className="space-y-1.5 animate-pulse">

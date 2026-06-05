@@ -1,5 +1,17 @@
 import type { OGData } from "@/lib/ogLookup";
 
+/** Date anchor at the end of Twitter oEmbed blockquote (e.g. "December 25, 2024"). */
+function parseTweetDate(html: string): { iso?: string; label?: string } {
+  const match = html.match(/<a[^>]*href=["'][^"']*["'][^>]*>([^<]+)<\/a>\s*<\/blockquote>/i);
+  if (!match) return {};
+  const label = match[1].trim();
+  const ms = Date.parse(label);
+  if (!Number.isNaN(ms)) {
+    return { iso: new Date(ms).toISOString(), label };
+  }
+  return { label };
+}
+
 /** Extract tweet text from the HTML blockquote that Twitter's oEmbed returns. */
 function parseTweetHtml(html: string): string {
   const match = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
@@ -94,12 +106,16 @@ export async function fetchOG(url: string): Promise<OGData> {
 
     if (!oembedRes?.ok) return {};
     const data = await oembedRes.json();
-    const tweetText = parseTweetHtml(data.html ?? "");
+    const html = data.html ?? "";
+    const tweetText = parseTweetHtml(html);
+    const { iso: tweetDate, label: tweetDateLabel } = parseTweetDate(html);
     const handleMatch = (data.author_url as string ?? "").match(/\/([^/]+)\/?$/);
     return {
       tweetText,
       tweetAuthor: data.author_name ?? "",
       tweetHandle: handleMatch ? `@${handleMatch[1]}` : "",
+      tweetDate,
+      tweetDateLabel: tweetDateLabel && !tweetDate ? tweetDateLabel : undefined,
       image: tweetImage || undefined,
       siteName: "X (Twitter)",
     };
