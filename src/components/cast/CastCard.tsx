@@ -420,7 +420,7 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: 
     const text = cast.text as string | undefined;
     if (text) {
       for (const m of text.matchAll(
-        /https?:\/\/snap-host\.farcaster\.xyz\/[0-9a-f-]{36}\/?/gi
+        /https?:\/\/(?:snap-host\.farcaster\.xyz\/[0-9a-f-]{36}|[a-z0-9-]+\.host\.neynar\.app)\/?[^\s]*/gi
       )) {
         add(m[0]);
       }

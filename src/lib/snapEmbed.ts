@@ -2,13 +2,26 @@
 export const SNAP_HOST_PATTERN =
   /^https?:\/\/snap-host\.farcaster\.xyz\/[0-9a-f-]{36}\/?$/i;
 
+/** Neynar-hosted snap manifests (e.g. vendyz-raffle-snap.host.neynar.app). */
+export const NEYNAR_SNAP_HOST_PATTERN =
+  /^https?:\/\/[a-z0-9-]+\.host\.neynar\.app\/?/i;
+
+export const SNAP_MANIFEST_ACCEPT = "application/vnd.farcaster.snap+json";
+
+export function isNeynarSnapHost(hostname: string): boolean {
+  return /\.host\.neynar\.app$/i.test(hostname);
+}
+
 export function isSnapEmbedUrl(url: string): boolean {
   try {
     const u = new URL(url);
-    return (
+    if (
       u.hostname === "snap-host.farcaster.xyz" &&
       /^\/[0-9a-f-]{36}\/?$/i.test(u.pathname)
-    );
+    ) {
+      return true;
+    }
+    return isNeynarSnapHost(u.hostname);
   } catch {
     return false;
   }
@@ -20,15 +33,19 @@ export function castConversationUrl(hash: string): string {
   return `https://farcaster.xyz/~/conversations/${h}`;
 }
 
-/** Canonical snap URL with trailing slash (manifest fetch target). */
+/** Canonical snap URL (manifest fetch target). */
 export function normalizeSnapUrl(url: string): string {
   try {
     const u = new URL(url);
-    const id = u.pathname.replace(/\//g, "").toLowerCase();
-    if (u.hostname !== "snap-host.farcaster.xyz" || !/^[0-9a-f-]{36}$/.test(id)) {
-      return url;
+    if (isNeynarSnapHost(u.hostname)) {
+      const path = u.pathname.replace(/\/$/, "") || "";
+      return path ? `${u.origin}${path}/` : `${u.origin}/`;
     }
-    return `https://snap-host.farcaster.xyz/${id}/`;
+    const id = u.pathname.replace(/\//g, "").toLowerCase();
+    if (u.hostname === "snap-host.farcaster.xyz" && /^[0-9a-f-]{36}$/.test(id)) {
+      return `https://snap-host.farcaster.xyz/${id}/`;
+    }
+    return url;
   } catch {
     return url;
   }
@@ -67,17 +84,17 @@ function walkElements(
   visit: (el: SnapElement) => void
 ) {
   if (!rootId || !elements[rootId]) return;
-  const stack = [rootId];
+  const queue = [rootId];
   const seen = new Set<string>();
-  while (stack.length) {
-    const id = stack.pop()!;
+  while (queue.length) {
+    const id = queue.shift()!;
     if (seen.has(id)) continue;
     seen.add(id);
     const el = elements[id];
     if (!el) continue;
     visit(el);
     for (const child of el.children ?? []) {
-      if (typeof child === "string") stack.push(child);
+      if (typeof child === "string") queue.push(child);
     }
   }
 }

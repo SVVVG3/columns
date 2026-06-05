@@ -4,6 +4,7 @@ import {
   isSnapEmbedUrl,
   normalizeSnapUrl,
   parseSnapPreview,
+  SNAP_MANIFEST_ACCEPT,
   type SnapPreview,
 } from "@/lib/snapEmbed";
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
@@ -23,7 +24,11 @@ export async function GET(req: NextRequest) {
 
   try {
     const preview = await withCache(`snap:${url}`, TTL, async (): Promise<SnapPreview> => {
-      const res = await fetchWithTimeout(url, undefined, 8_000);
+      const res = await fetchWithTimeout(
+        url,
+        { headers: { Accept: SNAP_MANIFEST_ACCEPT } },
+        8_000
+      );
       if (!res.ok) throw new Error(`Snap manifest ${res.status}`);
       const manifest = (await res.json()) as Parameters<typeof parseSnapPreview>[0];
       return parseSnapPreview(manifest);
