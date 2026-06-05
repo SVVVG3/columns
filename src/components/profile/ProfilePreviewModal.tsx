@@ -47,7 +47,7 @@ async function fetchProfile(seed: ProfilePreviewSeed): Promise<ProfileDetails> {
 }
 
 async function fetchPopularCasts(fid: number): Promise<Record<string, unknown>[]> {
-  const res = await fetch(`/api/user/popular-casts?fid=${fid}&limit=10`);
+  const res = await fetch(`/api/user/popular-casts?fid=${fid}&limit=3`);
   if (!res.ok) throw new Error("Failed to load popular casts");
   const data = (await res.json()) as { casts?: Record<string, unknown>[] };
   return data.casts ?? [];
@@ -91,7 +91,7 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
   const addColumn = useColumnsStore((s) => s.addColumn);
 
   const { data: profile, isLoading, isError } = useQuery<ProfileDetails>({
-    queryKey: ["profile", seed?.fid, seed?.username],
+    queryKey: ["profile", "v3", seed?.fid, seed?.username],
     queryFn: () => fetchProfile(seed!),
     enabled: !!seed,
     staleTime: 60_000,
@@ -162,7 +162,7 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
       aria-hidden={conversationOpen}
     >
       <div
-        className={`w-full max-w-lg bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden transition-all duration-200 ${
+        className={`w-full max-w-lg max-h-[min(92vh,720px)] flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden transition-all duration-200 ${
           conversationOpen ? "blur-md opacity-40 scale-[0.98]" : ""
         }`}
         onClick={(e) => e.stopPropagation()}
@@ -186,108 +186,112 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
           </div>
         )}
 
-        <div className="px-4 pb-4 flex flex-col max-h-[min(75vh,640px)] overflow-y-auto feed-scroll">
-          <div className="flex items-start gap-3 mt-3 w-full text-left">
-            <UserAvatar src={pfpUrl} alt={displayName} size="xl" className="shrink-0" />
-            <div className="min-w-0 flex-1 pt-0.5">
-              <p className="text-base font-semibold text-[var(--foreground)] leading-tight truncate">
-                {displayName}
-              </p>
-              <p className="text-sm text-[var(--muted)] truncate">@{username}</p>
-              {(fid != null || wallets.length > 0) && (
-                <div className="mt-1">
-                  {fid != null && wallets.length === 0 && (
-                    <p className="text-[10px] text-[var(--muted)] font-mono">FID {fid}</p>
-                  )}
-                  {wallets.length > 0 && (
-                    <ProfileWalletsDropdown wallets={wallets} fid={fid} align="left" />
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {isLoading && !profile && (
-            <div className="w-full mt-3 space-y-1.5 animate-pulse">
-              <div className="h-2 rounded bg-[var(--surface-hover)] w-full" />
-              <div className="h-2 rounded bg-[var(--surface-hover)] w-4/5" />
-            </div>
-          )}
-
-          {bio && (
-            <p className="text-xs text-[var(--foreground)] opacity-90 mt-3 leading-relaxed whitespace-pre-wrap break-words max-h-32 overflow-y-auto w-full text-left">
-              {renderLinkifiedText(bio, {
-                onMentionClick: (mentionUsername) =>
-                  openProfilePreview({ username: mentionUsername }),
-                onChannelClick: handleChannelClick,
-              })}
-            </p>
-          )}
-
-          {(followers != null || following != null) && (
-            <p className="text-xs text-[var(--muted)] mt-2 text-left">
-              {followers != null && <span>{followers} followers</span>}
-              {followers != null && following != null && <span> · </span>}
-              {following != null && <span>{following} following</span>}
-            </p>
-          )}
-
-          {showFollowStatus && followLoading && (
-            <div className="w-32 h-3 mt-2 rounded bg-[var(--surface-hover)] animate-pulse" />
-          )}
-
-          {followLines.length > 0 && (
-            <div className="mt-2 flex flex-col gap-0.5 w-full text-left">
-              {followLines.map((line) => (
-                <p
-                  key={line}
-                  className="text-xs font-medium text-[var(--accent)]"
-                >
-                  {line}
+        <div className="flex-1 min-h-0 overflow-y-auto feed-scroll px-4 pb-3">
+          <div className="flex flex-col items-center text-center pt-3">
+            <div className="flex items-start gap-3 w-full max-w-sm text-left">
+              <UserAvatar src={pfpUrl} alt={displayName} size="xl" className="shrink-0" />
+              <div className="min-w-0 flex-1 pt-0.5">
+                <p className="text-base font-semibold text-[var(--foreground)] leading-tight truncate">
+                  {displayName}
                 </p>
-              ))}
+                <p className="text-sm text-[var(--muted)] truncate">@{username}</p>
+                {(fid != null || wallets.length > 0) && (
+                  <div className="mt-1">
+                    {fid != null && wallets.length === 0 && (
+                      <p className="text-[10px] text-[var(--muted)] font-mono">FID {fid}</p>
+                    )}
+                    {wallets.length > 0 && (
+                      <ProfileWalletsDropdown wallets={wallets} fid={fid} align="left" />
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
 
-          {(profileLinks.length > 0 || joined) && (
-            <ProfileMetaLinksRow links={profileLinks} joined={joined} align="left" />
-          )}
+            {isLoading && !profile && (
+              <div className="w-full max-w-sm mt-3 space-y-1.5 animate-pulse">
+                <div className="h-2 rounded bg-[var(--surface-hover)] w-full" />
+                <div className="h-2 rounded bg-[var(--surface-hover)] w-4/5 mx-auto" />
+              </div>
+            )}
 
-          {isError && (
-            <p className="text-xs text-[var(--muted)] mt-3">Couldn&apos;t load full profile details.</p>
-          )}
-
-          {targetFid != null && (
-            <div className="mt-4 w-full text-left border-t border-[var(--border)] pt-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)] mb-2">
-                Top casts
-              </p>
-              {popularLoading && (
-                <div className="space-y-3 animate-pulse">
-                  {[...Array(2)].map((_, i) => (
-                    <div key={i} className="h-32 rounded-xl bg-[var(--surface-hover)]" />
-                  ))}
-                </div>
-              )}
-              {!popularLoading && popularCasts.length === 0 && (
-                <p className="text-xs text-center text-[var(--muted)]">No popular casts yet.</p>
-              )}
-              <ul className="space-y-3">
-                {popularCasts.map((cast) => {
-                  const hash = cast.hash as string;
-                  if (!hash) return null;
-                  return (
-                    <li key={hash}>
-                      <CastCard cast={cast} viewerFid={viewerFid} variant="embedded" />
-                    </li>
-                  );
+            {bio ? (
+              <p className="text-xs text-[var(--foreground)] opacity-90 mt-3 leading-relaxed whitespace-pre-wrap break-words w-full max-w-sm text-center">
+                {renderLinkifiedText(bio, {
+                  onMentionClick: (mentionUsername) =>
+                    openProfilePreview({ username: mentionUsername }),
+                  onChannelClick: handleChannelClick,
                 })}
-              </ul>
-            </div>
-          )}
+              </p>
+            ) : null}
+
+            {(followers != null || following != null) && (
+              <p className="text-xs text-[var(--muted)] mt-2">
+                {followers != null && <span>{followers} followers</span>}
+                {followers != null && following != null && <span> · </span>}
+                {following != null && <span>{following} following</span>}
+              </p>
+            )}
+
+            {showFollowStatus && followLoading && (
+              <div className="w-32 h-3 mt-2 rounded bg-[var(--surface-hover)] animate-pulse" />
+            )}
+
+            {followLines.length > 0 && (
+              <div className="mt-2 flex flex-col gap-0.5 w-full max-w-sm items-center">
+                {followLines.map((line) => (
+                  <p
+                    key={line}
+                    className="text-xs font-medium text-[var(--accent)]"
+                  >
+                    {line}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {(profileLinks.length > 0 || joined) && (
+              <ProfileMetaLinksRow links={profileLinks} joined={joined} align="center" />
+            )}
+
+            {isError && (
+              <p className="text-xs text-[var(--muted)] mt-3">Couldn&apos;t load full profile details.</p>
+            )}
+
+            {targetFid != null && (
+              <div className="mt-4 w-full max-w-sm border-t border-[var(--border)] pt-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)] mb-2 text-center">
+                  Top Recent Casts
+                </p>
+                <div className="max-h-[min(36vh,280px)] overflow-y-auto feed-scroll -mx-1 px-1">
+                  {popularLoading && (
+                    <div className="space-y-3 animate-pulse">
+                      {[...Array(2)].map((_, i) => (
+                        <div key={i} className="h-24 rounded-xl bg-[var(--surface-hover)]" />
+                      ))}
+                    </div>
+                  )}
+                  {!popularLoading && popularCasts.length === 0 && (
+                    <p className="text-xs text-center text-[var(--muted)]">No recent casts yet.</p>
+                  )}
+                  <ul className="space-y-3">
+                    {popularCasts.map((cast) => {
+                      const hash = cast.hash as string;
+                      if (!hash) return null;
+                      return (
+                        <li key={hash}>
+                          <CastCard cast={cast} viewerFid={viewerFid} variant="embedded" />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="flex gap-2 px-4 pb-4 border-t border-[var(--border)] pt-3">
+        <div className="shrink-0 flex gap-2 px-4 pb-4 border-t border-[var(--border)] pt-3 bg-[var(--surface)]">
           <ProfileAddToColumnControl
             fid={fid}
             username={username}
