@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { profileSeedFromUnknown } from "@/lib/profilePreview";
@@ -13,10 +13,25 @@ interface SearchUser {
   pfp_url?: string;
 }
 
+interface SearchCast {
+  hash: string;
+  text?: string;
+  timestamp?: string;
+  author?: {
+    username?: string;
+    display_name?: string;
+    pfp_url?: string;
+  };
+}
+
 interface ProfileSearchModalProps {
   open: boolean;
   onClose: () => void;
 }
+
+type SearchHit =
+  | { kind: "user"; user: SearchUser }
+  | { kind: "cast"; cast: SearchCast };
 
 async function fetchUserSearch(q: string): Promise<SearchUser[]> {
   const res = await fetch(`/api/user/search?q=${encodeURIComponent(q)}`);
@@ -25,13 +40,21 @@ async function fetchUserSearch(q: string): Promise<SearchUser[]> {
   return data.users ?? [];
 }
 
-/** Spotlight-style profile search (username, FID, ETH, X). */
+async function fetchCastSearch(q: string): Promise<SearchCast[]> {
+  const res = await fetch(`/api/cast/search?q=${encodeURIComponent(q)}&limit=20`);
+  const data = (await res.json()) as { casts?: SearchCast[]; error?: string };
+  if (!res.ok) throw new Error(data.error ?? "Cast search failed");
+  return data.casts ?? [];
+}
+
+/** Spotlight search: profiles (username, FID, ETH, X) and casts by keyword. */
 export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const openProfilePreview = useUiStore((s) => s.openProfilePreview);
+  const openConversation = useUiStore((s) => s.openConversation);
 
   useEffect(() => {
     if (!open) return;
@@ -48,16 +71,42 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
     return () => window.clearTimeout(t);
   }, [query, open]);
 
-  const { data: users = [], isLoading, isFetching, isError, error } = useQuery({
+  const usersQuery = useQuery({
     queryKey: ["profileSearch", debouncedQuery],
     queryFn: () => fetchUserSearch(debouncedQuery),
     enabled: open && debouncedQuery.length > 0,
     staleTime: 30_000,
   });
 
+  const castsQuery = useQuery({
+    queryKey: ["castSearch", debouncedQuery],
+    queryFn: () => fetchCastSearch(debouncedQuery),
+    enabled: open && debouncedQuery.length > 0,
+    staleTime: 30_000,
+  });
+
+  const users = usersQuery.data ?? [];
+  const casts = castsQuery.data ?? [];
+  const hits = useMemo<SearchHit[]>(
+    () => [
+      ...users.map((user) => ({ kind: "user" as const, user })),
+      ...casts.map((cast) => ({ kind: "cast" as const, cast })),
+    ],
+    [users, casts]
+  );
+
+  const isLoading =
+    debouncedQuery.length > 0 &&
+    (usersQuery.isLoading ||
+      usersQuery.isFetching ||
+      castsQuery.isLoading ||
+      castsQuery.isFetching);
+  const isError = usersQuery.isError || castsQuery.isError;
+  const error = usersQuery.error ?? castsQuery.error;
+
   useEffect(() => {
     setActiveIndex(0);
-  }, [debouncedQuery, users.length]);
+  }, [debouncedQuery, hits.length]);
 
   useEffect(() => {
     if (!open) return;
@@ -67,33 +116,40 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
         onClose();
         return;
       }
-      if (users.length === 0) return;
+      if (hits.length === 0) return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setActiveIndex((i) => Math.min(i + 1, users.length - 1));
+        setActiveIndex((i) => Math.min(i + 1, hits.length - 1));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setActiveIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === "Enter") {
         e.preventDefault();
-        const u = users[activeIndex];
-        if (u) selectUser(u);
+        selectHit(hits[activeIndex]);
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose, users, activeIndex]);
+  }, [open, onClose, hits, activeIndex]);
 
-  function selectUser(u: SearchUser) {
-    const seed = profileSeedFromUnknown(u);
-    if (seed) openProfilePreview(seed);
+  function selectHit(hit: SearchHit | undefined) {
+    if (!hit) return;
+    if (hit.kind === "user") {
+      const seed = profileSeedFromUnknown(hit.user);
+      if (seed) openProfilePreview(seed);
+    } else if (hit.cast.hash) {
+      openConversation(hit.cast.hash);
+    }
     onClose();
   }
 
   if (!open) return null;
 
   const showResults = debouncedQuery.length > 0;
-  const pending = showResults && (isLoading || isFetching);
+  const pending = showResults && isLoading;
+  const empty =
+    showResults && !pending && !isError && users.length === 0 && casts.length === 0;
+  let hitIndex = 0;
 
   return (
     <div
@@ -104,7 +160,7 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
       <div
         className="w-full max-w-xl bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden"
         role="dialog"
-        aria-label="Search profiles"
+        aria-label="Search"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[var(--border)]">
@@ -114,7 +170,7 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Username, FID, ETH address, or X handle…"
+            placeholder="Profiles, casts, FID, wallet, or X handle…"
             className="flex-1 bg-transparent text-base text-[var(--foreground)] placeholder:text-[var(--muted)] outline-none"
             autoComplete="off"
             spellCheck={false}
@@ -127,11 +183,11 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
         <div className="max-h-[min(50vh,360px)] overflow-y-auto feed-scroll">
           {!showResults && (
             <p className="px-4 py-8 text-sm text-center text-[var(--muted)]">
-              Search Farcaster profiles by username, FID, wallet address, or X handle.
+              Search profiles or casts — username, FID, wallet, X handle, or keywords in cast text.
             </p>
           )}
 
-          {showResults && pending && users.length === 0 && (
+          {showResults && pending && hits.length === 0 && (
             <div className="px-4 py-6 space-y-2 animate-pulse">
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="flex gap-3 items-center">
@@ -151,45 +207,90 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
             </p>
           )}
 
-          {showResults && !pending && !isError && users.length === 0 && (
+          {empty && (
             <p className="px-4 py-6 text-sm text-center text-[var(--muted)]">
-              No profiles found for &ldquo;{debouncedQuery}&rdquo;
+              No results for &ldquo;{debouncedQuery}&rdquo;
             </p>
           )}
 
-          {users.map((u, index) => {
-            const name = u.display_name ?? u.username;
-            const active = index === activeIndex;
-            return (
-              <button
-                key={u.fid}
-                type="button"
-                onMouseEnter={() => setActiveIndex(index)}
-                onClick={() => selectUser(u)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                  active
-                    ? "bg-[var(--surface-hover)]"
-                    : "hover:bg-[var(--surface-hover)]/70"
-                }`}
-              >
-                <UserAvatar src={u.pfp_url} alt={name} size="lg" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-[var(--foreground)] truncate">
-                    {name}
-                  </p>
-                  <p className="text-xs text-[var(--muted)] truncate">
-                    @{u.username}
-                    <span className="mx-1.5">·</span>
-                    <span className="font-mono">FID {u.fid}</span>
-                  </p>
-                </div>
-              </button>
-            );
-          })}
+          {users.length > 0 && (
+            <>
+              <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                Profiles
+              </p>
+              {users.map((u) => {
+                const index = hitIndex++;
+                const active = index === activeIndex;
+                const name = u.display_name ?? u.username;
+                return (
+                  <button
+                    key={`u-${u.fid}`}
+                    type="button"
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onClick={() => selectHit({ kind: "user", user: u })}
+                    className={rowClass(active)}
+                  >
+                    <UserAvatar src={u.pfp_url} alt={name} size="lg" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-[var(--foreground)] truncate">{name}</p>
+                      <p className="text-xs text-[var(--muted)] truncate">
+                        @{u.username}
+                        <span className="mx-1.5">·</span>
+                        <span className="font-mono">FID {u.fid}</span>
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </>
+          )}
+
+          {casts.length > 0 && (
+            <>
+              <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                Casts
+              </p>
+              {casts.map((c) => {
+                const index = hitIndex++;
+                const active = index === activeIndex;
+                const author = c.author?.display_name ?? c.author?.username ?? "Unknown";
+                const username = c.author?.username;
+                const preview = (c.text ?? "").replace(/\s+/g, " ").trim();
+                return (
+                  <button
+                    key={`c-${c.hash}`}
+                    type="button"
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onClick={() => selectHit({ kind: "cast", cast: c })}
+                    className={rowClass(active)}
+                  >
+                    <UserAvatar src={c.author?.pfp_url} alt={author} size="lg" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-[var(--foreground)] truncate">
+                        {author}
+                        {username && (
+                          <span className="font-normal text-[var(--muted)]"> @{username}</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-[var(--muted)] line-clamp-2 text-left">
+                        {preview || "(no text)"}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </>
+          )}
         </div>
       </div>
     </div>
   );
+}
+
+function rowClass(active: boolean): string {
+  return `w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+    active ? "bg-[var(--surface-hover)]" : "hover:bg-[var(--surface-hover)]/70"
+  }`;
 }
 
 function friendlySearchError(error: unknown): string {

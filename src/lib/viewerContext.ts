@@ -3,8 +3,9 @@
  *
  * Two strategies depending on context:
  *
- * 1. Feed routes — `getViewerContext` (2 calls) plus `hydrateFeedReactions` on
- *    the first N casts per page (per-cast `reaction/cast` for counts + liked state).
+ * 1. Feed routes — `getBatchViewerContext` (batch cast-interactions) with
+ *    fallback to `getViewerContext`, plus `hydrateFeedReactions` on the first N
+ *    casts per page (per-cast `reaction/cast` for counts).
  *
  * 2. Conversation route — `getConversationViewerContext`: queries
  *    `reaction/cast` for every cast in the tree. Slower (N parallel calls)
@@ -12,7 +13,7 @@
  *    and practical because conversation panels have only 5–20 casts.
  */
 
-import { hsnap } from "@/lib/hypersnap";
+import { hsnap, hsnapPost } from "@/lib/hypersnap";
 import { withCache } from "@/lib/feedCache";
 
 const REACTION_TTL = 60_000; // 60 s
@@ -67,6 +68,53 @@ export async function getViewerContext(fid: number): Promise<ViewerContext> {
     fetchReactionHashes(fid, "recasts"),
   ]);
   return { liked, recasted };
+}
+
+interface BatchCastInteraction {
+  hash: string;
+  liked?: boolean;
+  recasted?: boolean;
+  replied?: boolean;
+}
+
+type BatchCastInteractionsResponse = Record<string, BatchCastInteraction[]>;
+
+function interactionsForFid(
+  data: BatchCastInteractionsResponse,
+  fid: number
+): BatchCastInteraction[] {
+  const key = String(fid);
+  return data[key] ?? data[fid as unknown as string] ?? [];
+}
+
+/** Viewer liked/recasted state from Hypersnap batch cast-interactions. */
+export async function getBatchViewerContext(fid: number): Promise<ViewerContext> {
+  const cacheKey = `batch-interactions:${fid}`;
+  const data = await withCache<BatchCastInteractionsResponse>(cacheKey, REACTION_TTL, () =>
+    hsnapPost<BatchCastInteractionsResponse>("/v2/farcaster/batch/cast-interactions", {
+      fids: [fid],
+    })
+  );
+
+  const liked = new Set<string>();
+  const recasted = new Set<string>();
+  for (const item of interactionsForFid(data, fid)) {
+    if (!item.hash) continue;
+    const h = normalizeCastHash(item.hash);
+    if (item.liked) liked.add(h);
+    if (item.recasted) recasted.add(h);
+  }
+  return { liked, recasted };
+}
+
+/** Batch interactions when available; otherwise recent reaction/user (100 cap). */
+export async function getFeedViewerContext(fid: number): Promise<ViewerContext> {
+  try {
+    return await getBatchViewerContext(fid);
+  } catch (err) {
+    console.warn("[viewerContext] batch cast-interactions failed, using reaction/user", err);
+    return getViewerContext(fid);
+  }
 }
 
 /**

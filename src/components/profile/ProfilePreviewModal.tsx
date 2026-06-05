@@ -45,6 +45,20 @@ async function fetchProfile(seed: ProfilePreviewSeed): Promise<ProfileDetails> {
   return data.user;
 }
 
+interface PopularCast {
+  hash: string;
+  text?: string;
+  timestamp?: string;
+  reactions?: { likes_count?: number; recasts_count?: number; replies_count?: number };
+}
+
+async function fetchPopularCasts(fid: number): Promise<PopularCast[]> {
+  const res = await fetch(`/api/user/popular-casts?fid=${fid}&limit=10`);
+  if (!res.ok) throw new Error("Failed to load popular casts");
+  const data = (await res.json()) as { casts?: PopularCast[] };
+  return data.casts ?? [];
+}
+
 function ModalCloseButton({
   onClose,
   onBanner,
@@ -78,6 +92,7 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
   const seed = useUiStore((s) => s.profilePreview);
   const closeProfilePreview = useUiStore((s) => s.closeProfilePreview);
   const openProfilePreview = useUiStore((s) => s.openProfilePreview);
+  const openConversation = useUiStore((s) => s.openConversation);
   const columns = useColumnsStore((s) => s.columns);
   const addColumn = useColumnsStore((s) => s.addColumn);
 
@@ -97,6 +112,13 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
     queryFn: () => fetchFollowRelationship(targetFid!),
     enabled: !!showFollowStatus,
     staleTime: 60_000,
+  });
+
+  const { data: popularCasts = [], isLoading: popularLoading } = useQuery({
+    queryKey: ["popular-casts", targetFid],
+    queryFn: () => fetchPopularCasts(targetFid!),
+    enabled: targetFid != null,
+    staleTime: 120_000,
   });
 
   useEffect(() => {
@@ -141,7 +163,7 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
       role="presentation"
     >
       <div
-        className="w-full max-w-sm bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden"
+        className="w-full max-w-md bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label={`Profile: ${displayName}`}
@@ -232,6 +254,45 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
 
           {isError && (
             <p className="text-xs text-[var(--muted)] mt-3">Couldn&apos;t load full profile details.</p>
+          )}
+
+          {targetFid != null && (
+            <div className="mt-4 w-full text-left border-t border-[var(--border)] pt-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)] mb-2 text-center">
+                Top casts
+              </p>
+              {popularLoading && (
+                <div className="space-y-2 animate-pulse">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="h-10 rounded-lg bg-[var(--surface-hover)]" />
+                  ))}
+                </div>
+              )}
+              {!popularLoading && popularCasts.length === 0 && (
+                <p className="text-xs text-center text-[var(--muted)]">No popular casts yet.</p>
+              )}
+              <ul className="space-y-1">
+                {popularCasts.map((cast) => (
+                  <li key={cast.hash}>
+                    <button
+                      type="button"
+                      onClick={() => openConversation(cast.hash)}
+                      className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
+                    >
+                      <p className="text-xs text-[var(--foreground)] line-clamp-2 leading-snug">
+                        {(cast.text ?? "").trim() || "(no text)"}
+                      </p>
+                      <p className="text-[10px] text-[var(--muted)] mt-1">
+                        {formatCastAge(cast.timestamp)}
+                        {formatCastEngagement(cast.reactions) && (
+                          <span> · {formatCastEngagement(cast.reactions)}</span>
+                        )}
+                      </p>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
 
@@ -416,6 +477,31 @@ function ProfileWalletsDropdown({
       </ul>
     </details>
   );
+}
+
+function formatCastAge(timestamp?: string): string {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  const diffMins = Math.floor((Date.now() - date.getTime()) / 60_000);
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h`;
+  return `${Math.floor(diffHours / 24)}d`;
+}
+
+function formatCastEngagement(
+  reactions?: PopularCast["reactions"]
+): string | null {
+  if (!reactions) return null;
+  const parts: string[] = [];
+  const likes = reactions.likes_count ?? 0;
+  const recasts = reactions.recasts_count ?? 0;
+  const replies = reactions.replies_count ?? 0;
+  if (replies > 0) parts.push(`${replies} replies`);
+  if (recasts > 0) parts.push(`${recasts} recasts`);
+  if (likes > 0) parts.push(`${likes} likes`);
+  return parts.length > 0 ? parts.join(" · ") : null;
 }
 
 function ProfileWalletRow({ wallet }: { wallet: ProfileWallet }) {

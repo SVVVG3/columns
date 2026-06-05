@@ -20,7 +20,7 @@ interface AddColumnModalProps {
 
 const COLUMN_TYPES: { type: FeedColumnType; label: string; description: string }[] = [
   { type: "home",     label: "Home",      description: "Casts from people you follow" },
-  { type: "trending", label: "Trending",   description: "Most popular casts right now" },
+  { type: "trending", label: "Trending",   description: "Popular casts (Hypersnap trending index)" },
   { type: "channel",  label: "Channel",    description: "Casts from one or more channels" },
   { type: "user",     label: "User",       description: "Casts from one or more users" },
   { type: "keyword",  label: "Keyword",    description: "Search one topic (scroll for more) or merge several (first page only)" },

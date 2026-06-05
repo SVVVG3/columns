@@ -103,7 +103,11 @@ async function parseErrorBody(res: Response): Promise<string> {
   }
 }
 
-async function hsnapOnce<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
+async function hsnapFetchOnce<T>(
+  path: string,
+  init: RequestInit,
+  params?: Record<string, string | number | undefined>
+): Promise<T> {
   const url = new URL(`${BASE_URL}${path}`);
 
   if (params) {
@@ -118,8 +122,12 @@ async function hsnapOnce<T>(path: string, params?: Record<string, string | numbe
 
   for (let attempt = 0; attempt <= MAX_429_RETRIES; attempt++) {
     const res = await fetch(url.toString(), {
-      headers: { Accept: "application/json" },
       next: { revalidate: 30 },
+      ...init,
+      headers: {
+        Accept: "application/json",
+        ...(init.headers as Record<string, string> | undefined),
+      },
     });
 
     if (res.status === 429 && attempt < MAX_429_RETRIES) {
@@ -143,8 +151,21 @@ async function hsnapOnce<T>(path: string, params?: Record<string, string | numbe
   throw lastError ?? new HypersnapError(502, path, "Hypersnap request failed");
 }
 
+async function hsnapOnce<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
+  return hsnapFetchOnce<T>(path, { headers: { Accept: "application/json" } }, params);
+}
+
+async function runWithThrottle<T>(options: HsnapOptions | undefined, fn: () => Promise<T>): Promise<T> {
+  if (options?.throttle) await acquireFeedSlot();
+  try {
+    return await fn();
+  } finally {
+    if (options?.throttle) releaseFeedSlot();
+  }
+}
+
 /**
- * Typed fetch against the Hypersnap HTTP API.
+ * Typed GET against the Hypersnap HTTP API.
  * Throws {@link HypersnapError} on non-2xx (after 429 retries with backoff).
  */
 export async function hsnap<T>(
@@ -152,12 +173,25 @@ export async function hsnap<T>(
   params?: Record<string, string | number | undefined>,
   options?: HsnapOptions
 ): Promise<T> {
-  if (options?.throttle) await acquireFeedSlot();
-  try {
-    return await hsnapOnce<T>(path, params);
-  } finally {
-    if (options?.throttle) releaseFeedSlot();
-  }
+  return runWithThrottle(options, () => hsnapOnce<T>(path, params));
+}
+
+/** Typed POST against the Hypersnap HTTP API (e.g. batch cast-interactions). */
+export async function hsnapPost<T>(
+  path: string,
+  body: unknown,
+  options?: HsnapOptions
+): Promise<T> {
+  return runWithThrottle(options, () =>
+    hsnapFetchOnce<T>(path, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    })
+  );
 }
 
 /** Options for feed/search pagination — limits concurrent Hypersnap calls per request. */

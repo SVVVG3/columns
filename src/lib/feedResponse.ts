@@ -1,7 +1,7 @@
 import { normalizeCast } from "@/lib/normalizeCast";
 import {
   annotateFeedCasts,
-  getViewerContext,
+  getFeedViewerContext,
   hydrateFeedReactions,
 } from "@/lib/viewerContext";
 
@@ -12,7 +12,7 @@ export async function buildFeedCastsResponse(
 ): Promise<Record<string, unknown>[]> {
   const normalized = casts.map(normalizeCast);
   const [baseVc, hydration] = await Promise.all([
-    getViewerContext(viewerFid),
+    getFeedViewerContext(viewerFid),
     hydrateFeedReactions(normalized, viewerFid),
   ]);
   return annotateFeedCasts(normalized, hydration, baseVc);
