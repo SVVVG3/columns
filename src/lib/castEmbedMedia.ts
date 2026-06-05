@@ -4,15 +4,7 @@
 type EmbedLike = { url?: string; metadata?: { content_type?: string } };
 
 const IMAGE_CDN_HOST =
-  /(?:^|\.)(
-    imagedelivery\.net|
-    images\.warpcast\.com|
-    res\.cloudinary\.com|
-    i\.imgur\.com|
-    pbs\.twimg\.com|
-    media\.tenor\.com|
-    pinata\.cloud
-  )$/i;
+  /(?:^|\.)(?:imagedelivery\.net|images\.warpcast\.com|res\.cloudinary\.com|i\.imgur\.com|pbs\.twimg\.com|media\.tenor\.com|pinata\.cloud)$/i;
 
 /** Whether a cast embed URL should render as an inline image (not a link card). */
 export function isImageEmbedUrl(url: string, contentType?: string): boolean {
