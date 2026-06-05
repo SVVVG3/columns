@@ -76,14 +76,21 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
             </button>
           ) : (
             <>
-              <ColumnsLogo />
-              <span className="font-semibold text-sm text-[var(--foreground)] truncate flex-1">
-                Columns
-              </span>
               <button
                 type="button"
                 onClick={() => setCollapsed(true)}
-                className="p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors shrink-0 ml-auto"
+                className="flex items-center gap-2 min-w-0 flex-1 rounded-lg p-1 -m-1 hover:bg-[var(--surface-hover)] transition-colors text-left"
+                title="Collapse sidebar"
+              >
+                <ColumnsLogo />
+                <span className="font-semibold text-sm text-[var(--foreground)] truncate">
+                  Columns
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCollapsed(true)}
+                className="p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors shrink-0"
                 title="Collapse sidebar"
               >
                 <IconChevronLeft />
