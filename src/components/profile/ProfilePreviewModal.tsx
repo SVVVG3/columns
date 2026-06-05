@@ -91,7 +91,7 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
   const addColumn = useColumnsStore((s) => s.addColumn);
 
   const { data: profile, isLoading, isError } = useQuery<ProfileDetails>({
-    queryKey: ["profile", "v3", seed?.fid, seed?.username],
+    queryKey: ["profile", "v4", seed?.fid, seed?.username],
     queryFn: () => fetchProfile(seed!),
     enabled: !!seed,
     staleTime: 60_000,
@@ -111,7 +111,7 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
   const { data: popularCasts = [], isLoading: popularLoading } = useQuery({
     queryKey: ["popular-casts", targetFid],
     queryFn: () => fetchPopularCasts(targetFid!),
-    enabled: targetFid != null,
+    enabled: targetFid != null && !!profile,
     staleTime: 120_000,
   });
 
@@ -187,10 +187,11 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
         )}
 
         <div className="flex-1 min-h-0 overflow-y-auto feed-scroll px-4 pb-3">
-          <div className="flex flex-col items-center text-center pt-3">
-            <div className="flex items-start gap-3 w-full max-w-sm text-left">
+          <div className="flex flex-col items-center pt-3">
+            <div className="flex justify-center w-full">
+              <div className="flex items-start gap-6 text-left max-w-full">
               <UserAvatar src={pfpUrl} alt={displayName} size="xl" className="shrink-0" />
-              <div className="min-w-0 flex-1 pt-0.5">
+              <div className="min-w-0 pt-0.5">
                 <p className="text-base font-semibold text-[var(--foreground)] leading-tight truncate">
                   {displayName}
                 </p>
@@ -206,6 +207,7 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
                   </div>
                 )}
               </div>
+              </div>
             </div>
 
             {isLoading && !profile && (
@@ -216,7 +218,7 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
             )}
 
             {bio ? (
-              <p className="text-xs text-[var(--foreground)] opacity-90 mt-3 leading-relaxed whitespace-pre-wrap break-words w-full max-w-sm text-center">
+              <p className="text-xs text-[var(--foreground)] opacity-90 mt-3 leading-relaxed whitespace-pre-wrap break-words w-full max-w-sm text-center text-pretty">
                 {renderLinkifiedText(bio, {
                   onMentionClick: (mentionUsername) =>
                     openProfilePreview({ username: mentionUsername }),
@@ -226,7 +228,7 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
             ) : null}
 
             {(followers != null || following != null) && (
-              <p className="text-xs text-[var(--muted)] mt-2">
+              <p className="text-xs text-[var(--muted)] mt-2 text-center">
                 {followers != null && <span>{followers} followers</span>}
                 {followers != null && following != null && <span> · </span>}
                 {following != null && <span>{following} following</span>}
@@ -259,33 +261,31 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
             )}
 
             {targetFid != null && (
-              <div className="mt-4 w-full max-w-sm border-t border-[var(--border)] pt-3">
+              <div className="mt-4 w-full border-t border-[var(--border)] pt-3 text-left">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)] mb-2 text-center">
                   Top Recent Casts
                 </p>
-                <div className="max-h-[min(36vh,280px)] overflow-y-auto feed-scroll -mx-1 px-1">
-                  {popularLoading && (
-                    <div className="space-y-3 animate-pulse">
-                      {[...Array(2)].map((_, i) => (
-                        <div key={i} className="h-24 rounded-xl bg-[var(--surface-hover)]" />
-                      ))}
-                    </div>
-                  )}
-                  {!popularLoading && popularCasts.length === 0 && (
-                    <p className="text-xs text-center text-[var(--muted)]">No recent casts yet.</p>
-                  )}
-                  <ul className="space-y-3">
-                    {popularCasts.map((cast) => {
-                      const hash = cast.hash as string;
-                      if (!hash) return null;
-                      return (
-                        <li key={hash}>
-                          <CastCard cast={cast} viewerFid={viewerFid} variant="embedded" />
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
+                {popularLoading && (
+                  <div className="space-y-3 animate-pulse">
+                    {[...Array(2)].map((_, i) => (
+                      <div key={i} className="h-24 rounded-xl bg-[var(--surface-hover)]" />
+                    ))}
+                  </div>
+                )}
+                {!popularLoading && popularCasts.length === 0 && (
+                  <p className="text-xs text-center text-[var(--muted)]">No recent casts yet.</p>
+                )}
+                <ul className="space-y-0">
+                  {popularCasts.map((cast) => {
+                    const hash = cast.hash as string;
+                    if (!hash) return null;
+                    return (
+                      <li key={hash}>
+                        <CastCard cast={cast} viewerFid={viewerFid} variant="feed" />
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
             )}
           </div>

@@ -1,6 +1,7 @@
 import { normalizeCast } from "@/lib/normalizeCast";
 import {
   annotateFeedCasts,
+  annotateViewerContext,
   getFeedViewerContext,
   hydrateFeedReactions,
 } from "@/lib/viewerContext";
@@ -16,4 +17,14 @@ export async function buildFeedCastsResponse(
     hydrateFeedReactions(normalized, viewerFid),
   ]);
   return annotateFeedCasts(normalized, hydration, baseVc);
+}
+
+/** Lighter feed annotation for profile previews — batch liked state only, no per-cast reaction/cast. */
+export async function buildFeedCastsResponseLight(
+  casts: Record<string, unknown>[],
+  viewerFid: number
+): Promise<Record<string, unknown>[]> {
+  const normalized = casts.map(normalizeCast);
+  const vc = await getFeedViewerContext(viewerFid);
+  return annotateViewerContext(normalized, vc);
 }

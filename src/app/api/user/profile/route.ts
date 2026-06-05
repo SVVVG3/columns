@@ -3,13 +3,35 @@ import { getSession } from "@/lib/session";
 import { withCache } from "@/lib/feedCache";
 import { hsnap, apiErrorFromHypersnap } from "@/lib/hypersnap";
 import { normalizeProfileDetails, type ProfileDetails } from "@/lib/profilePreview";
-import { resolveProfileBio } from "@/lib/profileBio";
+import { extractProfileBio, resolveProfileBio } from "@/lib/profileBio";
 import { buildProfileLinks } from "@/lib/profileLinks";
-import { resolveUserBannerUrl } from "@/lib/userBanner";
-import { fetchProfileUserDataFields } from "@/lib/userProfileData";
+import { bannerFromProfile, bannerFromUserDataMessages } from "@/lib/userBanner";
+import {
+  fetchUserDataMessages,
+  profileUserDataFieldsFromMessages,
+} from "@/lib/userProfileData";
 import { lookupUserByUsername } from "@/lib/userSearch";
 
 const TTL = 60_000;
+
+function profileNeedsUserData(
+  raw: Record<string, unknown>,
+  profileObj: Record<string, unknown> | undefined,
+  verifiedAccounts: unknown[] | undefined
+): boolean {
+  if (!extractProfileBio(raw)) return true;
+  if (!bannerFromProfile(profileObj)) return true;
+  const linksWithoutUserData = buildProfileLinks(profileObj, verifiedAccounts, undefined);
+  if (linksWithoutUserData.length > 0) return false;
+  const profile = profileObj;
+  if (
+    profile &&
+    (profile.url || profile.twitter || profile.x || profile.github)
+  ) {
+    return false;
+  }
+  return true;
+}
 
 async function enrichProfile(
   raw: unknown,
@@ -17,19 +39,31 @@ async function enrichProfile(
 ): Promise<ProfileDetails | null> {
   const base = normalizeProfileDetails(raw);
   if (!base) return null;
-  const profile = (raw as Record<string, unknown>).profile as
-    | Record<string, unknown>
-    | undefined;
-  const profileObj = profile;
-  const [bannerUrl, userData, bio] = await Promise.all([
-    resolveUserBannerUrl(fid, profileObj),
-    fetchProfileUserDataFields(fid),
-    resolveProfileBio(raw, fid),
+  const row = raw as Record<string, unknown>;
+  const profileObj = row.profile as Record<string, unknown> | undefined;
+  const verifiedAccounts = row.verified_accounts as unknown[] | undefined;
+
+  const bioFromV2 = extractProfileBio(raw);
+  const bannerFromV2 = bannerFromProfile(profileObj);
+
+  let userDataMessages: Awaited<ReturnType<typeof fetchUserDataMessages>> = [];
+  if (profileNeedsUserData(row, profileObj, verifiedAccounts)) {
+    userDataMessages = await fetchUserDataMessages(fid);
+  }
+
+  const [bio, bannerUrl] = await Promise.all([
+    bioFromV2
+      ? Promise.resolve(bioFromV2)
+      : resolveProfileBio(raw, fid, userDataMessages),
+    bannerFromV2
+      ? Promise.resolve(bannerFromV2)
+      : Promise.resolve(bannerFromUserDataMessages(userDataMessages)),
   ]);
+
   const profileLinks = buildProfileLinks(
     profileObj,
-    (raw as Record<string, unknown>).verified_accounts as unknown[] | undefined,
-    userData
+    verifiedAccounts,
+    profileUserDataFieldsFromMessages(userDataMessages)
   );
 
   return {
@@ -60,7 +94,7 @@ export async function GET(req: NextRequest) {
       if (Number.isNaN(fid)) {
         return NextResponse.json({ error: "invalid fid" }, { status: 400 });
       }
-      const user = await withCache(`user:profile:v3:${fid}`, TTL, async () => {
+      const user = await withCache(`user:profile:v4:${fid}`, TTL, async () => {
         const data = await hsnap<{ user: unknown }>("/v2/farcaster/user", { fid });
         return enrichProfile(data.user, fid);
       });
@@ -70,7 +104,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ user });
     }
 
-    const cacheKey = `user:profile:v3:username:${usernameParam!.toLowerCase()}`;
+    const cacheKey = `user:profile:v4:username:${usernameParam!.toLowerCase()}`;
     const user = await withCache(cacheKey, TTL, async () => {
       const found = await lookupUserByUsername(usernameParam!);
       if (!found?.fid) return null;

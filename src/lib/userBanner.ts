@@ -1,17 +1,7 @@
 import { hsnap, isHypersnapError } from "@/lib/hypersnap";
+import type { UserDataMessage } from "@/lib/userProfileData";
 
-interface UserDataMessage {
-  data?: {
-    timestamp?: number;
-    userDataBody?: { type?: string; value?: string };
-  };
-}
-
-interface UserDataByFidResponse {
-  messages?: UserDataMessage[];
-}
-
-function bannerFromProfile(profile: Record<string, unknown> | undefined): string | undefined {
+export function bannerFromProfile(profile: Record<string, unknown> | undefined): string | undefined {
   if (!profile) return undefined;
   for (const key of ["banner", "banner_url", "bannerUrl"]) {
     const v = profile[key];
@@ -24,7 +14,7 @@ function bannerFromProfile(profile: Record<string, unknown> | undefined): string
   return undefined;
 }
 
-function bannerFromUserDataMessages(messages: UserDataMessage[]): string | undefined {
+export function bannerFromUserDataMessages(messages: UserDataMessage[]): string | undefined {
   let best: { url: string; ts: number } | null = null;
 
   for (const msg of messages) {
@@ -48,7 +38,7 @@ export async function resolveUserBannerUrl(
   if (fromProfile) return fromProfile;
 
   try {
-    const data = await hsnap<UserDataByFidResponse>("/v1/userDataByFid", {
+    const data = await hsnap<{ messages?: UserDataMessage[] }>("/v1/userDataByFid", {
       fid,
       user_data_type: "USER_DATA_TYPE_BANNER",
     });
