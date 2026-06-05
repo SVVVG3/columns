@@ -184,7 +184,7 @@ export function AuthScreen({
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter Invite Passcode"
               autoComplete="current-password"
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-white placeholder:text-[var(--muted)] focus:outline-none focus:border-[var(--accent)]"
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-center text-white placeholder:text-[var(--muted)] focus:outline-none focus:border-[var(--accent)]"
             />
             {passwordError && (
               <p className="text-xs text-red-400 text-center w-full">{passwordError}</p>
