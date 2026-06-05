@@ -1,3 +1,7 @@
+import {
+  normalizeCastSearchResponse,
+  type RawCastSearchResponse,
+} from "@/lib/castSearch";
 import { hsnap, HSNAP_FEED } from "@/lib/hypersnap";
 import { fetchCastByHash } from "@/lib/castLookup";
 import { filterRootCasts } from "@/lib/castFilters";
@@ -400,11 +404,6 @@ export async function fetchMultiUserRootCastPage(
   };
 }
 
-interface SearchResponse {
-  casts: Record<string, unknown>[];
-  next?: { cursor?: string | null };
-}
-
 /**
  * Keyword column — same page cap per load.
  *
@@ -418,7 +417,7 @@ export async function fetchKeywordRootCastPage(
   pageSize = DEFAULT_PAGE_LIMIT
 ): Promise<FeedPage> {
   if (queries.length === 1) {
-    const res = await hsnap<SearchResponse>(
+    const raw = await hsnap<RawCastSearchResponse>(
       "/v2/farcaster/cast/search",
       {
         q: queries[0],
@@ -427,7 +426,8 @@ export async function fetchKeywordRootCastPage(
       },
       HSNAP_FEED
     );
-    const roots = filterRootCasts(res.casts ?? []);
+    const res = normalizeCastSearchResponse(raw);
+    const roots = filterRootCasts(res.casts);
     return {
       casts: capPage(roots, pageSize),
       next: res.next,
@@ -438,19 +438,19 @@ export async function fetchKeywordRootCastPage(
 
   const results = await Promise.all(
     queries.map((q) =>
-      hsnap<SearchResponse>(
+      hsnap<RawCastSearchResponse>(
         "/v2/farcaster/cast/search",
         {
           q,
           limit: hsnapLimit,
         },
         HSNAP_FEED
-      )
+      ).then(normalizeCastSearchResponse)
     )
   );
 
   const page = capPage(
-    dedupeSortCasts(results.flatMap((r) => r.casts ?? [])),
+    dedupeSortCasts(results.flatMap((r) => r.casts)),
     pageSize
   );
 
