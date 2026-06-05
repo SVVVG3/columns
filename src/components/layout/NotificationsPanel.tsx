@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useUiStore } from "@/store/ui";
@@ -26,6 +26,8 @@ function isFollowNotification(n: HypersnapNotification): boolean {
 
 interface NotificationsPanelProps {
   open: boolean;
+  /** Bumps when the user opens the modal — new React Query key each time. */
+  listSession: number;
   onClose: () => void;
   viewerFid: number;
   /** Called after a successful fresh load — clears unread badge (ms = newest item). */
@@ -40,6 +42,7 @@ interface NotificationsResponse {
 /** Notifications list body (used inside NotificationsModal). */
 export function NotificationsPanel({
   open,
+  listSession,
   onClose,
   viewerFid,
   onFreshLoad,
@@ -63,7 +66,7 @@ export function NotificationsPanel({
     refetch,
     isFetchedAfterMount,
   } = useInfiniteQuery({
-    queryKey: ["notifications", viewerFid, "list"],
+    queryKey: ["notifications", viewerFid, "list", listSession],
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: "20" });
       if (pageParam) params.set("cursor", String(pageParam));
@@ -74,9 +77,9 @@ export function NotificationsPanel({
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next?.cursor ?? undefined,
-    enabled: open,
+    enabled: open && listSession > 0,
     staleTime: 0,
-    gcTime: 5 * 60_000,
+    gcTime: 60_000,
     refetchOnMount: "always",
   });
 
@@ -84,22 +87,11 @@ export function NotificationsPanel({
     data?.pages.flatMap((p) => p.notifications ?? []) ?? []
   );
 
-  useLayoutEffect(() => {
-    if (!open) {
-      markedFreshRef.current = false;
-      setFreshReady(false);
-    }
-  }, [open]);
-
-  // Always pull fresh rows when the modal opens — badge uses a separate peek query.
   useEffect(() => {
     if (!open) return;
     markedFreshRef.current = false;
     setFreshReady(false);
-    void queryClient.invalidateQueries({
-      queryKey: ["notifications", viewerFid, "list"],
-    });
-  }, [open, viewerFid, queryClient]);
+  }, [open, listSession]);
 
   useEffect(() => {
     if (!open || markedFreshRef.current) return;

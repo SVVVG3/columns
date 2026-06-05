@@ -6,6 +6,8 @@ import { useUiStore } from "@/store/ui";
 
 interface NotificationsModalProps {
   open: boolean;
+  /** Incremented in Sidebar each time the user opens notifications — busts list cache. */
+  listSession: number;
   onClose: () => void;
   viewerFid: number;
   onFreshLoad?: (latestMs: number) => void;
@@ -14,6 +16,7 @@ interface NotificationsModalProps {
 /** Centered notifications modal (spotlight-style, like profile search). */
 export function NotificationsModal({
   open,
+  listSession,
   onClose,
   viewerFid,
   onFreshLoad,
@@ -74,6 +77,7 @@ export function NotificationsModal({
 
         <NotificationsPanel
           open={open}
+          listSession={listSession}
           onClose={onClose}
           viewerFid={viewerFid}
           onFreshLoad={onFreshLoad}

@@ -31,6 +31,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const [addColumnOpen, setAddColumnOpen] = useState(false);
   const [importColumnOpen, setImportColumnOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsSession, setNotificationsSession] = useState(0);
   const openProfilePreview = useUiStore((s) => s.openProfilePreview);
   const { unreadCount: unreadNotificationCount, markSeen: markNotificationsSeen } =
     useNotificationUnread(user.fid, notificationsOpen);
@@ -38,6 +39,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const widthPx = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH;
 
   function openNotifications() {
+    setNotificationsSession((s) => s + 1);
     setNotificationsOpen(true);
   }
 
@@ -187,16 +189,15 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
             </div>
       </aside>
 
-      {notificationsOpen && (
-        <NotificationsModal
-          open
-          onClose={closeNotifications}
-          viewerFid={user.fid}
-          onFreshLoad={(latestMs) =>
-            markNotificationsSeen(latestMs > 0 ? latestMs : undefined)
-          }
-        />
-      )}
+      <NotificationsModal
+        open={notificationsOpen}
+        listSession={notificationsSession}
+        onClose={closeNotifications}
+        viewerFid={user.fid}
+        onFreshLoad={(latestMs) =>
+          markNotificationsSeen(latestMs > 0 ? latestMs : undefined)
+        }
+      />
 
       {composeOpen && <ComposeModal onClose={() => setComposeOpen(false)} />}
       {searchOpen && <ProfileSearchModal open onClose={() => setSearchOpen(false)} />}
