@@ -61,7 +61,7 @@ export function NotificationsPanel({
     hasNextPage,
     isFetchingNextPage,
     refetch,
-    isFetched,
+    isFetchedAfterMount,
   } = useInfiniteQuery({
     queryKey: ["notifications", viewerFid, "list"],
     queryFn: async ({ pageParam }) => {
@@ -88,18 +88,23 @@ export function NotificationsPanel({
     if (!open) {
       markedFreshRef.current = false;
       setFreshReady(false);
-      return;
     }
+  }, [open]);
+
+  // Always pull fresh rows when the modal opens — badge uses a separate peek query.
+  useEffect(() => {
+    if (!open) return;
     markedFreshRef.current = false;
     setFreshReady(false);
-    void queryClient.resetQueries({
+    void queryClient.invalidateQueries({
       queryKey: ["notifications", viewerFid, "list"],
     });
   }, [open, viewerFid, queryClient]);
 
   useEffect(() => {
     if (!open || markedFreshRef.current) return;
-    if (!isFetched || isLoading || isFetching) return;
+    // Wait for a fetch that completed after this mount, not stale React Query pages.
+    if (!isFetchedAfterMount || isFetching) return;
     markedFreshRef.current = true;
     setFreshReady(true);
     const latestMs = latestNotificationTimestampMs(items);
@@ -109,8 +114,7 @@ export function NotificationsPanel({
     });
   }, [
     open,
-    isFetched,
-    isLoading,
+    isFetchedAfterMount,
     isFetching,
     items,
     onFreshLoad,
