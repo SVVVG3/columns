@@ -20,8 +20,15 @@ import type { ProfileWallet } from "@/lib/profileWallets";
 import type { FollowRelationship } from "@/lib/followCheck";
 import { renderLinkifiedText } from "@/lib/linkifyText";
 import { profileFollowStatusLines } from "@/lib/profileFollowLabels";
+import {
+  getUserFeedColumns,
+  userColumnHasFid,
+  userColumnTargetFids,
+  userColumnTitleForFids,
+} from "@/lib/userColumn";
 import { useColumnsStore } from "@/store/columns";
 import { useUiStore } from "@/store/ui";
+import type { FeedColumnConfig } from "@/types";
 
 async function fetchFollowRelationship(fid: number): Promise<FollowRelationship> {
   const res = await fetch(`/api/user/follow-relationship?fid=${fid}`);
@@ -230,13 +237,11 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
         </div>
 
         <div className="flex gap-2 px-4 pb-4 border-t border-[var(--border)] pt-3">
-          <button
-            type="button"
-            onClick={closeProfilePreview}
-            className="flex-1 py-2 rounded-xl border border-[var(--border)] text-sm text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors"
-          >
-            Close
-          </button>
+          <ProfileAddToColumnControl
+            fid={fid}
+            username={username}
+            userColumns={getUserFeedColumns(columns)}
+          />
           {profileUrl && (
             <a
               href={profileUrl}
@@ -250,6 +255,98 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+function ProfileAddToColumnControl({
+  fid,
+  username,
+  userColumns,
+}: {
+  fid?: number;
+  username: string;
+  userColumns: FeedColumnConfig[];
+}) {
+  const updateColumn = useColumnsStore((s) => s.updateColumn);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMessage(null);
+  }, [fid, username]);
+
+  function addToColumn(column: FeedColumnConfig) {
+    if (fid == null) return;
+    const existing = userColumnTargetFids(column);
+    if (userColumnHasFid(column, fid)) {
+      setMessage(`Already in ${column.title}`);
+      return;
+    }
+    const next = [...existing, fid];
+    updateColumn(column.id, {
+      targetFids: next,
+      targetFid: undefined,
+      title: userColumnTitleForFids(next, username),
+    });
+    setMessage(`Added to ${column.title}`);
+  }
+
+  const disabled = fid == null || userColumns.length === 0;
+  const hint =
+    userColumns.length === 0
+      ? "Create a User column from the sidebar first"
+      : fid == null
+        ? "Loading profile…"
+        : undefined;
+
+  if (userColumns.length === 1) {
+    const col = userColumns[0]!;
+    const already = fid != null && userColumnHasFid(col, fid);
+    return (
+      <button
+        type="button"
+        disabled={disabled || already}
+        title={already ? `Already in ${col.title}` : hint}
+        onClick={() => addToColumn(col)}
+        className="flex-1 py-2 rounded-xl border border-[var(--border)] text-sm font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        {message ?? (already ? "In column" : "Add to column")}
+      </button>
+    );
+  }
+
+  return (
+    <details className="group flex-1 relative text-left">
+      <summary
+        title={hint}
+        className={`py-2 rounded-xl border border-[var(--border)] text-sm font-medium text-center list-none cursor-pointer transition-colors [&::-webkit-details-marker]:hidden ${
+          disabled
+            ? "opacity-50 cursor-not-allowed pointer-events-none text-[var(--muted)]"
+            : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+        }`}
+      >
+        {message ?? "Add to column"}
+      </summary>
+      <ul className="absolute bottom-full left-0 right-0 mb-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-xl overflow-hidden z-10 max-h-40 overflow-y-auto feed-scroll">
+        {userColumns.map((col) => {
+          const already = fid != null && userColumnHasFid(col, fid);
+          return (
+            <li key={col.id}>
+              <button
+                type="button"
+                disabled={already}
+                onClick={() => addToColumn(col)}
+                className="w-full px-3 py-2.5 text-left text-sm hover:bg-[var(--surface-hover)] disabled:opacity-50 transition-colors"
+              >
+                <span className="font-medium text-[var(--foreground)]">{col.title}</span>
+                {already && (
+                  <span className="block text-[10px] text-[var(--muted)]">Already added</span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
   );
 }
 
