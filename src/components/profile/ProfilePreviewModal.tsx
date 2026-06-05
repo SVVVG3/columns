@@ -24,7 +24,6 @@ import {
   getUserFeedColumns,
   userColumnHasFid,
   userColumnTargetFids,
-  userColumnTitleForFids,
 } from "@/lib/userColumn";
 import { useColumnsStore } from "@/store/columns";
 import { useUiStore } from "@/store/ui";
@@ -285,7 +284,6 @@ function ProfileAddToColumnControl({
     updateColumn(column.id, {
       targetFids: next,
       targetFid: undefined,
-      title: userColumnTitleForFids(next, username),
     });
     setMessage(`Added to ${column.title}`);
   }
