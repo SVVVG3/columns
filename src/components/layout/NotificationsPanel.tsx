@@ -19,6 +19,7 @@ import {
   notificationCastHash,
 } from "@/lib/notifications";
 import { NotificationCastPreview } from "@/components/notifications/NotificationCastPreview";
+import { fetchNotificationsApi } from "@/lib/fetchNotifications";
 
 function isFollowNotification(n: HypersnapNotification): boolean {
   return n.type === "follows" || n.type === "follow";
@@ -71,7 +72,7 @@ export function NotificationsPanel({
       const params = new URLSearchParams({ limit: "20" });
       if (pageParam) params.set("cursor", String(pageParam));
       else params.set("fresh", "1");
-      const res = await fetch(`/api/notifications?${params}`);
+      const res = await fetchNotificationsApi(params);
       if (!res.ok) throw new Error("Failed to load notifications");
       return res.json() as Promise<NotificationsResponse>;
     },
@@ -79,8 +80,10 @@ export function NotificationsPanel({
     getNextPageParam: (last) => last.next?.cursor ?? undefined,
     enabled: open && listSession > 0,
     staleTime: 0,
-    gcTime: 60_000,
+    gcTime: 0,
     refetchOnMount: "always",
+    refetchOnWindowFocus: false,
+    refetchInterval: open ? 60_000 : false,
   });
 
   const items = aggregateNotifications(
@@ -165,7 +168,7 @@ export function NotificationsPanel({
         </p>
       )}
 
-      {items.length === 0 && (isLoading || isFetching) && (
+      {!freshReady && (isLoading || isFetching) && (
         <div className="flex flex-col gap-2 p-3">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="flex gap-2.5 animate-pulse p-2">
@@ -198,17 +201,18 @@ export function NotificationsPanel({
         </div>
       )}
 
-      {items.map((n) => (
-        <NotificationRow
-          key={aggregateNotificationKey(n)}
-          notification={n}
-          onClick={() => handleClick(n)}
-          onOpenProfile={(actor) => {
-            const seed = profileSeedFromUnknown(actor);
-            if (seed) openProfilePreview(seed);
-          }}
-        />
-      ))}
+      {freshReady &&
+        items.map((n) => (
+          <NotificationRow
+            key={aggregateNotificationKey(n)}
+            notification={n}
+            onClick={() => handleClick(n)}
+            onOpenProfile={(actor) => {
+              const seed = profileSeedFromUnknown(actor);
+              if (seed) openProfilePreview(seed);
+            }}
+          />
+        ))}
 
       {isFetchingNextPage && (
         <p className="text-center text-xs text-[var(--muted)] py-3">Loading more…</p>

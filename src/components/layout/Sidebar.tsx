@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import columnsLogo from "../../../public/columns-logo.png";
 import type { SessionUser } from "@/types";
 import { useTheme } from "@/components/layout/Providers";
@@ -24,6 +25,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ user, onLogout }: SidebarProps) {
+  const queryClient = useQueryClient();
   const { theme, toggleTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
@@ -33,14 +35,21 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsSession, setNotificationsSession] = useState(0);
   const openProfilePreview = useUiStore((s) => s.openProfilePreview);
-  const { unreadCount: unreadNotificationCount, markSeen: markNotificationsSeen } =
-    useNotificationUnread(user.fid, notificationsOpen);
+  const {
+    unreadCount: unreadNotificationCount,
+    markSeen: markNotificationsSeen,
+    refetchPeek,
+  } = useNotificationUnread(user.fid, notificationsOpen);
 
   const widthPx = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH;
 
   function openNotifications() {
     setNotificationsSession((s) => s + 1);
     setNotificationsOpen(true);
+    void queryClient.removeQueries({
+      queryKey: ["notifications", user.fid, "list"],
+    });
+    void refetchPeek();
   }
 
   function openMyProfile() {

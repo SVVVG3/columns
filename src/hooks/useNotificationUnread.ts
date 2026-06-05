@@ -27,18 +27,20 @@ export function useNotificationUnread(viewerFid: number, panelOpen: boolean) {
     setLastSeenMs(stored ? Number(stored) : 0);
   }, [storageKey]);
 
-  const { data } = useQuery({
+  const { data, refetch: refetchPeek } = useQuery({
     queryKey: ["notifications", viewerFid, "peek"],
     queryFn: async () => {
       const res = await fetch(
-        `/api/notifications?limit=${PEEK_LIMIT}&fresh=1`
+        `/api/notifications?limit=${PEEK_LIMIT}&fresh=1`,
+        { cache: "no-store" }
       );
       if (!res.ok) throw new Error("Failed to load notifications");
       return res.json() as Promise<NotificationsPeek>;
     },
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 15_000,
+    refetchInterval: panelOpen ? false : 60_000,
     refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   const notifications = data?.notifications ?? [];
@@ -55,7 +57,8 @@ export function useNotificationUnread(viewerFid: number, panelOpen: boolean) {
 
   const markSeen = useCallback(
     (seenMs?: number) => {
-      const seen = seenMs ?? latestMs ?? Date.now();
+      const seen = seenMs ?? latestMs;
+      if (!seen || seen <= 0) return;
       localStorage.setItem(storageKey, String(seen));
       setLastSeenMs(seen);
     },
@@ -68,5 +71,5 @@ export function useNotificationUnread(viewerFid: number, panelOpen: boolean) {
     queryClient.invalidateQueries({ queryKey: ["notifications", viewerFid] });
   }, [queryClient, viewerFid]);
 
-  return { hasUnread, unreadCount, markSeen, invalidate, latestMs };
+  return { hasUnread, unreadCount, markSeen, invalidate, refetchPeek, latestMs };
 }

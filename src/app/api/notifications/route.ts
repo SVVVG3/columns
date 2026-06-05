@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { withCache } from "@/lib/feedCache";
+import { deleteCached, withCache } from "@/lib/feedCache";
 import { fetchNotificationsPage } from "@/lib/notifications";
 import { apiErrorFromHypersnap } from "@/lib/hypersnap";
 
+export const dynamic = "force-dynamic";
+
 const TTL = 30_000;
+const NO_STORE = { "Cache-Control": "no-store" };
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -20,13 +23,16 @@ export async function GET(req: NextRequest) {
   const cacheKey = `${fid}:notifications:${cursor ?? ""}:${limit}`;
 
   try {
+    if (fresh && !cursor) {
+      deleteCached(cacheKey);
+    }
     const data =
       fresh && !cursor
         ? await fetchNotificationsPage(fid, { cursor, limit })
         : await withCache(cacheKey, TTL, () =>
             fetchNotificationsPage(fid, { cursor, limit })
           );
-    return NextResponse.json(data);
+    return NextResponse.json(data, { headers: NO_STORE });
   } catch (err: unknown) {
     return apiErrorFromHypersnap(err, "[/api/notifications]");
   }
