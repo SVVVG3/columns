@@ -3,16 +3,29 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EmbedLike = { url?: string; metadata?: { content_type?: string } };
 
-function isImageEmbedUrl(url: string, contentType?: string): boolean {
+const IMAGE_CDN_HOST =
+  /(?:^|\.)(
+    imagedelivery\.net|
+    images\.warpcast\.com|
+    res\.cloudinary\.com|
+    i\.imgur\.com|
+    pbs\.twimg\.com|
+    media\.tenor\.com|
+    pinata\.cloud
+  )$/i;
+
+/** Whether a cast embed URL should render as an inline image (not a link card). */
+export function isImageEmbedUrl(url: string, contentType?: string): boolean {
   if (!url) return false;
-  if (/\.(jpg|jpeg|png|gif|webp|avif)(\?.*)?$/i.test(url)) return true;
+  if (/\.(jpg|jpeg|png|gif|webp|avif|svg)(\?.*)?$/i.test(url)) return true;
   if (contentType?.startsWith("image/")) return true;
-  if (
-    /^https?:\/\/(imagedelivery\.net|images\.warpcast\.com|res\.cloudinary\.com|i\.imgur\.com|pbs\.twimg\.com|media\.tenor\.com|neynar\.mypinata\.cloud)/i.test(
-      url
-    )
-  ) {
-    return true;
+  try {
+    const u = new URL(url);
+    if (IMAGE_CDN_HOST.test(u.hostname)) return true;
+    // gateway.pinata.cloud/ipfs/… has no file extension but is almost always an image in casts
+    if (/pinata\.cloud$/i.test(u.hostname) && u.pathname.startsWith("/ipfs/")) return true;
+  } catch {
+    /* ignore */
   }
   return false;
 }

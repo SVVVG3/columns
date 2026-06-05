@@ -1,3 +1,4 @@
+import { isImageEmbedUrl } from "@/lib/castEmbedMedia";
 import { isSpaceEmbedUrl } from "@/lib/spaceEmbed";
 import { isSnapEmbedUrl } from "@/lib/snapEmbed";
 import { isEip155EmbedUri, isTokenEmbedUrl } from "@/lib/tokenEmbed";
@@ -32,15 +33,7 @@ export function isMiniAppUrl(url: string): boolean {
 }
 
 function isImageUrl(url: string, e: EmbedLike): boolean {
-  if (/\.(jpg|jpeg|png|gif|webp|avif|svg)(\?.*)?$/i.test(url)) return true;
-  if (e.metadata?.content_type?.startsWith("image/")) return true;
-  if (
-    /^https?:\/\/(imagedelivery\.net|images\.warpcast\.com|res\.cloudinary\.com|i\.imgur\.com|pbs\.twimg\.com|media\.tenor\.com|neynar\.mypinata\.cloud)/i.test(
-      url
-    )
-  )
-    return true;
-  return false;
+  return isImageEmbedUrl(url, e.metadata?.content_type);
 }
 
 function isVideoUrl(url: string, e: EmbedLike): boolean {

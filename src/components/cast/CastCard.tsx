@@ -18,6 +18,7 @@ import {
   isSameTokenUrl,
   isTokenEmbedUrl,
 } from "@/lib/tokenEmbed";
+import { isImageEmbedUrl } from "@/lib/castEmbedMedia";
 import { isMiniAppUrl, ogSeedFromEmbed } from "@/lib/ogLookup";
 import { castConversationUrl, isSnapEmbedUrl, normalizeSnapUrl } from "@/lib/snapEmbed";
 import { SnapCard } from "@/components/cast/SnapCard";
@@ -196,12 +197,7 @@ function renderCastText(
 }
 
 function isImageEmbed(e: Embed): boolean {
-  const url = e.url ?? "";
-  if (!url) return false;
-  if (/\.(jpg|jpeg|png|gif|webp|avif|svg)(\?.*)?$/i.test(url)) return true;
-  if (e.metadata?.content_type?.startsWith("image/")) return true;
-  if (/^https?:\/\/(imagedelivery\.net|images\.warpcast\.com|res\.cloudinary\.com|i\.imgur\.com|pbs\.twimg\.com|media\.tenor\.com|neynar\.mypinata\.cloud)/i.test(url)) return true;
-  return false;
+  return isImageEmbedUrl(e.url ?? "", e.metadata?.content_type);
 }
 
 function isVideoEmbed(e: Embed): boolean {
@@ -564,11 +560,6 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: 
                 matchedFrame?.title ??
                 embed.metadata?.html?.ogTitle ??
                 (embed.url ? new URL(embed.url).hostname : "Mini App");
-              const isMiniApp =
-                !!embed.metadata?.miniapp ||
-                /farcaster\.xyz\/miniapps\//i.test(embed.url ?? "") ||
-                /warpcast\.com\/miniapps\//i.test(embed.url ?? "");
-
               const castUrl = castConversationUrl(cast.hash as string);
 
               return (
@@ -590,26 +581,12 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: 
                       unoptimized
                     />
                   )}
-                  {!isMiniApp && (
-                    <div className="flex items-center justify-between px-3 py-2 bg-[var(--surface-hover)]">
-                      <span className="text-xs font-medium text-[var(--foreground)] truncate">
-                        {frameTitle}
-                      </span>
-                      <span className="text-[10px] font-semibold text-[var(--accent)] shrink-0 ml-2 px-1.5 py-0.5 rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10">
-                        Cast ↗
-                      </span>
-                    </div>
-                  )}
                   {matchedFrame?.buttons && matchedFrame.buttons.length > 0 && (
-                    <div className={`px-3 pb-2.5 ${isMiniApp ? "pt-0" : ""}`}>
+                    <div className="px-3 py-2.5">
                       {matchedFrame.buttons.map((btn) => (
                         <div
                           key={btn.index}
-                          className={
-                            isMiniApp
-                              ? "w-full text-center text-xs font-medium text-[var(--accent)] py-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10"
-                              : "text-xs px-2.5 py-1 rounded-lg border border-[var(--border)] text-[var(--muted)] bg-[var(--surface)] inline-block mr-1.5"
-                          }
+                          className="w-full text-center text-xs font-medium text-[var(--accent)] py-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10"
                         >
                           {btn.title}
                         </div>
@@ -933,18 +910,8 @@ function OGCard({ embed, castHash }: { embed: Embed; castHash: string }) {
             className="object-cover w-full max-h-48"
           />
         )}
-        {!isMiniApp && (
-          <div className="flex items-center justify-between px-3 py-2 bg-[var(--surface-hover)]">
-            <span className="text-xs font-medium text-[var(--foreground)] truncate">
-              {title || hostname}
-            </span>
-            <span className="text-[10px] font-semibold text-[var(--accent)] shrink-0 ml-2 px-1.5 py-0.5 rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10">
-              Cast ↗
-            </span>
-          </div>
-        )}
         {frameButton && (
-          <div className="px-3 pb-2.5">
+          <div className="px-3 py-2.5">
             <div className="w-full text-center text-xs font-medium text-[var(--accent)] py-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 transition-colors">
               {frameButton}
             </div>
