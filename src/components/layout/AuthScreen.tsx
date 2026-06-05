@@ -176,13 +176,13 @@ export function AuthScreen({
             className="w-full flex flex-col items-center gap-4"
           >
             <p className="text-xs text-[var(--muted)] text-center">
-              Columns is in private beta. Enter the invite password to continue.
+              Columns is in private beta.
             </p>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Beta password"
+              placeholder="Enter Invite Passcode"
               autoComplete="current-password"
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-white placeholder:text-[var(--muted)] focus:outline-none focus:border-[var(--accent)]"
             />
@@ -194,6 +194,18 @@ export function AuthScreen({
                 {passwordLoading ? "Checking…" : "Continue"}
               </button>
             </div>
+            <p className="text-xs text-[var(--muted)] text-center">
+              Follow{" "}
+              <a
+                href="https://farcaster.xyz/~/channel/columns"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--accent)] hover:underline"
+              >
+                Columns
+              </a>{" "}
+              on Farcaster
+            </p>
           </form>
         )}
       </div>
