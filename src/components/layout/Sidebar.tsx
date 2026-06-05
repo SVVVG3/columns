@@ -10,16 +10,14 @@ import { AddColumnModal } from "@/components/feed/AddColumnModal";
 import { ImportColumnModal } from "@/components/feed/ImportColumnModal";
 import { SidebarColumnList } from "@/components/layout/SidebarColumnList";
 import { UserAvatar } from "@/components/ui/UserAvatar";
-import { NotificationsPanel } from "@/components/layout/NotificationsPanel";
+import { NotificationsModal } from "@/components/layout/NotificationsModal";
 import { ProfileSearchModal } from "@/components/search/ProfileSearchModal";
 import { useNotificationUnread } from "@/hooks/useNotificationUnread";
 import { useUiStore } from "@/store/ui";
 
 const SIDEBAR_WIDTH = 200;
 /** Narrow rail — fits md avatar (28px) + padding without clipping. */
-const SIDEBAR_COLLAPSED_WIDTH = 64;
-const NOTIFICATIONS_WIDTH = 360;
-
+const SIDEBAR_COLLAPSED_WIDTH = 70;
 interface SidebarProps {
   user: SessionUser;
   onLogout: () => void;
@@ -37,11 +35,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const { unreadCount: unreadNotificationCount, markSeen: markNotificationsSeen } =
     useNotificationUnread(user.fid, notificationsOpen);
 
-  const widthPx = notificationsOpen
-    ? NOTIFICATIONS_WIDTH
-    : collapsed
-      ? SIDEBAR_COLLAPSED_WIDTH
-      : SIDEBAR_WIDTH;
+  const widthPx = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH;
 
   function openNotifications() {
     setNotificationsOpen(true);
@@ -66,65 +60,39 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
         style={{ width: widthPx }}
         className="shrink-0 flex flex-col h-full border-r border-[var(--border)] bg-[var(--background)] transition-[width] duration-200 ease-out z-30 overflow-hidden"
       >
-        {notificationsOpen ? (
-          <>
-            <div className="flex items-center h-12 shrink-0 border-b border-[var(--border)] px-2 gap-2">
+        <div
+          className={`flex h-12 shrink-0 border-b border-[var(--border)] px-2 ${
+            collapsed ? "items-center justify-center" : "items-center gap-2"
+          }`}
+        >
+          {collapsed ? (
+            <button
+              type="button"
+              onClick={() => setCollapsed(false)}
+              className="p-1 rounded-lg hover:bg-[var(--surface-hover)] transition-colors shrink-0"
+              title="Expand sidebar"
+            >
+              <ColumnsLogo />
+            </button>
+          ) : (
+            <>
+              <ColumnsLogo />
+              <span className="font-semibold text-sm text-[var(--foreground)] truncate flex-1">
+                Columns
+              </span>
               <button
                 type="button"
-                onClick={closeNotifications}
-                className="p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors shrink-0"
-                title="Back to sidebar (Esc)"
+                onClick={() => setCollapsed(true)}
+                className="p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors shrink-0 ml-auto"
+                title="Collapse sidebar"
               >
                 <IconChevronLeft />
               </button>
-              <span className="font-semibold text-sm text-[var(--foreground)] truncate flex-1">
-                Notifications
-              </span>
-            </div>
-            <NotificationsPanel
-              open={notificationsOpen}
-              onClose={closeNotifications}
-              viewerFid={user.fid}
-              onFreshLoad={(latestMs) =>
-                markNotificationsSeen(latestMs > 0 ? latestMs : undefined)
-              }
-            />
-          </>
-        ) : (
-          <>
-            <div
-              className={`flex h-12 shrink-0 border-b border-[var(--border)] px-2 ${
-                collapsed ? "items-center justify-center" : "items-center gap-2"
-              }`}
-            >
-              {collapsed ? (
-                <button
-                  type="button"
-                  onClick={() => setCollapsed(false)}
-                  className="p-1 rounded-lg hover:bg-[var(--surface-hover)] transition-colors shrink-0"
-                  title="Expand sidebar"
-                >
-                  <ColumnsLogo />
-                </button>
-              ) : (
-                <>
-                  <ColumnsLogo />
-                  <span className="font-semibold text-sm text-[var(--foreground)] truncate flex-1">
-                    Columns
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setCollapsed(true)}
-                    className="p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors shrink-0 ml-auto"
-                    title="Collapse sidebar"
-                  >
-                    <IconChevronLeft />
-                  </button>
-                </>
-              )}
-            </div>
+            </>
+          )}
+        </div>
 
-            <nav className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto min-h-0">
+        <nav className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto min-h-0">
               <SidebarButton
                 collapsed={collapsed}
                 icon={<IconPlus />}
@@ -210,17 +178,16 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
                 )}
               </button>
             </div>
-          </>
-        )}
       </aside>
 
       {notificationsOpen && (
-        <button
-          type="button"
-          className="fixed top-0 right-0 bottom-0 z-20 cursor-default bg-black/20"
-          style={{ left: NOTIFICATIONS_WIDTH }}
-          aria-label="Close notifications"
-          onClick={closeNotifications}
+        <NotificationsModal
+          open
+          onClose={closeNotifications}
+          viewerFid={user.fid}
+          onFreshLoad={(latestMs) =>
+            markNotificationsSeen(latestMs > 0 ? latestMs : undefined)
+          }
         />
       )}
 

@@ -147,7 +147,7 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
 
           {showResults && isError && (
             <p className="px-4 py-6 text-sm text-center text-red-400">
-              {error instanceof Error ? error.message : "Search failed"}
+              {friendlySearchError(error)}
             </p>
           )}
 
@@ -190,6 +190,20 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
       </div>
     </div>
   );
+}
+
+function friendlySearchError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : "Search failed";
+  if (raw.includes("username proof")) {
+    return "No profile found for that query.";
+  }
+  try {
+    const parsed = JSON.parse(raw) as { error?: string; message?: string };
+    return parsed.error ?? parsed.message ?? "Search failed. Try again.";
+  } catch {
+    if (raw.length > 120) return "Search failed. Try again.";
+    return raw;
+  }
 }
 
 function IconSearch({ className }: { className?: string }) {

@@ -18,6 +18,51 @@ export function normalizeUsernameQuery(q: string): string {
   return q.replace(/^@/, "").trim();
 }
 
+export function isEthAddressQuery(q: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/i.test(q.trim());
+}
+
+export function isFidQuery(q: string): boolean {
+  return /^\d+$/.test(q.trim());
+}
+
+/** Username / ENS prefix search — not for wallet or FID-only queries. */
+export function shouldRunUsernameSearch(q: string): boolean {
+  const t = q.trim();
+  if (!t || isEthAddressQuery(t) || isFidQuery(t)) return false;
+  return true;
+}
+
+/** X handle lookup — skip wallet-shaped and dotted ENS-style queries. */
+export function shouldRunXSearch(q: string): boolean {
+  const t = q.trim().replace(/^@/, "");
+  if (!t || isEthAddressQuery(t) || isFidQuery(t)) return false;
+  if (t.includes(".")) return false;
+  return /^[a-zA-Z0-9_]{1,50}$/.test(t);
+}
+
+/** Hypersnap often returns proof/X misses as non-404 errors with a NotFound body. */
+function isLookupMiss(err: unknown): boolean {
+  if (!isHypersnapError(err)) return false;
+  if (err.status === 404 || err.status === 400) return true;
+  const msg = err.message.toLowerCase();
+  return (
+    msg.includes("not found") ||
+    msg.includes("notfound") ||
+    msg.includes("username proof not found")
+  );
+}
+
+async function safeUserSearchTask(
+  fn: () => Promise<HsnapUser[]>
+): Promise<HsnapUser[]> {
+  try {
+    return await fn();
+  } catch {
+    return [];
+  }
+}
+
 /** True when the resolved profile username matches what the user typed. */
 export function usernameMatchesQuery(query: string, username: string): boolean {
   const q = normalizeUsernameQuery(query).toLowerCase();
@@ -46,7 +91,7 @@ export async function lookupUserByUsernameProof(
     });
     return data.user?.fid ? data.user : null;
   } catch (err: unknown) {
-    if (isHypersnapError(err) && err.status === 404) return null;
+    if (isLookupMiss(err)) return null;
     throw err;
   }
 }
@@ -60,7 +105,7 @@ export async function lookupUserByUsername(
   username: string
 ): Promise<HsnapUser | null> {
   const n = normalizeUsernameQuery(username);
-  if (!n) return null;
+  if (!n || isEthAddressQuery(n) || isFidQuery(n)) return null;
 
   const paths = [
     "/v2/farcaster/user/by-username",
@@ -72,7 +117,7 @@ export async function lookupUserByUsername(
       const data = await hsnap<{ user: HsnapUser }>(path, { username: n });
       if (data.user?.fid) return data.user;
     } catch (err: unknown) {
-      if (isHypersnapError(err) && err.status === 404) continue;
+      if (isLookupMiss(err)) continue;
       throw err;
     }
   }
@@ -106,7 +151,7 @@ export async function lookupUserByFid(fid: number): Promise<HsnapUser | null> {
     const data = await hsnap<{ user: HsnapUser }>("/v2/farcaster/user", { fid });
     return data.user?.fid ? data.user : null;
   } catch (err: unknown) {
-    if (isHypersnapError(err) && err.status === 404) return null;
+    if (isLookupMiss(err)) return null;
     throw err;
   }
 }
@@ -114,7 +159,7 @@ export async function lookupUserByFid(fid: number): Promise<HsnapUser | null> {
 /** Verified ETH addresses + custody address reverse lookup. */
 export async function lookupUsersByEthAddress(address: string): Promise<HsnapUser[]> {
   const trimmed = address.trim();
-  if (!/^0x[a-fA-F0-9]{40}$/i.test(trimmed)) return [];
+  if (!isEthAddressQuery(trimmed)) return [];
 
   const seen = new Set<number>();
   const out: HsnapUser[] = [];
@@ -134,7 +179,7 @@ export async function lookupUsersByEthAddress(address: string): Promise<HsnapUse
         );
         for (const u of data.users ?? []) add(u);
       } catch (err: unknown) {
-        if (isHypersnapError(err) && err.status === 404) return;
+        if (isLookupMiss(err)) return;
         throw err;
       }
     })(),
@@ -146,7 +191,7 @@ export async function lookupUsersByEthAddress(address: string): Promise<HsnapUse
         );
         add(data.user);
       } catch (err: unknown) {
-        if (isHypersnapError(err) && err.status === 404) return;
+        if (isLookupMiss(err)) return;
         throw err;
       }
     })(),
@@ -164,7 +209,7 @@ export async function lookupUserByXUsername(username: string): Promise<HsnapUser
     });
     return data.user?.fid ? data.user : null;
   } catch (err: unknown) {
-    if (isHypersnapError(err) && err.status === 404) return null;
+    if (isLookupMiss(err)) return null;
     throw err;
   }
 }
@@ -186,21 +231,33 @@ export async function searchUsersProfile(q: string, limit = 25): Promise<HsnapUs
   const trimmed = q.trim();
   if (!trimmed) return [];
 
-  const tasks: Promise<HsnapUser[]>[] = [searchUsersCombined(trimmed, limit)];
+  const tasks: Promise<HsnapUser[]>[] = [];
 
-  if (/^\d+$/.test(trimmed)) {
+  if (shouldRunUsernameSearch(trimmed)) {
+    tasks.push(safeUserSearchTask(() => searchUsersCombined(trimmed, limit)));
+  }
+
+  if (isFidQuery(trimmed)) {
     tasks.push(
-      lookupUserByFid(Number(trimmed)).then((u) => (u ? [u] : []))
+      safeUserSearchTask(() =>
+        lookupUserByFid(Number(trimmed)).then((u) => (u ? [u] : []))
+      )
     );
   }
 
-  if (/^0x[a-fA-F0-9]{40}$/i.test(trimmed)) {
-    tasks.push(lookupUsersByEthAddress(trimmed));
+  if (isEthAddressQuery(trimmed)) {
+    tasks.push(safeUserSearchTask(() => lookupUsersByEthAddress(trimmed)));
   }
 
-  tasks.push(
-    lookupUserByXUsername(trimmed).then((u) => (u ? [u] : []))
-  );
+  if (shouldRunXSearch(trimmed)) {
+    tasks.push(
+      safeUserSearchTask(() =>
+        lookupUserByXUsername(trimmed).then((u) => (u ? [u] : []))
+      )
+    );
+  }
+
+  if (tasks.length === 0) return [];
 
   const groups = await Promise.all(tasks);
   return rankUsers(trimmed, mergeUsers(...groups)).slice(0, limit);
@@ -218,7 +275,7 @@ export async function searchUsersCombined(
 
   const [fuzzy, exact] = await Promise.all([
     searchUsersFuzzy(trimmed, limit).catch(() => [] as HsnapUser[]),
-    lookupUserByUsername(trimmed),
+    lookupUserByUsername(trimmed).catch(() => null),
   ]);
 
   // Drop fuzzy hits that don't match an explicit .eth query (avoids marcgarcia vs marcgarcia.eth)

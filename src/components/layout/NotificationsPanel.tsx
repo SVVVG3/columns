@@ -37,7 +37,7 @@ interface NotificationsResponse {
   next?: { cursor?: string } | null;
 }
 
-/** Notifications list — rendered inside the sidebar when open. */
+/** Notifications list body (used inside NotificationsModal). */
 export function NotificationsPanel({
   open,
   onClose,
