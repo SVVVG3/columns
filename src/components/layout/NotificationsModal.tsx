@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { NotificationsPanel } from "@/components/layout/NotificationsPanel";
+import { useUiStore } from "@/store/ui";
 
 interface NotificationsModalProps {
   open: boolean;
@@ -17,10 +18,12 @@ export function NotificationsModal({
   viewerFid,
   onFreshLoad,
 }: NotificationsModalProps) {
+  const profilePreviewOpen = useUiStore((s) => s.profilePreview != null);
+
   useEffect(() => {
     if (!open) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !useUiStore.getState().profilePreview) onClose();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -30,12 +33,17 @@ export function NotificationsModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-start justify-center pt-[12vh] px-4 bg-black/55 backdrop-blur-md"
+      className={`fixed inset-0 z-[70] flex items-start justify-center pt-[12vh] px-4 bg-black/55 backdrop-blur-md transition-[filter,opacity] duration-200 ${
+        profilePreviewOpen ? "pointer-events-none" : ""
+      }`}
       role="presentation"
-      onClick={onClose}
+      onClick={profilePreviewOpen ? undefined : onClose}
+      aria-hidden={profilePreviewOpen}
     >
       <div
-        className="w-full max-w-md bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[min(75vh,560px)]"
+        className={`w-full max-w-md bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[min(75vh,560px)] transition-all duration-200 ${
+          profilePreviewOpen ? "blur-md opacity-40 scale-[0.98]" : ""
+        }`}
         role="dialog"
         aria-label="Notifications"
         onClick={(e) => e.stopPropagation()}
