@@ -28,7 +28,6 @@ export function ConversationPanel({ viewerFid }: ConversationPanelProps) {
   const queryClient = useQueryClient();
   const { selectedCastHash, conversationHistory, closeConversation, goBack } =
     useUiStore();
-  const profilePreviewOpen = useUiStore((s) => s.profilePreview != null);
   const isOpen = !!selectedCastHash;
   const canGoBack = conversationHistory.length > 1;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -41,7 +40,6 @@ export function ConversationPanel({ viewerFid }: ConversationPanelProps) {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (useUiStore.getState().profilePreview) return;
       if (canGoBack) goBack();
       else closeConversation();
     };
@@ -77,17 +75,12 @@ export function ConversationPanel({ viewerFid }: ConversationPanelProps) {
 
   return (
     <div
-      className={`fixed inset-0 z-[75] flex items-start justify-center pt-[8vh] px-4 bg-black/55 backdrop-blur-md transition-[filter,opacity] duration-200 ${
-        profilePreviewOpen ? "pointer-events-none" : ""
-      }`}
+      className="fixed inset-0 z-[85] flex items-start justify-center pt-[8vh] px-4 bg-black/55 backdrop-blur-md"
       role="presentation"
-      onClick={profilePreviewOpen ? undefined : closeConversation}
-      aria-hidden={profilePreviewOpen}
+      onClick={closeConversation}
     >
       <div
-        className={`w-full max-w-lg bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[min(82vh,680px)] transition-all duration-200 ${
-          profilePreviewOpen ? "blur-md opacity-40 scale-[0.98]" : ""
-        }`}
+        className="w-full max-w-lg bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[min(82vh,680px)]"
         role="dialog"
         aria-label="Thread"
         onClick={(e) => e.stopPropagation()}

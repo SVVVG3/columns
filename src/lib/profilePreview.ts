@@ -1,4 +1,4 @@
-import { buildProfileLinks, type ProfileLink } from "@/lib/profileLinks";
+import { buildProfileLinks, readProfileString, type ProfileLink } from "@/lib/profileLinks";
 import { buildProfileWallets, type ProfileWallet } from "@/lib/profileWallets";
 
 /** Minimal user info to open the profile preview (from cast author, notification actor, etc.). */
@@ -78,10 +78,10 @@ export function normalizeProfileDetails(raw: unknown): ProfileDetails | null {
   if (fid == null) return null;
 
   const profile = u.profile as Record<string, unknown> | undefined;
-  const bioObj = profile?.bio as Record<string, unknown> | undefined;
   const bio =
-    (typeof bioObj?.text === "string" && bioObj.text) ||
-    (typeof u.bio === "string" && u.bio) ||
+    readProfileString(profile?.bio) ||
+    readProfileString(u.bio) ||
+    readProfileString(u.profile_bio) ||
     undefined;
 
   const custodyAddress =

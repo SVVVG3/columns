@@ -25,6 +25,10 @@ import { useOgMetadata } from "@/hooks/useOgMetadata";
 import { SpaceCard } from "@/components/cast/SpaceCard";
 import { TokenCard } from "@/components/cast/TokenCard";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { channelColumnFromSlug, columnHasChannel } from "@/lib/channelColumn";
+import { formatChannelLabel } from "@/lib/channelDisplay";
+import { channelSlugFromCast } from "@/lib/castChannel";
+import { useColumnsStore } from "@/store/columns";
 
 // Load VideoPlayer client-only — hls.js requires browser APIs unavailable during SSR
 const VideoPlayer = dynamic(
@@ -38,6 +42,8 @@ interface CastCardProps {
   viewerFid: number;
   /** Hash of the root cast of the conversation this card lives in (if any). Used to bust the conversation cache after a reply. */
   threadRootHash?: string;
+  /** Compact card for profile top-casts, etc. — full embeds, rounded border instead of feed divider. */
+  variant?: "feed" | "embedded";
 }
 
 // ─── Embed classification ─────────────────────────────────────────────────────
@@ -235,9 +241,13 @@ function isFrameEmbed(e: Embed, castFrameUrls: Set<string>): boolean {
 
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export function CastCard({ cast, viewerFid, threadRootHash }: CastCardProps) {
+export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: CastCardProps) {
+  const embedded = variant === "embedded";
   const queryClient = useQueryClient();
   const { openConversation, openProfilePreview } = useUiStore();
+  const columns = useColumnsStore((s) => s.columns);
+  const addColumn = useColumnsStore((s) => s.addColumn);
+  const castChannelSlug = channelSlugFromCast(cast as Record<string, unknown>);
   const [replyOpen, setReplyOpen] = useState(false);
   const [quoteComposeOpen, setQuoteComposeOpen] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
@@ -269,6 +279,12 @@ export function CastCard({ cast, viewerFid, threadRootHash }: CastCardProps) {
   function openProfile() {
     const seed = profileSeedFromUnknown(author);
     if (seed) openProfilePreview(seed);
+  }
+
+  function handleCastChannelClick(channelId: string) {
+    if (!columnHasChannel(columns, channelId)) {
+      addColumn(channelColumnFromSlug(channelId));
+    }
   }
 
   function openMentionProfile(username: string) {
@@ -431,7 +447,11 @@ export function CastCard({ cast, viewerFid, threadRootHash }: CastCardProps) {
   return (
     <>
       <article
-        className="px-3 py-3 border-b border-[var(--border)] hover:bg-[var(--surface)] transition-colors cursor-default group"
+        className={
+          embedded
+            ? "px-3 py-3 rounded-xl border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--surface-hover)] transition-colors cursor-default group"
+            : "px-3 py-3 border-b border-[var(--border)] hover:bg-[var(--surface)] transition-colors cursor-default group"
+        }
         onClick={() => openConversation(cast.hash as string)}
       >
         <div className="flex items-start gap-2.5">
@@ -462,6 +482,22 @@ export function CastCard({ cast, viewerFid, threadRootHash }: CastCardProps) {
               >
                 @{author?.username}
               </button>
+              {castChannelSlug && (
+                <>
+                  <span className="text-xs text-[var(--muted)]">·</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCastChannelClick(castChannelSlug);
+                    }}
+                    className="text-xs font-medium text-[var(--accent)] hover:underline focus:outline-none leading-tight"
+                    title={`Channel ${formatChannelLabel(castChannelSlug)}`}
+                  >
+                    {formatChannelLabel(castChannelSlug)}
+                  </button>
+                </>
+              )}
               <span className="text-xs text-[var(--muted)] ml-auto shrink-0">
                 {formatTime(cast.timestamp)}
               </span>

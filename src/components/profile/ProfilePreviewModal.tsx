@@ -25,6 +25,7 @@ import {
   userColumnHasFid,
   userColumnTargetFids,
 } from "@/lib/userColumn";
+import { CastCard } from "@/components/cast/CastCard";
 import { useColumnsStore } from "@/store/columns";
 import { useUiStore } from "@/store/ui";
 import type { FeedColumnConfig } from "@/types";
@@ -45,17 +46,10 @@ async function fetchProfile(seed: ProfilePreviewSeed): Promise<ProfileDetails> {
   return data.user;
 }
 
-interface PopularCast {
-  hash: string;
-  text?: string;
-  timestamp?: string;
-  reactions?: { likes_count?: number; recasts_count?: number; replies_count?: number };
-}
-
-async function fetchPopularCasts(fid: number): Promise<PopularCast[]> {
+async function fetchPopularCasts(fid: number): Promise<Record<string, unknown>[]> {
   const res = await fetch(`/api/user/popular-casts?fid=${fid}&limit=10`);
   if (!res.ok) throw new Error("Failed to load popular casts");
-  const data = (await res.json()) as { casts?: PopularCast[] };
+  const data = (await res.json()) as { casts?: Record<string, unknown>[] };
   return data.casts ?? [];
 }
 
@@ -92,7 +86,7 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
   const seed = useUiStore((s) => s.profilePreview);
   const closeProfilePreview = useUiStore((s) => s.closeProfilePreview);
   const openProfilePreview = useUiStore((s) => s.openProfilePreview);
-  const openConversation = useUiStore((s) => s.openConversation);
+  const conversationOpen = useUiStore((s) => s.selectedCastHash != null);
   const columns = useColumnsStore((s) => s.columns);
   const addColumn = useColumnsStore((s) => s.addColumn);
 
@@ -124,7 +118,9 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
   useEffect(() => {
     if (!seed) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeProfilePreview();
+      if (e.key !== "Escape") return;
+      if (useUiStore.getState().selectedCastHash) return;
+      closeProfilePreview();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -158,12 +154,17 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-      onClick={closeProfilePreview}
+      className={`fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-[filter,opacity] duration-200 ${
+        conversationOpen ? "pointer-events-none" : ""
+      }`}
+      onClick={conversationOpen ? undefined : closeProfilePreview}
       role="presentation"
+      aria-hidden={conversationOpen}
     >
       <div
-        className="w-full max-w-md bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden"
+        className={`w-full max-w-lg bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden transition-all duration-200 ${
+          conversationOpen ? "blur-md opacity-40 scale-[0.98]" : ""
+        }`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label={`Profile: ${displayName}`}
@@ -185,29 +186,46 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
           </div>
         )}
 
-        <div className="px-4 pb-4 flex flex-col items-center text-center max-h-[min(60vh,520px)] overflow-y-auto feed-scroll">
-          <UserAvatar src={pfpUrl} alt={displayName} size="xl" className="mb-3 mt-3" />
-
-          <p className="text-base font-semibold text-[var(--foreground)] leading-tight">
-            {displayName}
-          </p>
-          <p className="text-sm text-[var(--muted)]">@{username}</p>
-
-          {(fid != null || wallets.length > 0) && (
-            <div className="mt-1.5 w-full">
-              {fid != null && wallets.length === 0 && (
-                <p className="text-[10px] text-[var(--muted)] font-mono text-center">
-                  FID {fid}
-                </p>
+        <div className="px-4 pb-4 flex flex-col max-h-[min(75vh,640px)] overflow-y-auto feed-scroll">
+          <div className="flex items-start gap-3 mt-3 w-full text-left">
+            <UserAvatar src={pfpUrl} alt={displayName} size="xl" className="shrink-0" />
+            <div className="min-w-0 flex-1 pt-0.5">
+              <p className="text-base font-semibold text-[var(--foreground)] leading-tight truncate">
+                {displayName}
+              </p>
+              <p className="text-sm text-[var(--muted)] truncate">@{username}</p>
+              {(fid != null || wallets.length > 0) && (
+                <div className="mt-1">
+                  {fid != null && wallets.length === 0 && (
+                    <p className="text-[10px] text-[var(--muted)] font-mono">FID {fid}</p>
+                  )}
+                  {wallets.length > 0 && (
+                    <ProfileWalletsDropdown wallets={wallets} fid={fid} align="left" />
+                  )}
+                </div>
               )}
-              {wallets.length > 0 && (
-                <ProfileWalletsDropdown wallets={wallets} fid={fid} />
-              )}
+            </div>
+          </div>
+
+          {isLoading && !profile && (
+            <div className="w-full mt-3 space-y-1.5 animate-pulse">
+              <div className="h-2 rounded bg-[var(--surface-hover)] w-full" />
+              <div className="h-2 rounded bg-[var(--surface-hover)] w-4/5" />
             </div>
           )}
 
+          {bio && (
+            <p className="text-xs text-[var(--foreground)] opacity-90 mt-3 leading-relaxed whitespace-pre-wrap break-words max-h-32 overflow-y-auto w-full text-left">
+              {renderLinkifiedText(bio, {
+                onMentionClick: (mentionUsername) =>
+                  openProfilePreview({ username: mentionUsername }),
+                onChannelClick: handleChannelClick,
+              })}
+            </p>
+          )}
+
           {(followers != null || following != null) && (
-            <p className="text-xs text-[var(--muted)] mt-2">
+            <p className="text-xs text-[var(--muted)] mt-2 text-left">
               {followers != null && <span>{followers} followers</span>}
               {followers != null && following != null && <span> · </span>}
               {following != null && <span>{following} following</span>}
@@ -219,7 +237,7 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
           )}
 
           {followLines.length > 0 && (
-            <div className="mt-2 flex flex-col gap-0.5 w-full">
+            <div className="mt-2 flex flex-col gap-0.5 w-full text-left">
               {followLines.map((line) => (
                 <p
                   key={line}
@@ -231,25 +249,8 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
             </div>
           )}
 
-          {isLoading && !bio && (
-            <div className="w-full mt-3 space-y-1.5 animate-pulse">
-              <div className="h-2 rounded bg-[var(--surface-hover)] w-full" />
-              <div className="h-2 rounded bg-[var(--surface-hover)] w-4/5 mx-auto" />
-            </div>
-          )}
-
-          {bio && (
-            <p className="text-xs text-[var(--foreground)] opacity-85 mt-3 leading-relaxed whitespace-pre-wrap break-words max-h-28 overflow-y-auto w-full">
-              {renderLinkifiedText(bio, {
-                onMentionClick: (mentionUsername) =>
-                  openProfilePreview({ username: mentionUsername }),
-                onChannelClick: handleChannelClick,
-              })}
-            </p>
-          )}
-
           {(profileLinks.length > 0 || joined) && (
-            <ProfileMetaLinksRow links={profileLinks} joined={joined} />
+            <ProfileMetaLinksRow links={profileLinks} joined={joined} align="left" />
           )}
 
           {isError && (
@@ -258,39 +259,29 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
 
           {targetFid != null && (
             <div className="mt-4 w-full text-left border-t border-[var(--border)] pt-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)] mb-2 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)] mb-2">
                 Top casts
               </p>
               {popularLoading && (
-                <div className="space-y-2 animate-pulse">
-                  {[...Array(3)].map((_, i) => (
-                    <div key={i} className="h-10 rounded-lg bg-[var(--surface-hover)]" />
+                <div className="space-y-3 animate-pulse">
+                  {[...Array(2)].map((_, i) => (
+                    <div key={i} className="h-32 rounded-xl bg-[var(--surface-hover)]" />
                   ))}
                 </div>
               )}
               {!popularLoading && popularCasts.length === 0 && (
                 <p className="text-xs text-center text-[var(--muted)]">No popular casts yet.</p>
               )}
-              <ul className="space-y-1">
-                {popularCasts.map((cast) => (
-                  <li key={cast.hash}>
-                    <button
-                      type="button"
-                      onClick={() => openConversation(cast.hash)}
-                      className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
-                    >
-                      <p className="text-xs text-[var(--foreground)] line-clamp-2 leading-snug">
-                        {(cast.text ?? "").trim() || "(no text)"}
-                      </p>
-                      <p className="text-[10px] text-[var(--muted)] mt-1">
-                        {formatCastAge(cast.timestamp)}
-                        {formatCastEngagement(cast.reactions) && (
-                          <span> · {formatCastEngagement(cast.reactions)}</span>
-                        )}
-                      </p>
-                    </button>
-                  </li>
-                ))}
+              <ul className="space-y-3">
+                {popularCasts.map((cast) => {
+                  const hash = cast.hash as string;
+                  if (!hash) return null;
+                  return (
+                    <li key={hash}>
+                      <CastCard cast={cast} viewerFid={viewerFid} variant="embedded" />
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
@@ -416,12 +407,18 @@ function ProfileMetaSeparator() {
 function ProfileMetaLinksRow({
   links,
   joined,
+  align = "center",
 }: {
   links: ProfileLink[];
   joined?: string | null;
+  align?: "left" | "center";
 }) {
   return (
-    <p className="mt-3 text-xs text-[var(--muted)] w-full text-center">
+    <p
+      className={`mt-3 text-xs text-[var(--muted)] w-full ${
+        align === "left" ? "text-left" : "text-center"
+      }`}
+    >
       {links.map((link, index) => (
         <span key={link.href}>
           {index > 0 && <ProfileMetaSeparator />}
@@ -448,13 +445,19 @@ function ProfileMetaLinksRow({
 function ProfileWalletsDropdown({
   wallets,
   fid,
+  align = "center",
 }: {
   wallets: ProfileWallet[];
   fid?: number | null;
+  align?: "left" | "center";
 }) {
   return (
     <details className="group w-full text-left">
-      <summary className="text-xs text-[var(--muted)] cursor-pointer list-none text-center hover:text-[var(--foreground)] transition-colors [&::-webkit-details-marker]:hidden">
+      <summary
+        className={`text-xs text-[var(--muted)] cursor-pointer list-none hover:text-[var(--foreground)] transition-colors [&::-webkit-details-marker]:hidden ${
+          align === "left" ? "text-left" : "text-center"
+        }`}
+      >
         {fid != null && <span className="font-mono">FID {fid}</span>}
         {fid != null && <ProfileMetaSeparator />}
         <span className="inline-flex items-center gap-0.5 align-middle">
@@ -477,31 +480,6 @@ function ProfileWalletsDropdown({
       </ul>
     </details>
   );
-}
-
-function formatCastAge(timestamp?: string): string {
-  if (!timestamp) return "";
-  const date = new Date(timestamp);
-  const diffMins = Math.floor((Date.now() - date.getTime()) / 60_000);
-  if (diffMins < 1) return "just now";
-  if (diffMins < 60) return `${diffMins}m`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h`;
-  return `${Math.floor(diffHours / 24)}d`;
-}
-
-function formatCastEngagement(
-  reactions?: PopularCast["reactions"]
-): string | null {
-  if (!reactions) return null;
-  const parts: string[] = [];
-  const likes = reactions.likes_count ?? 0;
-  const recasts = reactions.recasts_count ?? 0;
-  const replies = reactions.replies_count ?? 0;
-  if (replies > 0) parts.push(`${replies} replies`);
-  if (recasts > 0) parts.push(`${recasts} recasts`);
-  if (likes > 0) parts.push(`${likes} likes`);
-  return parts.length > 0 ? parts.join(" · ") : null;
 }
 
 function ProfileWalletRow({ wallet }: { wallet: ProfileWallet }) {

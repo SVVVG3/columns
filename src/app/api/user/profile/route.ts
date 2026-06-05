@@ -3,7 +3,7 @@ import { getSession } from "@/lib/session";
 import { withCache } from "@/lib/feedCache";
 import { hsnap, apiErrorFromHypersnap } from "@/lib/hypersnap";
 import { normalizeProfileDetails, type ProfileDetails } from "@/lib/profilePreview";
-import { buildProfileLinks } from "@/lib/profileLinks";
+import { buildProfileLinks, readProfileString } from "@/lib/profileLinks";
 import { resolveUserBannerUrl } from "@/lib/userBanner";
 import { fetchProfileUserDataFields } from "@/lib/userProfileData";
 import { lookupUserByUsername } from "@/lib/userSearch";
@@ -30,8 +30,14 @@ async function enrichProfile(
     userData
   );
 
+  const bio =
+    base.bio ||
+    readProfileString(profileObj?.bio) ||
+    readProfileString((raw as Record<string, unknown>).bio);
+
   return {
     ...base,
+    ...(bio ? { bio } : {}),
     ...(bannerUrl ? { bannerUrl } : {}),
     profileLinks,
   };
@@ -57,7 +63,7 @@ export async function GET(req: NextRequest) {
       if (Number.isNaN(fid)) {
         return NextResponse.json({ error: "invalid fid" }, { status: 400 });
       }
-      const user = await withCache(`user:${fid}`, TTL, async () => {
+      const user = await withCache(`user:profile:${fid}`, TTL, async () => {
         const data = await hsnap<{ user: unknown }>("/v2/farcaster/user", { fid });
         return enrichProfile(data.user, fid);
       });
@@ -67,7 +73,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ user });
     }
 
-    const cacheKey = `user:username:${usernameParam!.toLowerCase()}`;
+    const cacheKey = `user:profile:username:${usernameParam!.toLowerCase()}`;
     const user = await withCache(cacheKey, TTL, async () => {
       const found = await lookupUserByUsername(usernameParam!);
       if (!found?.fid) return null;

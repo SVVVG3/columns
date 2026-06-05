@@ -4,7 +4,7 @@ export interface ProfileLink {
   href: string;
 }
 
-function readProfileString(value: unknown): string | undefined {
+export function readProfileString(value: unknown): string | undefined {
   if (typeof value === "string") {
     const s = value.trim();
     return s || undefined;
