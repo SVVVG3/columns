@@ -15,6 +15,10 @@ export interface TokenData {
   createdAt?: number;
   description?: string;
   url: string;
+  priceUsd?: number;
+  marketCap?: number;
+  volumeH6?: number;
+  priceChangeH6?: number;
 }
 
 interface FcTokenResponse {
@@ -28,6 +32,10 @@ interface FcTokenResponse {
       holderCount?: number;
       source?: { createdAt?: number };
       description?: string;
+      priceUsd?: string;
+      marketCap?: number;
+      volume?: { h6?: number; h24?: number };
+      priceChangePct?: { h6?: number; h24?: number };
     };
   };
 }
@@ -63,6 +71,10 @@ async function fetchToken(chain: string, ca: string, url: string): Promise<Token
     createdAt: t.source?.createdAt,
     description: t.description,
     url,
+    priceUsd: t.priceUsd ? Number(t.priceUsd) : undefined,
+    marketCap: t.marketCap,
+    volumeH6: t.volume?.h6,
+    priceChangeH6: t.priceChangePct?.h6,
   };
 }
 

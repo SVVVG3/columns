@@ -75,7 +75,13 @@ export function embedNeedsOgFetch(
   const url = embed.url;
   if (!url) return false;
   if (isImageUrl(url, embed) || isVideoUrl(url, embed)) return false;
-  if (isSpaceEmbedUrl(url) || isTokenEmbedUrl(url) || isEip155EmbedUri(url) || isSnapEmbedUrl(url)) {
+  if (
+    isMiniAppUrl(url) ||
+    isSpaceEmbedUrl(url) ||
+    isTokenEmbedUrl(url) ||
+    isEip155EmbedUri(url) ||
+    isSnapEmbedUrl(url)
+  ) {
     return false;
   }
 

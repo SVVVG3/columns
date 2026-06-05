@@ -100,7 +100,10 @@ export async function fetchOG(url: string): Promise<OGData> {
   const ogDesc = metaContent(html, "og:description") || metaContent(html, "twitter:description");
   const ogImage = metaContent(html, "og:image") || metaContent(html, "twitter:image");
   const siteName = metaContent(html, "og:site_name");
-  const fcFrameRaw = metaContent(html, "fc:frame") || metaContent(html, "of:version");
+  const fcFrameRaw =
+    metaContent(html, "fc:miniapp") ||
+    metaContent(html, "fc:frame") ||
+    metaContent(html, "of:version");
 
   if (fcFrameRaw) {
     const decoded = fcFrameRaw

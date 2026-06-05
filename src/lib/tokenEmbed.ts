@@ -81,6 +81,20 @@ export function isTokenEmbedUrl(url: string): boolean {
   return parseTokenUrl(url) !== null;
 }
 
+/** Token channel from cast parent_url / root_parent_url (eip155:chain/erc20:0x…). */
+export function parseTokenParentUrl(
+  cast: { parent_url?: string; root_parent_url?: string } | null | undefined
+): ParsedTokenUrl | null {
+  if (!cast) return null;
+  for (const field of ["parent_url", "root_parent_url"] as const) {
+    const raw = cast[field];
+    if (!raw || typeof raw !== "string") continue;
+    const parsed = parseEip155Uri(raw.replace(/^chain:\/\//i, "").trim());
+    if (parsed?.ca) return parsed;
+  }
+  return null;
+}
+
 /** Collect token page URLs from embeds and cast text (Hypersnap often omits URL embeds). */
 export function collectTokenEmbedUrls(
   embeds: Array<{ url?: string }>,

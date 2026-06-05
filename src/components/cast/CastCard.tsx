@@ -17,6 +17,7 @@ import {
   isEip155EmbedUri,
   isSameTokenUrl,
   isTokenEmbedUrl,
+  parseTokenParentUrl,
 } from "@/lib/tokenEmbed";
 import { isImageEmbedUrl } from "@/lib/castEmbedMedia";
 import { isMiniAppUrl, ogSeedFromEmbed } from "@/lib/ogLookup";
@@ -24,6 +25,7 @@ import { castConversationUrl, isSnapEmbedUrl, normalizeSnapUrl } from "@/lib/sna
 import { SnapCard } from "@/components/cast/SnapCard";
 import { useOgMetadata } from "@/hooks/useOgMetadata";
 import { SpaceCard } from "@/components/cast/SpaceCard";
+import { MiniAppFrameCard } from "@/components/cast/MiniAppFrameCard";
 import { TokenCard } from "@/components/cast/TokenCard";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { channelColumnFromSlug, columnHasChannel } from "@/lib/channelColumn";
@@ -226,10 +228,8 @@ function normalizeUrl(url: string): string {
 
 function isFrameEmbed(e: Embed, castFrameUrls: Set<string>): boolean {
   if (!e.url) return false;
-  // Primary: match against cast.frames[] — only when Neynar provides rich frame data
-  // (image, title, buttons) that we can render without fetching anything extra.
   if (castFrameUrls.has(normalizeUrl(e.url))) return true;
-  // Embed-level frame/miniapp metadata (Neynar-specific)
+  if (isMiniAppUrl(e.url)) return true;
   if (Array.isArray(e.metadata?.frames) && (e.metadata.frames as unknown[]).length > 0) return true;
   if (e.metadata?.miniapp) return true;
   return false;
@@ -402,6 +402,7 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: 
   const spaceEmbeds = embeds.filter(
     (e) => !!e.url && isSpaceEmbedUrl(e.url) && !isImageEmbed(e) && !isVideoEmbed(e)
   );
+  const tokenParent = parseTokenParentUrl(cast);
   const tokenUrls = collectTokenEmbedUrls(embeds, cast.text as string | undefined);
   const snapUrls = (() => {
     const seen = new Set<string>();
@@ -551,49 +552,17 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: 
 
             {/* Frame / Mini App embed previews */}
             {frameEmbeds.map((embed) => {
-              // Prefer cast.frames[] data; fall back to OG metadata
               const matchedFrame = castFrames.find(
                 (f: CastFrame) => f.frames_url === embed.url
               );
-              const frameImg = matchedFrame?.image ?? embed.metadata?.html?.ogImage?.[0]?.url;
-              const frameTitle =
-                matchedFrame?.title ??
-                embed.metadata?.html?.ogTitle ??
-                (embed.url ? new URL(embed.url).hostname : "Mini App");
-              const castUrl = castConversationUrl(cast.hash as string);
-
               return (
-                <a
+                <MiniAppFrameCard
                   key={embed.url}
-                  href={castUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 flex flex-col rounded-xl border border-[var(--accent)]/30 overflow-hidden hover:border-[var(--accent)]/60 transition-colors"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {frameImg && (
-                    <Image
-                      src={frameImg}
-                      alt={frameTitle}
-                      width={300}
-                      height={160}
-                      className="object-cover w-full max-h-48"
-                      unoptimized
-                    />
-                  )}
-                  {matchedFrame?.buttons && matchedFrame.buttons.length > 0 && (
-                    <div className="px-3 py-2.5">
-                      {matchedFrame.buttons.map((btn) => (
-                        <div
-                          key={btn.index}
-                          className="w-full text-center text-xs font-medium text-[var(--accent)] py-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10"
-                        >
-                          {btn.title}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </a>
+                  embed={embed}
+                  castHash={cast.hash as string}
+                  matchedFrame={matchedFrame}
+                  tokenParent={tokenParent}
+                />
               );
             })}
 
@@ -622,7 +591,12 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: 
               isTokenEmbedUrl(embed.url!) ? (
                 <TokenCard key={embed.url} url={embed.url!} />
               ) : (
-                <OGCard key={embed.url} embed={embed} castHash={cast.hash as string} />
+                <OGCard
+                  key={embed.url}
+                  embed={embed}
+                  castHash={cast.hash as string}
+                  tokenParent={tokenParent}
+                />
               )
             )}
 
@@ -869,7 +843,15 @@ function QuotedCast({
 }
 
 // ─── OG card — React Query + bulk prefetch; seeds from Hypersnap metadata ────
-function OGCard({ embed, castHash }: { embed: Embed; castHash: string }) {
+function OGCard({
+  embed,
+  castHash,
+  tokenParent,
+}: {
+  embed: Embed;
+  castHash: string;
+  tokenParent?: ReturnType<typeof parseTokenParentUrl>;
+}) {
   const url = embed.url!;
   const castUrl = castConversationUrl(castHash);
   const [imgFailed, setImgFailed] = useState(false);
@@ -889,35 +871,14 @@ function OGCard({ embed, castHash }: { embed: Embed; castHash: string }) {
   const isMiniApp = isMiniAppUrl(url) || !!embed.metadata?.miniapp;
   const isFrame = !!(og?.isFrame || seed?.isFrame || isMiniApp);
 
-  // ── Frame / Mini App card ────────────────────────────────────────────────
+  // ── Frame / Mini App card (fallback when not classified as frameEmbeds) ────
   if (isFrame) {
-    const frameImg = og?.frameImage || image;
-    const frameButton = og?.frameButton;
     return (
-      <a
-        href={castUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-2 flex flex-col rounded-xl border border-[var(--accent)]/30 overflow-hidden hover:border-[var(--accent)]/60 transition-colors"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {frameImg && !imgFailed && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={frameImg}
-            alt={title || "Frame"}
-            onError={() => setImgFailed(true)}
-            className="object-cover w-full max-h-48"
-          />
-        )}
-        {frameButton && (
-          <div className="px-3 py-2.5">
-            <div className="w-full text-center text-xs font-medium text-[var(--accent)] py-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 transition-colors">
-              {frameButton}
-            </div>
-          </div>
-        )}
-      </a>
+      <MiniAppFrameCard
+        embed={embed}
+        castHash={castHash}
+        tokenParent={tokenParent}
+      />
     );
   }
 
