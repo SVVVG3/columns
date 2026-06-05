@@ -249,6 +249,58 @@ export function annotateFeedCasts(
   });
 }
 
+const REPLY_COUNT_TTL = 30_000;
+
+interface ConversationCountResponse {
+  conversation?: { cast?: { replies?: { count?: number } } };
+}
+
+/** Reply counts from cast/conversation (popular feed often ships replies.count: 0). */
+export async function hydrateReplyCounts(
+  casts: Record<string, unknown>[]
+): Promise<Map<string, number>> {
+  const hashes = [
+    ...new Set(
+      casts
+        .map((c) => c.hash as string)
+        .filter(Boolean)
+        .map(normalizeCastHash)
+    ),
+  ];
+  if (hashes.length === 0) return new Map();
+
+  const entries = await mapWithConcurrency(hashes, REACTION_FETCH_CONCURRENCY, async (h) => {
+    const normalized = `0x${h}`;
+    const cacheKey = `reply-count:${h}`;
+    const data = await withCache<ConversationCountResponse>(cacheKey, REPLY_COUNT_TTL, () =>
+      hsnap<ConversationCountResponse>("/v2/farcaster/cast/conversation", {
+        identifier: normalized,
+        type: "hash",
+        reply_depth: 0,
+      })
+    );
+    const count = data.conversation?.cast?.replies?.count;
+    return [h, typeof count === "number" ? count : 0] as const;
+  });
+
+  return new Map(entries);
+}
+
+export function annotateReplyCounts(
+  casts: Record<string, unknown>[],
+  replyCounts: Map<string, number>
+): Record<string, unknown>[] {
+  return casts.map((cast) => {
+    const hash = normalizeCastHash(cast.hash as string);
+    if (!replyCounts.has(hash)) return cast;
+    const existing = (cast.replies ?? {}) as Record<string, unknown>;
+    return {
+      ...cast,
+      replies: { ...existing, count: replyCounts.get(hash) ?? existing.count ?? 0 },
+    };
+  });
+}
+
 export function annotateViewerContext(
   casts: Record<string, unknown>[],
   { liked, recasted }: ViewerContext

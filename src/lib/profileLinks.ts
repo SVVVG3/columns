@@ -93,7 +93,7 @@ export function buildProfileLinks(
       (readProfileString(profile.twitter) || readProfileString(profile.x))) ||
     userData?.twitter;
   if (twitter) {
-    const clean = twitter.replace(/^@/, "").replace(/^_/, "");
+    const clean = twitter.replace(/^@/, "").trim();
     push({ kind: "twitter", label: `@${clean}`, href: twitterHref(clean) });
   }
 

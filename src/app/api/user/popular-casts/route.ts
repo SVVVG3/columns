@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { buildFeedCastsResponseLight } from "@/lib/feedResponse";
+import { buildProfilePopularCastsResponse } from "@/lib/feedResponse";
 import { filterRootCasts } from "@/lib/castFilters";
 import { apiErrorFromHypersnap, hsnap } from "@/lib/hypersnap";
 import { withCache } from "@/lib/feedCache";
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
       hsnap<PopularFeedResponse>("/v2/farcaster/feed/user/popular", { fid, limit })
     );
     const roots = filterRootCasts(data.casts ?? []);
-    const casts = await buildFeedCastsResponseLight(roots, viewerFid);
+    const casts = await buildProfilePopularCastsResponse(roots, viewerFid);
     return NextResponse.json({ casts });
   } catch (err: unknown) {
     return apiErrorFromHypersnap(err, "[/api/user/popular-casts]");
