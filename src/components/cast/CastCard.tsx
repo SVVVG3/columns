@@ -871,6 +871,27 @@ function OGCard({
   const isMiniApp = isMiniAppUrl(url) || !!embed.metadata?.miniapp;
   const isFrame = !!(og?.isFrame || seed?.isFrame || isMiniApp);
 
+  // ── Direct image URL (dynamic APIs like /api/images/… with no extension) ─
+  if ((og?.isDirectImage || isImageEmbedUrl(url, embed.metadata?.content_type)) && image && !imgFailed) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2 block rounded-xl overflow-hidden border border-[var(--border)] hover:border-[var(--muted)] transition-colors"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={image}
+          alt=""
+          onError={() => setImgFailed(true)}
+          className="w-full max-h-96 object-contain bg-white block"
+        />
+      </a>
+    );
+  }
+
   // ── Frame / Mini App card (fallback when not classified as frameEmbeds) ────
   if (isFrame) {
     return (

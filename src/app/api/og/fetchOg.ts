@@ -46,6 +46,26 @@ async function readHeadHtml(res: Response, maxBytes = 48_000): Promise<string> {
   return html;
 }
 
+/** Dynamic image endpoints (e.g. /api/images/leaderboard) have no extension in the URL. */
+async function probeDirectImage(url: string): Promise<OGData | null> {
+  try {
+    const res = await fetch(url, {
+      method: "HEAD",
+      headers: { "User-Agent": "FarcasterDesktopClient/1.0" },
+      signal: AbortSignal.timeout(4000),
+      redirect: "follow",
+    });
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
+    if (ct?.startsWith("image/")) {
+      return { image: url, isDirectImage: true };
+    }
+  } catch {
+    /* not a direct image */
+  }
+  return null;
+}
+
 async function scrapeOgImage(url: string): Promise<string> {
   try {
     const res = await fetch(url, {
@@ -85,6 +105,9 @@ export async function fetchOG(url: string): Promise<OGData> {
     };
   }
 
+  const directImage = await probeDirectImage(url);
+  if (directImage) return directImage;
+
   const res = await fetch(url, {
     headers: {
       "User-Agent": "facebookexternalhit/1.1",
@@ -94,6 +117,11 @@ export async function fetchOG(url: string): Promise<OGData> {
     redirect: "follow",
   });
   if (!res.ok) return {};
+
+  const responseType = res.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
+  if (responseType?.startsWith("image/")) {
+    return { image: url, isDirectImage: true };
+  }
 
   const html = await readHeadHtml(res);
   const ogTitle = metaContent(html, "og:title") || metaContent(html, "twitter:title");

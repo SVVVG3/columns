@@ -8,6 +8,8 @@ export interface OGData {
   description?: string;
   image?: string;
   siteName?: string;
+  /** URL itself returns image/* (dynamic image APIs, no file extension). */
+  isDirectImage?: boolean;
   isFrame?: boolean;
   frameImage?: string;
   frameButton?: string;
@@ -47,7 +49,7 @@ function isVideoUrl(url: string, e: EmbedLike): boolean {
 /** True when cached/seed OG data is enough to render without a live fetch. */
 export function ogSeedHasPreview(seed?: OGData): boolean {
   if (!seed) return false;
-  return !!(seed.frameImage || seed.image || seed.frameButton);
+  return !!(seed.frameImage || seed.image || seed.frameButton || seed.isDirectImage);
 }
 
 /** Build OGData from Hypersnap embed metadata for instant preview. */

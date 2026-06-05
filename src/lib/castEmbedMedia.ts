@@ -6,6 +6,10 @@ type EmbedLike = { url?: string; metadata?: { content_type?: string } };
 const IMAGE_CDN_HOST =
   /(?:^|\.)(?:imagedelivery\.net|images\.warpcast\.com|res\.cloudinary\.com|i\.imgur\.com|pbs\.twimg\.com|media\.tenor\.com|pinata\.cloud)$/i;
 
+/** Paths that serve generated frame/OG images without a file extension. */
+const IMAGE_API_PATH =
+  /\/(?:api\/)?images?(?:\/|$)|\/opengraph-image|\/og-image|\/frame-image|\/embed-image/i;
+
 /** Whether a cast embed URL should render as an inline image (not a link card). */
 export function isImageEmbedUrl(url: string, contentType?: string): boolean {
   if (!url) return false;
@@ -14,6 +18,7 @@ export function isImageEmbedUrl(url: string, contentType?: string): boolean {
   try {
     const u = new URL(url);
     if (IMAGE_CDN_HOST.test(u.hostname)) return true;
+    if (IMAGE_API_PATH.test(u.pathname)) return true;
     // gateway.pinata.cloud/ipfs/… has no file extension but is almost always an image in casts
     if (/pinata\.cloud$/i.test(u.hostname) && u.pathname.startsWith("/ipfs/")) return true;
   } catch {
