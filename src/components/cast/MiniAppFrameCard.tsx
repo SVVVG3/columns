@@ -100,7 +100,7 @@ export function MiniAppFrameCard({
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const seed = ogSeedFromEmbed(embed);
-  const { data: og } = useOgMetadata(embed.url!, seed);
+  const { data: og, isFetching, isPending } = useOgMetadata(embed.url!, seed);
 
   const frameImg =
     matchedFrame?.image ??
@@ -121,6 +121,8 @@ export function MiniAppFrameCard({
         : [];
 
   const castUrl = castConversationUrl(castHash);
+  const loadingPreview =
+    !frameImg && !imgFailed && (isPending || isFetching) && !!embed.url;
 
   return (
     <a
@@ -130,6 +132,9 @@ export function MiniAppFrameCard({
       className="mt-2 flex flex-col rounded-xl border border-[var(--accent)]/30 overflow-hidden hover:border-[var(--accent)]/60 transition-colors"
       onClick={(e) => e.stopPropagation()}
     >
+      {loadingPreview && (
+        <div className="w-full aspect-[3/2] bg-[var(--surface-hover)] animate-pulse" />
+      )}
       {frameImg && !imgFailed && (
         // eslint-disable-next-line @next/next/no-img-element
         <img

@@ -44,6 +44,12 @@ function isVideoUrl(url: string, e: EmbedLike): boolean {
   return false;
 }
 
+/** True when cached/seed OG data is enough to render without a live fetch. */
+export function ogSeedHasPreview(seed?: OGData): boolean {
+  if (!seed) return false;
+  return !!(seed.frameImage || seed.image || seed.frameButton);
+}
+
 /** Build OGData from Hypersnap embed metadata for instant preview. */
 export function ogSeedFromEmbed(embed: EmbedLike): OGData | undefined {
   const html = embed.metadata?.html;
@@ -76,7 +82,6 @@ export function embedNeedsOgFetch(
   if (!url) return false;
   if (isImageUrl(url, embed) || isVideoUrl(url, embed)) return false;
   if (
-    isMiniAppUrl(url) ||
     isSpaceEmbedUrl(url) ||
     isTokenEmbedUrl(url) ||
     isEip155EmbedUri(url) ||
@@ -85,8 +90,12 @@ export function embedNeedsOgFetch(
     return false;
   }
 
-  const castFrames: Array<{ frames_url?: string; image?: string; title?: string }> =
-    cast.frames ?? [];
+  const castFrames: Array<{
+    frames_url?: string;
+    image?: string;
+    title?: string;
+    buttons?: unknown[];
+  }> = cast.frames ?? [];
   const norm = normalizeUrl(url);
   const matched = castFrames.find(
     (f) => f.frames_url && normalizeUrl(f.frames_url) === norm
@@ -94,6 +103,11 @@ export function embedNeedsOgFetch(
   if (matched?.image && matched?.title) return false;
 
   const seed = ogSeedFromEmbed(embed);
+  if (ogSeedHasPreview(seed)) return false;
+
+  // Mini apps / frames: Hypersnap often ships only the URL — fetch fc:miniapp HTML.
+  if (isMiniAppUrl(url) || seed?.isFrame) return true;
+
   if (matched?.image && seed?.title) return false;
 
   return true;

@@ -4,6 +4,7 @@ import { useQuery, type QueryClient } from "@tanstack/react-query";
 import {
   collectOgUrlsFromCasts,
   ogSeedFromEmbed,
+  ogSeedHasPreview,
   type OGData,
 } from "@/lib/ogLookup";
 
@@ -16,13 +17,15 @@ async function fetchOg(url: string): Promise<OGData> {
 }
 
 export function useOgMetadata(url: string, seed?: OGData) {
+  const usableSeed = ogSeedHasPreview(seed) ? seed : undefined;
   return useQuery({
     queryKey: ["og", url],
     queryFn: () => fetchOg(url),
-    initialData: seed,
-    placeholderData: seed,
-    staleTime: STALE_MS,
+    initialData: usableSeed,
+    placeholderData: usableSeed,
+    staleTime: usableSeed ? STALE_MS : 0,
     gcTime: STALE_MS * 2,
+    refetchOnMount: usableSeed ? true : "always",
   });
 }
 
@@ -39,7 +42,7 @@ export async function prefetchOgForCasts(
     for (const e of embeds) {
       if (!e.url) continue;
       const seed = ogSeedFromEmbed(e);
-      if (seed) {
+      if (seed && ogSeedHasPreview(seed)) {
         queryClient.setQueryData(["og", e.url], (prev: OGData | undefined) =>
           prev ? { ...seed, ...prev } : seed
         );
