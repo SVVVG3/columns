@@ -3,6 +3,7 @@ import { hsnap, apiErrorFromHypersnap } from "@/lib/hypersnap";
 import { getSession } from "@/lib/session";
 import { withCache } from "@/lib/feedCache";
 import { normalizeCastTree } from "@/lib/normalizeCast";
+import { resolveThreadRootHash } from "@/lib/threadRoot";
 import { getConversationViewerContext, annotateConversationTree } from "@/lib/viewerContext";
 
 const TTL = 60_000;
@@ -28,14 +29,15 @@ export async function GET(
     return NextResponse.json({ error: "hash required" }, { status: 400 });
   }
 
-  const cacheKey = `conversation:${hash}`;
-
   try {
+    const { rootHash, focusHash } = await resolveThreadRootHash(hash);
+    const cacheKey = `conversation:${rootHash}`;
+
     const data = await withCache(cacheKey, TTL, async () => {
       // Hypersnap wraps: { conversation: { cast: { ...castData, direct_replies: [...] } } }
       const res = await hsnap<HsnapConversationResponse>(
         "/v2/farcaster/cast/conversation",
-        { identifier: hash, type: "hash", reply_depth: 3 }
+        { identifier: rootHash, type: "hash", reply_depth: 3 }
       );
       return res.conversation;
     });
@@ -54,7 +56,7 @@ export async function GET(
       vc
     );
 
-    return NextResponse.json({ cast: annotatedCast });
+    return NextResponse.json({ cast: annotatedCast, focusHash });
   } catch (err: unknown) {
     return apiErrorFromHypersnap(err, "[/api/cast/conversation]");
   }

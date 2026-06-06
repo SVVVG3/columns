@@ -5,7 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { HypersnapNotification } from "@/lib/notifications";
 import {
   isCastTargetNotification,
-  isReplyNotification,
+  isQuoteCastNotification,
+  isThreadReplyNotification,
   notificationParentHash,
 } from "@/lib/notifications";
 import {
@@ -23,15 +24,17 @@ export function NotificationCastPreview({
 }: NotificationCastPreviewProps) {
   if (!isCastTargetNotification(n) || !n.cast) return null;
 
-  const parentHash = isReplyNotification(n) ? notificationParentHash(n) : null;
+  const parentHash = isThreadReplyNotification(n) ? notificationParentHash(n) : null;
+  const isQuote = isQuoteCastNotification(n);
+  const isThreadReply = isThreadReplyNotification(n);
 
   return (
     <div className="mt-2 space-y-1.5">
       {parentHash && <ParentCastPreview parentHash={parentHash} />}
       <CastPreviewCard
         cast={n.cast}
-        label={isReplyNotification(n) ? "Reply" : "Your cast"}
-        highlight={isReplyNotification(n)}
+        label={isQuote ? "Quote" : isThreadReply ? "Reply" : "Your cast"}
+        highlight={isQuote || isThreadReply}
       />
     </div>
   );

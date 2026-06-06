@@ -211,7 +211,7 @@ export function notificationActionSuffix(
       return `${others} followed you`;
     case "reply":
     case "cast-reply":
-      return " replied to your cast";
+      return isQuoteCastNotification(n) ? " quoted your cast" : " replied to your cast";
     case "mention":
     case "cast-mention":
       return " mentioned you";
@@ -242,6 +242,17 @@ export function notificationCastPreview(n: HypersnapNotification): string {
 
 export function isReplyNotification(n: HypersnapNotification): boolean {
   return n.type === "reply" || n.type === "cast-reply";
+}
+
+/** Quote casts arrive as `reply` with no parent_hash (not a thread reply). */
+export function isQuoteCastNotification(n: HypersnapNotification): boolean {
+  if (!isReplyNotification(n)) return false;
+  const parentHash = n.cast?.parent_hash;
+  return typeof parentHash !== "string" || parentHash.length === 0;
+}
+
+export function isThreadReplyNotification(n: HypersnapNotification): boolean {
+  return isReplyNotification(n) && !isQuoteCastNotification(n);
 }
 
 export function isCastTargetNotification(n: HypersnapNotification): boolean {

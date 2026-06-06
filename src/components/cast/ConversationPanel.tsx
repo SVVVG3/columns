@@ -54,7 +54,10 @@ export function ConversationPanel({ viewerFid }: ConversationPanelProps) {
         `/api/cast/${encodeURIComponent(selectedCastHash!)}/conversation`
       );
       if (!res.ok) throw new Error("Failed to load conversation");
-      return res.json();
+      return res.json() as Promise<{
+        cast: Record<string, unknown>;
+        focusHash?: string;
+      }>;
     },
     enabled: !!selectedCastHash,
     staleTime: 0,
@@ -64,12 +67,24 @@ export function ConversationPanel({ viewerFid }: ConversationPanelProps) {
   const rootCast: any = data?.cast ?? null;
   const replies: any[] = rootCast ? flattenReplies(rootCast) : [];
   const replyCount: number = rootCast?.replies?.count ?? 0;
+  const focusHash = data?.focusHash ?? selectedCastHash;
+  const threadRootHash =
+    typeof rootCast?.hash === "string" ? (rootCast.hash as string) : selectedCastHash;
 
   useEffect(() => {
     if (!data?.cast) return;
     const root = data.cast as Record<string, unknown>;
     prefetchOgForCasts(queryClient, [root, ...flattenReplies(root)]).catch(() => {});
   }, [data, queryClient]);
+
+  useEffect(() => {
+    if (!rootCast || isLoading || !focusHash || !scrollRef.current) return;
+    const normalized = focusHash.replace(/^0x/i, "");
+    const el = scrollRef.current.querySelector(
+      `[data-cast-hash="${normalized}"], [data-cast-hash="0x${normalized}"]`
+    );
+    el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [rootCast, isLoading, focusHash]);
 
   if (!isOpen) return null;
 
@@ -160,11 +175,20 @@ export function ConversationPanel({ viewerFid }: ConversationPanelProps) {
 
           {rootCast && !isLoading && (
             <>
-              <div className="border-b-2 border-[var(--border)]">
+              <div
+                data-cast-hash={String(rootCast.hash ?? "")}
+                className={
+                  focusHash &&
+                  String(rootCast.hash).replace(/^0x/i, "") ===
+                    String(focusHash).replace(/^0x/i, "")
+                    ? "border-b-2 border-[var(--accent)]/50 bg-[var(--accent)]/5"
+                    : "border-b-2 border-[var(--border)]"
+                }
+              >
                 <CastCard
                   cast={rootCast}
                   viewerFid={viewerFid}
-                  threadRootHash={selectedCastHash ?? undefined}
+                  threadRootHash={threadRootHash ?? undefined}
                 />
               </div>
 
@@ -174,14 +198,26 @@ export function ConversationPanel({ viewerFid }: ConversationPanelProps) {
                 </div>
               ) : (
                 <div>
-                  {replies.map((cast) => (
-                    <CastCard
-                      key={cast.hash}
-                      cast={cast}
-                      viewerFid={viewerFid}
-                      threadRootHash={selectedCastHash ?? undefined}
-                    />
-                  ))}
+                  {replies.map((cast) => {
+                    const hash = String(cast.hash ?? "");
+                    const isFocused =
+                      hash.replace(/^0x/i, "") === String(focusHash).replace(/^0x/i, "");
+                    return (
+                      <div
+                        key={hash}
+                        data-cast-hash={hash}
+                        className={
+                          isFocused ? "bg-[var(--accent)]/5 border-l-2 border-[var(--accent)]" : ""
+                        }
+                      >
+                        <CastCard
+                          cast={cast}
+                          viewerFid={viewerFid}
+                          threadRootHash={threadRootHash ?? undefined}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
