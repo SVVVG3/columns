@@ -120,7 +120,9 @@ export function NotificationsPanel({
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      if (useUiStore.getState().selectedCastHash) return;
+      onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -152,7 +154,6 @@ export function NotificationsPanel({
     const hash = notificationCastHash(n);
     if (hash) {
       openConversation(hash);
-      onClose();
     }
   }
 

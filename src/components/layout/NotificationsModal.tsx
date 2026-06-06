@@ -22,11 +22,16 @@ export function NotificationsModal({
   onFreshLoad,
 }: NotificationsModalProps) {
   const profilePreviewOpen = useUiStore((s) => s.profilePreview != null);
+  const conversationOpen = useUiStore((s) => s.selectedCastHash != null);
+  const childOverlayOpen = profilePreviewOpen || conversationOpen;
 
   useEffect(() => {
     if (!open) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape" && !useUiStore.getState().profilePreview) onClose();
+      if (e.key !== "Escape") return;
+      const { profilePreview, selectedCastHash } = useUiStore.getState();
+      if (profilePreview || selectedCastHash) return;
+      onClose();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -37,15 +42,15 @@ export function NotificationsModal({
   return (
     <div
       className={`fixed inset-0 z-[70] flex items-start justify-center pt-[12vh] px-4 bg-black/55 backdrop-blur-md transition-[filter,opacity] duration-200 ${
-        profilePreviewOpen ? "pointer-events-none" : ""
+        childOverlayOpen ? "pointer-events-none" : ""
       }`}
       role="presentation"
-      onClick={profilePreviewOpen ? undefined : onClose}
-      aria-hidden={profilePreviewOpen}
+      onClick={childOverlayOpen ? undefined : onClose}
+      aria-hidden={childOverlayOpen}
     >
       <div
         className={`w-full max-w-md bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[min(75vh,560px)] transition-all duration-200 ${
-          profilePreviewOpen ? "blur-md opacity-40 scale-[0.98]" : ""
+          childOverlayOpen ? "blur-md opacity-40 scale-[0.98]" : ""
         }`}
         role="dialog"
         aria-label="Notifications"
