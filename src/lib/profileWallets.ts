@@ -30,7 +30,7 @@ function walletExplorerUrl(address: string): string {
   return `https://solscan.io/account/${address}`;
 }
 
-/** Custody + verified ETH/SOL (primary first, deduped). */
+/** Primary, verified, then custody last (deduped). */
 export function buildProfileWallets(raw: {
   custodyAddress?: string;
   verifiedAddresses?: {
@@ -55,9 +55,6 @@ export function buildProfileWallets(raw: {
     });
   };
 
-  const custody = raw.custodyAddress?.trim();
-  if (custody) add(custody, "Custody", "eth");
-
   const va = raw.verifiedAddresses;
   const primaryEth = va?.primary?.eth_address?.trim();
   const primarySol = va?.primary?.sol_address?.trim();
@@ -72,6 +69,9 @@ export function buildProfileWallets(raw: {
     const a = addr?.trim();
     if (a) add(a, "Verified", "sol");
   }
+
+  const custody = raw.custodyAddress?.trim();
+  if (custody) add(custody, "Custody", "eth");
 
   return wallets;
 }
