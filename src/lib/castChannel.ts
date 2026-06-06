@@ -1,14 +1,4 @@
-import { normalizeChannelId } from "@/lib/channelDisplay";
-
-const CHANNEL_URL_RE = /\/channel\/([^/?#]+)/i;
-
-/** Parse a Farcaster channel URL into a channel slug. */
-export function channelSlugFromUrl(url: string): string | null {
-  const m = url.match(CHANNEL_URL_RE);
-  if (!m?.[1]) return null;
-  const slug = normalizeChannelId(m[1]);
-  return slug || null;
-}
+import { channelSlugFromUrl, normalizeChannelId } from "@/lib/channelDisplay";
 
 /** Channel a cast was posted to (from root_parent_url / parent_url), if any. */
 export function channelSlugFromCast(cast: Record<string, unknown>): string | null {

@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   channelColumnTitle,
+  channelDisplaySlug,
   formatChannelLabel,
   migrateChannelColumnTitle,
 } from "@/lib/channelDisplay";
@@ -311,14 +312,23 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
     editColumn?.type ?? null
   );
 
+  type ChannelChip = {
+    id: string;
+    label: string;
+    name: string;
+    displaySlug: string;
+    image_url?: string | null;
+    member_count?: number;
+  };
+
   // Channel multi-select — pre-fill from existing channelIds
-  const [channelChips, setChannelChips] = useState<{ id: string; label: string; name: string }[]>(
-    () =>
-      (editColumn?.channelIds ?? []).map((id) => ({
-        id,
-        label: formatChannelLabel(id),
-        name: id,
-      }))
+  const [channelChips, setChannelChips] = useState<ChannelChip[]>(() =>
+    (editColumn?.channelIds ?? []).map((id) => ({
+      id,
+      label: formatChannelLabel(id),
+      name: id,
+      displaySlug: channelDisplaySlug(id),
+    }))
   );
   // User multi-select — pre-fill from existing targetFids (initially show FIDs, then resolve)
   const [userChips, setUserChips] = useState<{ id: string; label: string; fid: number; username: string; pfpUrl?: string | null }[]>(
@@ -356,19 +366,64 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const fetchChannels = useCallback(async (q: string) => {
+  function mapChannelChip(ch: {
+    id: string;
+    displaySlug: string;
+    name: string;
+    image_url?: string | null;
+    member_count?: number;
+  }): ChannelChip {
+    return {
+      id: ch.id,
+      displaySlug: ch.displaySlug,
+      label: formatChannelLabel(ch.id, ch.displaySlug),
+      name: ch.name,
+      image_url: ch.image_url ?? null,
+      member_count: ch.member_count ?? 0,
+    };
+  }
+
+  const fetchChannels = useCallback(async (q: string): Promise<ChannelChip[]> => {
     const res = await fetch(`/api/channel/search?q=${encodeURIComponent(q)}`);
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data?.error ?? "Channel search failed");
     }
-    return (data.channels ?? []).map((ch: { id: string; name: string; image_url?: string }) => ({
-      id: ch.id,
-      label: formatChannelLabel(ch.id),
-      name: ch.name,
-      image_url: ch.image_url ?? null,
-    }));
+    return (data.channels ?? []).map(mapChannelChip);
   }, []);
+
+  async function resolveChannelOnEnter(q: string) {
+    const trimmed = q.replace(/^[#/]+/, "").trim();
+    if (!trimmed) return null;
+
+    const existing = channelChips.find(
+      (c) =>
+        c.id.toLowerCase() === trimmed.toLowerCase() ||
+        c.displaySlug.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existing) return existing;
+
+    const fromSearch = await fetchChannels(trimmed);
+    const exact = fromSearch.find(
+      (c) => c.displaySlug.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (exact) return exact;
+    if (fromSearch.length === 1) return fromSearch[0];
+
+    const res = await fetch(`/api/channel/lookup?q=${encodeURIComponent(trimmed)}`);
+    const data = (await res.json()) as {
+      channel?: {
+        id: string;
+        displaySlug: string;
+        name: string;
+        image_url?: string | null;
+        member_count?: number;
+      };
+      error?: string;
+    };
+    if (!res.ok || !data.channel) return null;
+    return mapChannelChip(data.channel);
+  }
 
   function mapUser(u: {
     fid: number;
@@ -521,12 +576,18 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
               <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wide">Channels</label>
               <MultiSelect
                 chips={channelChips}
-                onAdd={(item) => setChannelChips((prev) => [...prev, item])}
+                onAdd={(item) => setChannelChips((prev) => [...prev, item as ChannelChip])}
                 onRemove={(id) => setChannelChips((prev) => prev.filter((c) => c.id !== id))}
                 fetchSuggestions={fetchChannels}
+                onEnterResolve={resolveChannelOnEnter}
                 placeholder="Search channels…"
+                emptyHint="No matches yet. Press Enter to look up an exact channel slug (e.g. basepaint)."
                 renderSuggestion={(item) => {
-                  const ch = item as { id: string; name: string; image_url?: string | null };
+                  const ch = item as ChannelChip;
+                  const displayName = ch.name?.trim();
+                  const showDisplayName =
+                    !!displayName &&
+                    displayName.toLowerCase() !== ch.displaySlug.toLowerCase();
                   return (
                     <span className="flex items-center gap-2">
                       {ch.image_url ? (
@@ -534,8 +595,12 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
                       ) : (
                         <span className="w-5 h-5 rounded-full bg-[var(--surface-hover)] shrink-0 flex items-center justify-center text-[8px] text-[var(--muted)]">/</span>
                       )}
-                      <span className="text-[var(--foreground)] font-medium">{formatChannelLabel(ch.id)}</span>
-                      <span className="text-[var(--muted)] text-xs">{ch.name}</span>
+                      <span className="text-[var(--foreground)] font-medium">{ch.label}</span>
+                      {showDisplayName ? (
+                        <span className="text-[var(--muted)] text-xs">{displayName}</span>
+                      ) : ch.member_count ? (
+                        <span className="text-[var(--muted)] text-xs">{ch.member_count} members</span>
+                      ) : null}
                     </span>
                   );
                 }}
