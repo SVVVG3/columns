@@ -48,6 +48,7 @@ button:disabled {
 
 /* Auth screen — purple primary sign-in button (override Neynar SDK layout) */
 .auth-screen-signin .columns-neynar-signin,
+.auth-screen-signin .columns-managed-signin,
 .auth-screen-signin > button {
   width: 100% !important;
   min-height: 3rem !important;
@@ -69,11 +70,13 @@ button:disabled {
   transition: background-color 0.15s ease;
 }
 .auth-screen-signin .columns-neynar-signin:hover,
+.auth-screen-signin .columns-managed-signin:hover,
 .auth-screen-signin > button:hover {
   background-color: var(--accent-hover) !important;
 }
 /* Hide default Neynar SVG if SDK renders one alongside custom icon */
 .auth-screen-signin .columns-neynar-signin > svg,
+.auth-screen-signin .columns-managed-signin > svg,
 .auth-screen-signin > button > svg {
   display: none !important;
 }
@@ -85,6 +88,7 @@ button:disabled {
   display: block !important;
 }
 .auth-screen-signin .columns-neynar-signin > span,
+.auth-screen-signin .columns-managed-signin > span,
 .auth-screen-signin > button > span {
   margin: 0 !important;
   padding: 0 !important;

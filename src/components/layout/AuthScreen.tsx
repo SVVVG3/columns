@@ -1,9 +1,9 @@
 "use client";
 
-import { NeynarAuthButton, useNeynarContext } from "@neynar/react";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { QRCodeSVG } from "qrcode.react";
 import columnsLogo from "../../../public/columns-logo.png";
 import farcasterLogoWhite from "../../../public/farcaster-logo-white.png";
 
@@ -12,13 +12,26 @@ interface AuthScreenProps {
   betaUnlocked: boolean;
 }
 
+interface PendingSigner {
+  signer_uuid: string;
+  status: string;
+  signer_approval_url: string | null;
+}
+
+interface ApprovedSignerUser {
+  fid: number;
+  username: string;
+  displayName: string;
+  pfpUrl: string;
+}
+
 export function AuthScreen({
   betaGateEnabled: betaGateEnabledInitial,
   betaUnlocked: betaUnlockedInitial,
 }: AuthScreenProps) {
-  const { user } = useNeynarContext();
   const router = useRouter();
   const sessionAttemptedRef = useRef(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [betaGateEnabled, setBetaGateEnabled] = useState(betaGateEnabledInitial);
   const [betaUnlocked, setBetaUnlocked] = useState(
@@ -28,6 +41,10 @@ export function AuthScreen({
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [allowlistError, setAllowlistError] = useState<string | null>(null);
+
+  const [signInLoading, setSignInLoading] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
+  const [pendingSigner, setPendingSigner] = useState<PendingSigner | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/beta", { cache: "no-store" })
@@ -40,23 +57,24 @@ export function AuthScreen({
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (!user || allowlistError) return;
-    if (sessionAttemptedRef.current) return;
-    sessionAttemptedRef.current = true;
+  const establishSession = useCallback(
+    async (signerUuid: string, user: ApprovedSignerUser) => {
+      if (sessionAttemptedRef.current) return;
+      sessionAttemptedRef.current = true;
 
-    fetch("/api/auth/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fid: user.fid,
-        signerUuid: user.signer_uuid,
-        username: user.username,
-        displayName: user.display_name ?? user.username,
-        pfpUrl: user.pfp_url ?? "",
-      }),
-    })
-      .then(async (res) => {
+      try {
+        const res = await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fid: user.fid,
+            signerUuid,
+            username: user.username,
+            displayName: user.displayName,
+            pfpUrl: user.pfpUrl,
+          }),
+        });
+
         if (!res.ok) {
           sessionAttemptedRef.current = false;
           const data = (await res.json().catch(() => ({}))) as {
@@ -69,23 +87,133 @@ export function AuthScreen({
             setAllowlistError(
               `Columns is invite-only. You signed in as ${handle} (FID ${data.fid ?? user.fid}). Ask the team to add your FID to the allowlist.`
             );
+            setPendingSigner(null);
             return;
           }
           if (data.error === "beta_required") {
             setBetaUnlocked(false);
             setPasswordError("Enter the beta password before signing in.");
+            setPendingSigner(null);
             return;
           }
-          setAllowlistError("Could not sign in. Please try again.");
+          setSignInError("Could not sign in. Please try again.");
           return;
         }
+
         router.refresh();
-      })
-      .catch(() => {
+      } catch {
         sessionAttemptedRef.current = false;
-        setAllowlistError("Could not sign in. Please try again.");
+        setSignInError("Could not sign in. Please try again.");
+      }
+    },
+    [router]
+  );
+
+  const pollSigner = useCallback(
+    async (signerUuid: string) => {
+      try {
+        const res = await fetch(
+          `/api/auth/signer?signer_uuid=${encodeURIComponent(signerUuid)}`,
+          { cache: "no-store" }
+        );
+        if (!res.ok) return;
+
+        const data = (await res.json()) as {
+          status?: string;
+          fid?: number | null;
+          user?: ApprovedSignerUser;
+        };
+
+        if (data.status === "approved" && data.fid && data.user) {
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+          await establishSession(signerUuid, data.user);
+        }
+      } catch {
+        // keep polling
+      }
+    },
+    [establishSession]
+  );
+
+  useEffect(() => {
+    if (!pendingSigner?.signer_uuid) return;
+
+    const signerUuid = pendingSigner.signer_uuid;
+
+    const startPolling = () => {
+      if (pollIntervalRef.current) return;
+      void pollSigner(signerUuid);
+      pollIntervalRef.current = setInterval(() => {
+        void pollSigner(signerUuid);
+      }, 2000);
+    };
+
+    const stopPolling = () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.hidden) stopPolling();
+      else startPolling();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    startPolling();
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      stopPolling();
+    };
+  }, [pendingSigner, pollSigner]);
+
+  async function handleSignIn() {
+    setSignInError(null);
+    setSignInLoading(true);
+    sessionAttemptedRef.current = false;
+
+    try {
+      const res = await fetch("/api/auth/signer", { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as {
+        signer_uuid?: string;
+        status?: string;
+        signer_approval_url?: string | null;
+        error?: string;
+        message?: string;
+      };
+
+      if (!res.ok) {
+        if (data.error === "signer_not_configured") {
+          setSignInError(
+            "Columns sign-in is not configured on the server. Contact the team."
+          );
+        } else {
+          setSignInError("Could not start sign-in. Please try again.");
+        }
+        return;
+      }
+
+      if (!data.signer_uuid) {
+        setSignInError("Could not start sign-in. Please try again.");
+        return;
+      }
+
+      setPendingSigner({
+        signer_uuid: data.signer_uuid,
+        status: data.status ?? "pending_approval",
+        signer_approval_url: data.signer_approval_url ?? null,
       });
-  }, [user, router, allowlistError]);
+    } catch {
+      setSignInError("Could not start sign-in. Please try again.");
+    } finally {
+      setSignInLoading(false);
+    }
+  }
 
   async function handleBetaSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -115,7 +243,6 @@ export function AuthScreen({
   return (
     <div className="flex h-full items-center justify-center bg-black">
       <div className="flex flex-col items-center gap-8 max-w-sm w-full px-6">
-        {/* Logo / wordmark */}
         <div className="flex flex-col items-center gap-3">
           <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0">
             <Image
@@ -150,10 +277,45 @@ export function AuthScreen({
           </div>
         ) : showSignIn ? (
           <div className="w-full flex flex-col items-center gap-4">
-            <div className="auth-screen-signin w-full">
-              <NeynarAuthButton
-                label="Sign in with Farcaster"
-                icon={
+            {pendingSigner?.signer_approval_url ? (
+              <div className="w-full flex flex-col items-center gap-4">
+                <p className="text-sm text-white text-center">
+                  Approve Columns in Warpcast to finish signing in.
+                </p>
+                <div className="rounded-xl bg-white p-3">
+                  <QRCodeSVG value={pendingSigner.signer_approval_url} size={180} />
+                </div>
+                <a
+                  href={pendingSigner.signer_approval_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-[var(--accent)] hover:underline text-center"
+                >
+                  Open approval link in Warpcast
+                </a>
+                <p className="text-xs text-[var(--muted)] text-center">
+                  Waiting for approval…
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingSigner(null);
+                    setSignInError(null);
+                    sessionAttemptedRef.current = false;
+                  }}
+                  className="text-xs text-[var(--muted)] hover:text-white underline"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="auth-screen-signin w-full">
+                <button
+                  type="button"
+                  onClick={handleSignIn}
+                  disabled={signInLoading}
+                  className="columns-managed-signin"
+                >
                   <Image
                     src={farcasterLogoWhite}
                     alt=""
@@ -162,13 +324,20 @@ export function AuthScreen({
                     className="columns-signin-fc-logo"
                     aria-hidden
                   />
-                }
-                className="columns-neynar-signin"
-              />
-            </div>
-            <p className="text-xs text-[var(--muted)] text-center">
-              Sign in with your Farcaster account to grant Columns permissions.
-            </p>
+                  <span>
+                    {signInLoading ? "Starting sign-in…" : "Sign in with Farcaster"}
+                  </span>
+                </button>
+              </div>
+            )}
+            {signInError && (
+              <p className="text-xs text-red-400 text-center w-full">{signInError}</p>
+            )}
+            {!pendingSigner && (
+              <p className="text-xs text-[var(--muted)] text-center">
+                Sign in with your Farcaster account to grant Columns permissions.
+              </p>
+            )}
           </div>
         ) : (
           <form

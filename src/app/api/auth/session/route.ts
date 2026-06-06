@@ -13,7 +13,7 @@ export async function GET() {
   return NextResponse.json({ user: session.user ?? null });
 }
 
-/** POST /api/auth/session — set session after SIWN success */
+/** POST /api/auth/session — set session after managed signer approval */
 export async function POST(req: NextRequest) {
   if (!verifyCsrf(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

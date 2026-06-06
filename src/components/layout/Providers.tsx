@@ -1,7 +1,6 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { NeynarContextProvider, Theme } from "@neynar/react";
 import { createContext, useContext, useEffect, useState } from "react";
 import { LayoutParamCapture } from "@/components/layout/LayoutParamCapture";
 
@@ -64,17 +63,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <NeynarContextProvider
-        settings={{
-          clientId: process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID ?? "",
-          defaultTheme: Theme.Dark,
-        }}
-      >
-        <ThemeProvider>
-          <LayoutParamCapture />
-          {children}
-        </ThemeProvider>
-      </NeynarContextProvider>
+      <ThemeProvider>
+        <LayoutParamCapture />
+        {children}
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
