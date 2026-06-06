@@ -3,7 +3,9 @@ export type FeedColumnType =
   | "channel"
   | "user"
   | "keyword"
-  | "trending";
+  | "trending"
+  | "coindesk"
+  | "rss";
 
 export interface FeedColumnConfig {
   id: string;
@@ -22,6 +24,8 @@ export interface FeedColumnConfig {
   queries?: string[];
   /** @deprecated use queries instead */
   query?: string;
+  /** For "rss" type: feed URL (RSS or Atom) */
+  rssUrl?: string;
   /** Refresh interval in ms (default 30000) */
   refreshInterval?: number;
 }

@@ -14,6 +14,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useColumnsStore } from "@/store/columns";
 import { getReorderedColumnIds } from "@/lib/columnReorder";
+import { NewsFeedColumn } from "@/components/feed/NewsFeedColumn";
 import { FeedColumn } from "@/components/feed/FeedColumn";
 
 interface ColumnContainerProps {
@@ -53,14 +54,18 @@ export function ColumnContainer({ viewerFid }: ColumnContainerProps) {
         strategy={horizontalListSortingStrategy}
       >
         <div className="flex h-full overflow-x-auto columns-scroll">
-          {columns.map((column, index) => (
-            <FeedColumn
-              key={column.id}
-              column={column}
-              columnIndex={index}
-              viewerFid={viewerFid}
-            />
-          ))}
+          {columns.map((column, index) =>
+            column.type === "coindesk" || column.type === "rss" ? (
+              <NewsFeedColumn key={column.id} column={column} columnIndex={index} />
+            ) : (
+              <FeedColumn
+                key={column.id}
+                column={column}
+                columnIndex={index}
+                viewerFid={viewerFid}
+              />
+            )
+          )}
         </div>
       </SortableContext>
     </DndContext>

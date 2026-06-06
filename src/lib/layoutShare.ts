@@ -14,6 +14,8 @@ const VALID_TYPES = new Set<FeedColumnType>([
   "user",
   "keyword",
   "trending",
+  "coindesk",
+  "rss",
 ]);
 
 export type ShareableColumn = {
@@ -88,6 +90,9 @@ function validateColumn(col: Omit<FeedColumnConfig, "id">): void {
   }
   if (!col.title?.trim()) {
     throw new Error("Column must have a title");
+  }
+  if (col.type === "rss" && !col.rssUrl?.trim()) {
+    throw new Error("RSS column must include a feed URL");
   }
 }
 

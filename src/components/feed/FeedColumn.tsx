@@ -38,6 +38,10 @@ function buildFeedUrl(column: FeedColumnConfig, cursor?: string): string {
         const qs = column.queries ?? (column.query ? [column.query] : []);
         return `/api/feed/keyword?queries=${qs.map(encodeURIComponent).join(",")}`;
       }
+      case "coindesk":
+        return "/api/feed/coindesk";
+      case "rss":
+        return "/api/feed/rss";
     }
   })();
   const params = new URLSearchParams();
@@ -432,6 +436,26 @@ function ColumnTypeIcon({ type }: { type: FeedColumnConfig["type"] }) {
     trending: (
       <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+      </svg>
+    ),
+    coindesk: (
+      <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"
+        />
+      </svg>
+    ),
+    rss: (
+      <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7m-6 0a1 1 0 11-2 0 1 1 0 012 0z"
+        />
       </svg>
     ),
   };

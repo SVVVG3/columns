@@ -10,6 +10,7 @@ import {
 } from "@/lib/channelDisplay";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useColumnsStore } from "@/store/columns";
+import { rssColumnTitle } from "@/lib/newsArticle";
 import type { FeedColumnConfig, FeedColumnType } from "@/types";
 
 interface AddColumnModalProps {
@@ -21,6 +22,8 @@ interface AddColumnModalProps {
 const COLUMN_TYPES: { type: FeedColumnType; label: string; description: string }[] = [
   { type: "home",     label: "Home",      description: "Casts from people you follow" },
   { type: "trending", label: "Trending",   description: "Popular casts (Hypersnap trending index)" },
+  { type: "coindesk", label: "CoinDesk",   description: "Latest crypto news from CoinDesk Data" },
+  { type: "rss",      label: "RSS Feed",   description: "Any public RSS or Atom feed URL" },
   { type: "channel",  label: "Channel",    description: "Casts from one or more channels" },
   { type: "user",     label: "User",       description: "Casts from one or more users" },
   { type: "keyword",  label: "Keyword",    description: "Search one topic (scroll for more) or merge several (first page only)" },
@@ -344,6 +347,7 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
   }, []);
   // Keyword tags — pre-fill from existing queries
   const [keywordTags, setKeywordTags] = useState<string[]>(editColumn?.queries ?? []);
+  const [rssUrl, setRssUrl] = useState(editColumn?.rssUrl ?? "");
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -411,6 +415,12 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
     switch (selectedType) {
       case "home":    return { ...base, title: "Home" };
       case "trending":return { ...base, title: "Trending" };
+      case "coindesk": return { ...base, title: "CoinDesk News" };
+      case "rss": {
+        const url = rssUrl.trim();
+        if (!isValidRssUrl(url)) return null;
+        return { ...base, title: rssColumnTitle(url), rssUrl: url };
+      }
       case "channel": {
         if (channelChips.length === 0) return null;
         const ids = channelChips.map((c) => c.id);
@@ -440,6 +450,7 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
         channelIds: column.channelIds,
         targetFids: column.targetFids,
         queries: column.queries,
+        rssUrl: column.rssUrl,
         // Always preserve the user's custom title — only use the auto-generated
         // title if the column never had one (shouldn't happen in practice)
         title: migrateChannelColumnTitle({
@@ -551,6 +562,29 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
             </div>
           )}
 
+          {/* RSS feed URL */}
+          {selectedType === "rss" && (
+            <div className="px-3 pb-3 space-y-1.5">
+              <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wide">
+                Feed URL
+              </label>
+              <p className="text-[11px] text-[var(--muted)] leading-snug">
+                Paste an RSS or Atom URL — e.g. a blog, newsletter, or podcast feed.
+              </p>
+              <input
+                type="url"
+                value={rssUrl}
+                onChange={(e) => setRssUrl(e.target.value)}
+                placeholder="https://example.com/feed.xml"
+                className="w-full px-3 py-2 rounded-xl border border-[var(--border)] bg-[var(--background)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] outline-none focus:border-[var(--accent)]"
+                spellCheck={false}
+              />
+              {rssUrl.trim() && !isValidRssUrl(rssUrl.trim()) && (
+                <p className="text-[11px] text-red-400">Enter a valid http(s) feed URL.</p>
+              )}
+            </div>
+          )}
+
           {/* Keyword tags */}
           {selectedType === "keyword" && (
             <div className="px-3 pb-3 space-y-1.5">
@@ -580,4 +614,13 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
       </div>
     </div>
   );
+}
+
+function isValidRssUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw.trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
