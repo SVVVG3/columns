@@ -1,3 +1,4 @@
+import { MAX_COLUMNS } from "@/lib/columnLimits";
 import { migrateChannelColumnTitle } from "@/lib/channelDisplay";
 import type { FeedColumnConfig, FeedColumnType } from "@/types";
 
@@ -77,7 +78,9 @@ function validateSharePayload(payload: SharePayload): void {
   }
   if ("columns" in payload && Array.isArray(payload.columns)) {
     if (payload.columns.length === 0) throw new Error("No columns in layout");
-    if (payload.columns.length > 30) throw new Error("Too many columns (max 30)");
+    if (payload.columns.length > MAX_COLUMNS) {
+      throw new Error(`Too many columns in file (max ${MAX_COLUMNS})`);
+    }
     for (const col of payload.columns) validateColumn(col);
     return;
   }

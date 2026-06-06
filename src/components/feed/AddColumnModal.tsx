@@ -9,7 +9,7 @@ import {
   migrateChannelColumnTitle,
 } from "@/lib/channelDisplay";
 import { UserAvatar } from "@/components/ui/UserAvatar";
-import { useColumnsStore } from "@/store/columns";
+import { MAX_COLUMNS, useColumnsStore } from "@/store/columns";
 import { rssColumnTitle } from "@/lib/newsArticle";
 import type { FeedColumnConfig, FeedColumnType } from "@/types";
 
@@ -302,8 +302,9 @@ function KeywordInput({
 
 // ─── Modal ───────────────────────────────────────────────────────────────────
 export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
-  const { addColumn, updateColumn } = useColumnsStore();
+  const { addColumn, updateColumn, columns } = useColumnsStore();
   const isEditMode = !!editColumn;
+  const atColumnLimit = !isEditMode && columns.length >= MAX_COLUMNS;
 
   // Initialise state from editColumn if in edit mode
   const [selectedType, setSelectedType] = useState<FeedColumnType | null>(
@@ -460,12 +461,12 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
         }),
       });
     } else {
-      addColumn(column);
+      if (!addColumn(column)) return;
     }
     onClose();
   }
 
-  const canSave = buildColumn() !== null;
+  const canSave = buildColumn() !== null && !atColumnLimit;
 
   return (
     <div
@@ -487,6 +488,12 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
             </svg>
           </button>
         </div>
+
+        {atColumnLimit && (
+          <p className="px-4 py-2 text-xs text-amber-200/90 border-b border-[var(--border)] bg-amber-500/10">
+            You&apos;ve reached the maximum of {MAX_COLUMNS} columns. Remove one to add another.
+          </p>
+        )}
 
         {/* Scrollable body */}
         <div className="overflow-y-auto flex-1 min-h-0">

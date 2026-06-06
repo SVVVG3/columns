@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useColumnsStore } from "@/store/columns";
+import { MAX_COLUMNS, useColumnsStore } from "@/store/columns";
+import { remainingColumnSlots } from "@/lib/columnLimits";
 import { columnsFromSharePayload, parseShareJson } from "@/lib/layoutShare";
 
 interface ImportColumnModalProps {
@@ -26,12 +27,23 @@ export function ImportColumnModal({ onClose }: ImportColumnModalProps) {
       if (toAdd.length === 0) {
         throw new Error("Nothing to import (Home column already exists)");
       }
-      for (const col of toAdd) addColumn(col);
-      setSuccess(
-        toAdd.length === 1
-          ? `Added column "${toAdd[0].title}"`
-          : `Added ${toAdd.length} columns`
-      );
+      const slots = remainingColumnSlots(columns.length);
+      if (slots === 0) {
+        throw new Error(`Maximum of ${MAX_COLUMNS} columns reached`);
+      }
+      const batch = toAdd.slice(0, slots);
+      for (const col of batch) addColumn(col);
+      if (batch.length < toAdd.length) {
+        setSuccess(
+          `Added ${batch.length} column${batch.length === 1 ? "" : "s"} (${MAX_COLUMNS} max — remove a column to import more)`
+        );
+      } else {
+        setSuccess(
+          batch.length === 1
+            ? `Added column "${batch[0].title}"`
+            : `Added ${batch.length} columns`
+        );
+      }
       setImportText("");
       setTimeout(onClose, 800);
     } catch (err) {

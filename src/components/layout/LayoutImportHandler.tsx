@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { remainingColumnSlots } from "@/lib/columnLimits";
 import { useColumnsStore } from "@/store/columns";
 import {
   columnsFromSharePayload,
@@ -43,7 +44,8 @@ export function LayoutImportHandler() {
           payload = decodeShareParam(columnParam ?? layoutParam!);
         }
         const toAdd = columnsFromSharePayload(payload, columns);
-        for (const col of toAdd) addColumn(col);
+        const slots = remainingColumnSlots(columns.length);
+        for (const col of toAdd.slice(0, slots)) addColumn(col);
       } catch (err) {
         console.error("[column import]", err);
       } finally {

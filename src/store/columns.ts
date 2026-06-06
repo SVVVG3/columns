@@ -2,8 +2,11 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { canAddColumns, MAX_COLUMNS } from "@/lib/columnLimits";
 import { migrateChannelColumnTitle } from "@/lib/channelDisplay";
 import type { FeedColumnConfig, PersistedLayout } from "@/types";
+
+export { MAX_COLUMNS };
 
 const SCHEMA_VERSION = 3 as const;
 
@@ -27,7 +30,8 @@ function normalizeColumns(columns: FeedColumnConfig[]): FeedColumnConfig[] {
 
 interface ColumnsState {
   columns: FeedColumnConfig[];
-  addColumn: (column: FeedColumnConfig) => void;
+  /** Returns false if the max column limit was reached. */
+  addColumn: (column: FeedColumnConfig) => boolean;
   removeColumn: (id: string) => void;
   updateColumn: (id: string, updates: Partial<FeedColumnConfig>) => void;
   reorderColumns: (orderedIds: string[]) => void;
@@ -41,8 +45,12 @@ export const useColumnsStore = create<ColumnsState>()(
     (set, get) => ({
       columns: DEFAULT_COLUMNS,
 
-      addColumn: (column) =>
-        set((state) => ({ columns: [...state.columns, column] })),
+      addColumn: (column) => {
+        const { columns } = get();
+        if (!canAddColumns(columns.length)) return false;
+        set({ columns: [...columns, column] });
+        return true;
+      },
 
       removeColumn: (id) =>
         set((state) => ({
