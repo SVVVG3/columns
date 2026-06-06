@@ -280,7 +280,7 @@ export function AuthScreen({
             {pendingSigner?.signer_approval_url ? (
               <div className="w-full flex flex-col items-center gap-4">
                 <p className="text-sm text-white text-center">
-                  Approve Columns in Warpcast to finish signing in.
+                  Approve Columns in Farcaster to finish signing in.
                 </p>
                 <div className="rounded-xl bg-white p-3">
                   <QRCodeSVG value={pendingSigner.signer_approval_url} size={180} />
@@ -291,7 +291,7 @@ export function AuthScreen({
                   rel="noopener noreferrer"
                   className="text-sm text-[var(--accent)] hover:underline text-center"
                 >
-                  Open approval link in Warpcast
+                  Open approval link in Farcaster
                 </a>
                 <p className="text-xs text-[var(--muted)] text-center">
                   Waiting for approval…

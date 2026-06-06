@@ -2,7 +2,7 @@ import { normalizeChannelId } from "@/lib/channelDisplay";
 
 const CHANNEL_URL_RE = /\/channel\/([^/?#]+)/i;
 
-/** Parse a Warpcast/Farcaster channel URL into a channel slug. */
+/** Parse a Farcaster channel URL into a channel slug. */
 export function channelSlugFromUrl(url: string): string | null {
   const m = url.match(CHANNEL_URL_RE);
   if (!m?.[1]) return null;

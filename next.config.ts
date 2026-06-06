@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   },
   images: {
     remotePatterns: [
-      // Farcaster / Warpcast CDN
+      // Farcaster CDN
       { protocol: "https", hostname: "imagedelivery.net" },
       { protocol: "https", hostname: "**.cloudflare.com" },
       { protocol: "https", hostname: "res.cloudinary.com" },
