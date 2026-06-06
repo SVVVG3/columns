@@ -18,6 +18,7 @@ import {
 } from "@/lib/profilePreview";
 import {
   shortenAddress,
+  WALLET_CHAIN_ICON_URL,
   type ProfileWallet,
   type ProfileWalletChain,
 } from "@/lib/profileWallets";
@@ -192,9 +193,9 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
 
         <div className="flex-1 min-h-0 overflow-y-auto feed-scroll px-4 pb-3">
           <div className="flex flex-col items-center pt-3 w-full">
-            <div className="flex items-start gap-4 max-w-full">
+            <div className="flex flex-col items-center gap-2 max-w-full">
               <UserAvatar src={pfpUrl} alt={displayName} size="xl" className="shrink-0" />
-              <div className="min-w-0 pt-0.5 text-left">
+              <div className="min-w-0 text-center">
                 <p className="text-base font-semibold text-[var(--foreground)] leading-tight truncate">
                   {displayName}
                 </p>
@@ -447,28 +448,15 @@ function ProfileMetaLinksRow({
 }
 
 function WalletChainIcon({ chain }: { chain: ProfileWalletChain }) {
-  if (chain === "sol") {
-    return (
-      <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden>
-        <circle cx="12" cy="12" r="10" fill="#14F195" />
-        <circle cx="12" cy="12" r="10" fill="#9945FF" fillOpacity="0.55" />
-        <path
-          fill="#fff"
-          d="M7.5 15.2h9l-1.4 1.5H6.1l1.4-1.5zm1.4-3.1h9L16.9 14H7.5l1.4-1.9zm1.4-3.1h9l-1.4 1.5H8.3l1.4-1.5z"
-        />
-      </svg>
-    );
-  }
-
   return (
-    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden>
-      <circle cx="12" cy="12" r="10" fill="#627EEA" />
-      <path
-        fill="#fff"
-        fillOpacity="0.95"
-        d="M12 5.5l-5.2 8.6h3.4L12 10.4l2.8 3.7h3.4L12 5.5zm-1.8 9.1L12 18.5l1.8-3.9H10.2z"
-      />
-    </svg>
+    <Image
+      src={WALLET_CHAIN_ICON_URL[chain]}
+      alt=""
+      width={16}
+      height={16}
+      className="w-4 h-4 shrink-0 rounded-full object-cover"
+      unoptimized
+    />
   );
 }
 
@@ -541,7 +529,7 @@ function ProfileWalletsDropdown({
           </svg>
         </span>
       </summary>
-      <ul className="w-full mt-2 rounded-xl border border-[var(--border)] bg-[var(--background)] divide-y divide-[var(--border)] overflow-hidden">
+      <ul className="w-full mt-2 space-y-2">
         {wallets.map((wallet) => (
           <ProfileWalletRow key={wallet.id} wallet={wallet} />
         ))}
@@ -552,12 +540,12 @@ function ProfileWalletsDropdown({
 
 function ProfileWalletRow({ wallet }: { wallet: ProfileWallet }) {
   return (
-    <li className="px-3 py-2">
-      <div className="flex items-center gap-1.5 mb-1">
+    <li className="flex flex-col items-center py-1">
+      <div className="flex items-center justify-center gap-1.5">
         <WalletChainIcon chain={wallet.chain} />
         <span className="text-[10px] font-medium text-[var(--muted)]">{wallet.label}</span>
       </div>
-      <div className="flex items-center gap-1 pl-5 min-w-0">
+      <div className="flex items-center justify-center gap-1 mt-0.5 min-w-0 max-w-full">
         <a
           href={wallet.href}
           target="_blank"

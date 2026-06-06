@@ -1,5 +1,10 @@
 export type ProfileWalletChain = "eth" | "sol";
 
+export const WALLET_CHAIN_ICON_URL: Record<ProfileWalletChain, string> = {
+  eth: "https://assets.coingecko.com/coins/images/279/small/ethereum.png",
+  sol: "https://assets.coingecko.com/coins/images/4128/small/solana.png",
+};
+
 export interface ProfileWallet {
   id: string;
   /** Role label without chain name, e.g. Custody, Primary, Verified. */
