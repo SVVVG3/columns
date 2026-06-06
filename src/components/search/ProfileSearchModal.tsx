@@ -55,6 +55,9 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const openProfilePreview = useUiStore((s) => s.openProfilePreview);
   const openConversation = useUiStore((s) => s.openConversation);
+  const profilePreviewOpen = useUiStore((s) => s.profilePreview != null);
+  const conversationOpen = useUiStore((s) => s.selectedCastHash != null);
+  const childOverlayOpen = profilePreviewOpen || conversationOpen;
 
   useEffect(() => {
     if (!open) return;
@@ -111,6 +114,9 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
   useEffect(() => {
     if (!open) return;
     function onKeyDown(e: KeyboardEvent) {
+      const { profilePreview, selectedCastHash } = useUiStore.getState();
+      if (profilePreview || selectedCastHash) return;
+
       if (e.key === "Escape") {
         e.preventDefault();
         onClose();
@@ -140,7 +146,6 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
     } else if (hit.cast.hash) {
       openConversation(hit.cast.hash);
     }
-    onClose();
   }
 
   if (!open) return null;
@@ -153,12 +158,17 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-start justify-center pt-[14vh] px-4 bg-black/55 backdrop-blur-md"
+      className={`fixed inset-0 z-[70] flex items-start justify-center pt-[14vh] px-4 bg-black/55 backdrop-blur-md transition-[filter,opacity] duration-200 ${
+        childOverlayOpen ? "pointer-events-none" : ""
+      }`}
       role="presentation"
-      onClick={onClose}
+      onClick={childOverlayOpen ? undefined : onClose}
+      aria-hidden={childOverlayOpen}
     >
       <div
-        className="w-full max-w-xl bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden"
+        className={`w-full max-w-xl bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden transition-all duration-200 ${
+          childOverlayOpen ? "blur-md opacity-40 scale-[0.98]" : ""
+        }`}
         role="dialog"
         aria-label="Search"
         onClick={(e) => e.stopPropagation()}
