@@ -193,23 +193,22 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
 
         <div className="flex-1 min-h-0 overflow-y-auto feed-scroll px-4 pb-3">
           <div className="flex flex-col items-center pt-3 w-full">
-            <div className="flex flex-col items-center gap-2 max-w-full">
+            <div className="flex justify-center w-full">
+              <div className="flex items-start gap-4 max-w-full">
               <UserAvatar src={pfpUrl} alt={displayName} size="xl" className="shrink-0" />
-              <div className="min-w-0 text-center">
+              <div className="min-w-0 pt-0.5 text-left">
                 <p className="text-base font-semibold text-[var(--foreground)] leading-tight truncate">
                   {displayName}
                 </p>
                 <p className="text-sm text-[var(--muted)] truncate">@{username}</p>
-                {fid != null && wallets.length === 0 && (
+                {wallets.length > 0 ? (
+                  <ProfileWalletsDropdown wallets={wallets} fid={fid} />
+                ) : fid != null ? (
                   <p className="text-[10px] text-[var(--muted)] font-mono mt-1">FID {fid}</p>
-                )}
+                ) : null}
+              </div>
               </div>
             </div>
-            {wallets.length > 0 && (
-              <div className="w-full max-w-sm mt-2">
-                <ProfileWalletsDropdown wallets={wallets} fid={fid} />
-              </div>
-            )}
 
             {isLoading && !profile && (
               <div className="w-full max-w-sm mt-3 space-y-1.5 animate-pulse">
@@ -512,15 +511,15 @@ function ProfileWalletsDropdown({
   fid?: number | null;
 }) {
   return (
-    <div className="text-xs text-[var(--muted)] text-center">
-      {fid != null && (
-        <>
-          <span className="font-mono">FID {fid}</span>
-          <ProfileMetaSeparator />
-        </>
-      )}
-      <details className="group inline-block align-middle w-full">
-        <summary className="inline-flex items-center justify-center gap-0.5 cursor-pointer list-none hover:text-[var(--foreground)] transition-colors [&::-webkit-details-marker]:hidden">
+    <details className="group mt-1">
+      <summary className="text-xs text-[var(--muted)] list-none cursor-pointer [&::-webkit-details-marker]:hidden">
+        {fid != null && (
+          <>
+            <span className="font-mono">FID {fid}</span>
+            <ProfileMetaSeparator />
+          </>
+        )}
+        <span className="inline-flex items-center gap-0.5 hover:text-[var(--foreground)] transition-colors">
           Wallets ({wallets.length})
           <svg
             className="w-3 h-3 transition-transform group-open:rotate-180"
@@ -531,20 +530,20 @@ function ProfileWalletsDropdown({
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
-        </summary>
-        <ul className="mt-1 max-h-32 overflow-y-auto feed-scroll space-y-px">
-          {wallets.map((wallet) => (
-            <ProfileWalletRow key={wallet.id} wallet={wallet} />
-          ))}
-        </ul>
-      </details>
-    </div>
+        </span>
+      </summary>
+      <ul className="mt-1 max-h-32 overflow-y-auto feed-scroll space-y-px">
+        {wallets.map((wallet) => (
+          <ProfileWalletRow key={wallet.id} wallet={wallet} />
+        ))}
+      </ul>
+    </details>
   );
 }
 
 function ProfileWalletRow({ wallet }: { wallet: ProfileWallet }) {
   return (
-    <li className="flex items-center justify-center gap-1.5 py-0.5 min-w-0">
+    <li className="flex items-center gap-1.5 py-0.5 min-w-0">
       <WalletChainIcon chain={wallet.chain} />
       <span
         className="text-[10px] font-medium text-[var(--muted)] shrink-0 w-11 text-right"
