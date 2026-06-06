@@ -14,13 +14,27 @@ export async function POST() {
       fid: signer.fid ?? null,
     });
   } catch (err) {
-    console.error("[auth/signer] create failed:", err);
+    const axiosData =
+      err &&
+      typeof err === "object" &&
+      "response" in err &&
+      err.response &&
+      typeof err.response === "object" &&
+      "data" in err.response
+        ? (err.response as { data?: { message?: string } }).data
+        : undefined;
+    const neynarMessage = axiosData?.message;
     const message =
-      err instanceof Error ? err.message : "Failed to create signer";
+      neynarMessage ??
+      (err instanceof Error ? err.message : "Failed to create signer");
+
+    console.error("[auth/signer] create failed:", message);
+
     const isConfig =
       message.includes("FARCASTER_DEVELOPER") ||
       message.includes("custody") ||
-      message.includes("FID");
+      message.includes("mnemonic") ||
+      message.includes("does not match");
     return NextResponse.json(
       { error: isConfig ? "signer_not_configured" : "signer_create_failed", message },
       { status: isConfig ? 503 : 500 }

@@ -1,27 +1,25 @@
+import { ViemLocalEip712Signer } from "@farcaster/hub-nodejs";
+import { bytesToHex, hexToBytes } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 import { neynar } from "@/lib/neynar";
 
-const SIGNED_KEY_REQUEST_VALIDATOR_EIP_712_DOMAIN = {
-  name: "Farcaster SignedKeyRequestValidator",
-  version: "1",
-  chainId: 10,
-  verifyingContract: "0x00000000fc1237824fb747abde0ff18990e59b7e",
-} as const;
-
-const SIGNED_KEY_REQUEST_TYPES = {
-  SignedKeyRequest: [
-    { name: "requestFid", type: "uint256" },
-    { name: "key", type: "bytes" },
-    { name: "deadline", type: "uint256" },
-  ],
-} as const;
+function normalizeMnemonic(raw: string): string {
+  let mnemonic = raw.trim();
+  if (
+    (mnemonic.startsWith('"') && mnemonic.endsWith('"')) ||
+    (mnemonic.startsWith("'") && mnemonic.endsWith("'"))
+  ) {
+    mnemonic = mnemonic.slice(1, -1).trim();
+  }
+  return mnemonic.replace(/\s+/g, " ");
+}
 
 function getDeveloperAccount() {
-  const mnemonic = process.env.FARCASTER_DEVELOPER_MNEMONIC?.trim();
-  if (!mnemonic) {
+  const raw = process.env.FARCASTER_DEVELOPER_MNEMONIC;
+  if (!raw?.trim()) {
     throw new Error("FARCASTER_DEVELOPER_MNEMONIC is not set");
   }
-  return mnemonicToAccount(mnemonic);
+  return mnemonicToAccount(normalizeMnemonic(raw));
 }
 
 function normalizePublicKeyHex(publicKey: string): `0x${string}` {
@@ -29,24 +27,32 @@ function normalizePublicKeyHex(publicKey: string): `0x${string}` {
   return `0x${hex}` as `0x${string}`;
 }
 
-/** Columns app FID (@columns) — from env or custody address lookup. */
+/** Columns app FID (@columns) — validates mnemonic custody matches env FID. */
 export async function getAppFid(): Promise<number> {
-  const envFid = process.env.FARCASTER_DEVELOPER_FID?.trim();
-  if (envFid) {
-    const fid = Number(envFid);
-    if (!Number.isFinite(fid) || fid <= 0) {
-      throw new Error("FARCASTER_DEVELOPER_FID is invalid");
-    }
-    return fid;
-  }
-
   const account = getDeveloperAccount();
   const { user } = await neynar.lookupUserByCustodyAddress({
     custodyAddress: account.address,
   });
+
   if (!user?.fid) {
-    throw new Error("No FID found for Columns app custody address");
+    throw new Error(
+      `No Farcaster account for custody address ${account.address}. Check FARCASTER_DEVELOPER_MNEMONIC.`
+    );
   }
+
+  const envFid = process.env.FARCASTER_DEVELOPER_FID?.trim();
+  if (envFid) {
+    const expected = Number(envFid);
+    if (!Number.isFinite(expected) || expected <= 0) {
+      throw new Error("FARCASTER_DEVELOPER_FID is invalid");
+    }
+    if (user.fid !== expected) {
+      throw new Error(
+        `FARCASTER_DEVELOPER_FID (${expected}) does not match mnemonic custody FID (${user.fid}).`
+      );
+    }
+  }
+
   return user.fid;
 }
 
@@ -56,18 +62,20 @@ async function signKeyRequest(
   deadline: number
 ): Promise<string> {
   const account = getDeveloperAccount();
-  const keyHex = normalizePublicKeyHex(publicKey);
+  const signer = new ViemLocalEip712Signer(account);
+  const keyBytes = hexToBytes(normalizePublicKeyHex(publicKey));
 
-  return account.signTypedData({
-    domain: SIGNED_KEY_REQUEST_VALIDATOR_EIP_712_DOMAIN,
-    types: SIGNED_KEY_REQUEST_TYPES,
-    primaryType: "SignedKeyRequest",
-    message: {
-      requestFid: BigInt(appFid),
-      key: keyHex,
-      deadline: BigInt(deadline),
-    },
+  const result = await signer.signKeyRequest({
+    requestFid: BigInt(appFid),
+    key: keyBytes,
+    deadline: BigInt(deadline),
   });
+
+  if (result.isErr()) {
+    throw new Error(`Failed to sign key request: ${result.error.message}`);
+  }
+
+  return bytesToHex(result.value);
 }
 
 /** Create a Neynar signer registered under Columns' app FID (sent-from attribution). */
