@@ -16,7 +16,11 @@ import {
   type ProfileDetails,
   type ProfilePreviewSeed,
 } from "@/lib/profilePreview";
-import type { ProfileWallet } from "@/lib/profileWallets";
+import {
+  shortenAddress,
+  type ProfileWallet,
+  type ProfileWalletChain,
+} from "@/lib/profileWallets";
 import type { FollowRelationship } from "@/lib/followCheck";
 import { renderLinkifiedText } from "@/lib/linkifyText";
 import { profileFollowStatusLines } from "@/lib/profileFollowLabels";
@@ -187,28 +191,24 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
         )}
 
         <div className="flex-1 min-h-0 overflow-y-auto feed-scroll px-4 pb-3">
-          <div className="flex flex-col items-center pt-3">
-            <div className="flex justify-center w-full">
-              <div className="flex items-start gap-6 text-left max-w-full">
+          <div className="flex flex-col items-center pt-3 w-full">
+            <div className="flex items-start gap-4 max-w-full">
               <UserAvatar src={pfpUrl} alt={displayName} size="xl" className="shrink-0" />
-              <div className="min-w-0 pt-0.5">
+              <div className="min-w-0 pt-0.5 text-left">
                 <p className="text-base font-semibold text-[var(--foreground)] leading-tight truncate">
                   {displayName}
                 </p>
                 <p className="text-sm text-[var(--muted)] truncate">@{username}</p>
-                {(fid != null || wallets.length > 0) && (
-                  <div className="mt-1">
-                    {fid != null && wallets.length === 0 && (
-                      <p className="text-[10px] text-[var(--muted)] font-mono">FID {fid}</p>
-                    )}
-                    {wallets.length > 0 && (
-                      <ProfileWalletsDropdown wallets={wallets} fid={fid} align="left" />
-                    )}
-                  </div>
+                {fid != null && wallets.length === 0 && (
+                  <p className="text-[10px] text-[var(--muted)] font-mono mt-1">FID {fid}</p>
                 )}
               </div>
-              </div>
             </div>
+            {wallets.length > 0 && (
+              <div className="w-full max-w-sm mt-2">
+                <ProfileWalletsDropdown wallets={wallets} fid={fid} />
+              </div>
+            )}
 
             {isLoading && !profile && (
               <div className="w-full max-w-sm mt-3 space-y-1.5 animate-pulse">
@@ -446,22 +446,86 @@ function ProfileMetaLinksRow({
   );
 }
 
+function WalletChainIcon({ chain }: { chain: ProfileWalletChain }) {
+  if (chain === "sol") {
+    return (
+      <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden>
+        <circle cx="12" cy="12" r="10" fill="#14F195" />
+        <circle cx="12" cy="12" r="10" fill="#9945FF" fillOpacity="0.55" />
+        <path
+          fill="#fff"
+          d="M7.5 15.2h9l-1.4 1.5H6.1l1.4-1.5zm1.4-3.1h9L16.9 14H7.5l1.4-1.9zm1.4-3.1h9l-1.4 1.5H8.3l1.4-1.5z"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden>
+      <circle cx="12" cy="12" r="10" fill="#627EEA" />
+      <path
+        fill="#fff"
+        fillOpacity="0.95"
+        d="M12 5.5l-5.2 8.6h3.4L12 10.4l2.8 3.7h3.4L12 5.5zm-1.8 9.1L12 18.5l1.8-3.9H10.2z"
+      />
+    </svg>
+  );
+}
+
+function CopyAddressButton({
+  address,
+  className = "",
+}: {
+  address: string;
+  className?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  async function copyAddress() {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => void copyAddress()}
+      aria-label={copied ? "Copied" : "Copy address"}
+      className={`p-1 rounded-md text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors shrink-0 ${className}`}
+    >
+      {copied ? (
+        <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        </svg>
+      ) : (
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+          />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 function ProfileWalletsDropdown({
   wallets,
   fid,
-  align = "center",
 }: {
   wallets: ProfileWallet[];
   fid?: number | null;
-  align?: "left" | "center";
 }) {
   return (
-    <details className="group w-full text-left">
-      <summary
-        className={`text-xs text-[var(--muted)] cursor-pointer list-none hover:text-[var(--foreground)] transition-colors [&::-webkit-details-marker]:hidden ${
-          align === "left" ? "text-left" : "text-center"
-        }`}
-      >
+    <details className="group w-full">
+      <summary className="text-xs text-[var(--muted)] text-center cursor-pointer list-none hover:text-[var(--foreground)] transition-colors [&::-webkit-details-marker]:hidden">
         {fid != null && <span className="font-mono">FID {fid}</span>}
         {fid != null && <ProfileMetaSeparator />}
         <span className="inline-flex items-center gap-0.5 align-middle">
@@ -487,41 +551,23 @@ function ProfileWalletsDropdown({
 }
 
 function ProfileWalletRow({ wallet }: { wallet: ProfileWallet }) {
-  const [copied, setCopied] = useState(false);
-  const explorerLabel = wallet.address.startsWith("0x") ? "Basescan" : "Solscan";
-
-  async function copyAddress() {
-    try {
-      await navigator.clipboard.writeText(wallet.address);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* ignore */
-    }
-  }
-
   return (
-    <li className="px-3 py-2.5">
-      <p className="text-[10px] font-medium text-[var(--muted)] mb-1">{wallet.label}</p>
-      <p className="text-xs font-mono text-[var(--foreground)] break-all leading-snug">
-        {wallet.address}
-      </p>
-      <div className="mt-2 flex gap-2">
-        <button
-          type="button"
-          onClick={() => void copyAddress()}
-          className="flex-1 py-1.5 rounded-lg border border-[var(--border)] text-[11px] font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors"
-        >
-          {copied ? "Copied" : "Copy"}
-        </button>
+    <li className="px-3 py-2">
+      <div className="flex items-center gap-1.5 mb-1">
+        <WalletChainIcon chain={wallet.chain} />
+        <span className="text-[10px] font-medium text-[var(--muted)]">{wallet.label}</span>
+      </div>
+      <div className="flex items-center gap-1 pl-5 min-w-0">
         <a
           href={wallet.href}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-1 py-1.5 rounded-lg border border-[var(--border)] text-[11px] font-medium text-center text-[var(--accent)] hover:bg-[var(--surface-hover)] transition-colors"
+          className="text-xs font-mono text-[var(--accent)] hover:underline truncate min-w-0"
+          title={wallet.address}
         >
-          {explorerLabel}
+          {shortenAddress(wallet.address)}
         </a>
+        <CopyAddressButton address={wallet.address} />
       </div>
     </li>
   );

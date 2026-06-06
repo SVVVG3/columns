@@ -1,6 +1,10 @@
+export type ProfileWalletChain = "eth" | "sol";
+
 export interface ProfileWallet {
   id: string;
+  /** Role label without chain name, e.g. Custody, Primary, Verified. */
   label: string;
+  chain: ProfileWalletChain;
   address: string;
   href: string;
 }
@@ -33,34 +37,35 @@ export function buildProfileWallets(raw: {
   const seen = new Set<string>();
   const wallets: ProfileWallet[] = [];
 
-  const add = (address: string, label: string) => {
+  const add = (address: string, label: string, chain: ProfileWalletChain) => {
     const key = address.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);
     wallets.push({
       id: `${label}-${address}`,
       label,
+      chain,
       address,
       href: walletExplorerUrl(address),
     });
   };
 
   const custody = raw.custodyAddress?.trim();
-  if (custody) add(custody, "Custody");
+  if (custody) add(custody, "Custody", "eth");
 
   const va = raw.verifiedAddresses;
   const primaryEth = va?.primary?.eth_address?.trim();
   const primarySol = va?.primary?.sol_address?.trim();
-  if (primaryEth) add(primaryEth, "Primary ETH");
-  if (primarySol) add(primarySol, "Primary SOL");
+  if (primaryEth) add(primaryEth, "Primary", "eth");
+  if (primarySol) add(primarySol, "Primary", "sol");
 
   for (const addr of va?.eth_addresses ?? []) {
     const a = addr?.trim();
-    if (a) add(a, "Verified ETH");
+    if (a) add(a, "Verified", "eth");
   }
   for (const addr of va?.sol_addresses ?? []) {
     const a = addr?.trim();
-    if (a) add(a, "Verified SOL");
+    if (a) add(a, "Verified", "sol");
   }
 
   return wallets;
