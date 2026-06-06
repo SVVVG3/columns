@@ -25,7 +25,8 @@ function parsePublishEmbeds(embeds: unknown): PostCastReqBodyEmbeds[] {
     const hash = typeof raw?.hash === "string" ? raw.hash : "";
     if (Number.isFinite(fid) && fid > 0 && hash) {
       const castId = { fid, hash: withHexPrefix(hash) };
-      out.push({ cast_id: castId, castId, url: "" } as PostCastReqBodyEmbeds);
+      // Neynar rejects embeds that include both castId and url (even url: "").
+      out.push({ cast_id: castId, castId } as PostCastReqBodyEmbeds);
     }
   }
   return out;
@@ -73,8 +74,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(cast);
   } catch (err: unknown) {
+    const axiosData =
+      err && typeof err === "object" && "response" in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data
+        : undefined;
     const message =
-      err instanceof Error ? err.message : "Failed to publish cast";
+      axiosData?.message ??
+      (err instanceof Error ? err.message : "Failed to publish cast");
     console.error("[/api/cast]", message, err);
     return NextResponse.json({ error: message }, { status: 502 });
   }
