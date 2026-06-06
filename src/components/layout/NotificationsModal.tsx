@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { NotificationsPanel } from "@/components/layout/NotificationsPanel";
 import { useUiStore } from "@/store/ui";
 
@@ -24,6 +24,12 @@ export function NotificationsModal({
   const profilePreviewOpen = useUiStore((s) => s.profilePreview != null);
   const conversationOpen = useUiStore((s) => s.selectedCastHash != null);
   const childOverlayOpen = profilePreviewOpen || conversationOpen;
+  const ignoreBackdropUntilRef = useRef(0);
+
+  useEffect(() => {
+    if (childOverlayOpen) return;
+    ignoreBackdropUntilRef.current = Date.now() + 400;
+  }, [childOverlayOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -45,7 +51,14 @@ export function NotificationsModal({
         childOverlayOpen ? "pointer-events-none" : ""
       }`}
       role="presentation"
-      onClick={childOverlayOpen ? undefined : onClose}
+      onClick={
+        childOverlayOpen
+          ? undefined
+          : () => {
+              if (Date.now() < ignoreBackdropUntilRef.current) return;
+              onClose();
+            }
+      }
       aria-hidden={childOverlayOpen}
     >
       <div

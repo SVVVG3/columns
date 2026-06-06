@@ -51,8 +51,8 @@ export function useNotificationUnread(viewerFid: number, panelOpen: boolean) {
   );
 
   const unreadCount = useMemo(
-    () => (panelOpen ? 0 : countUnreadNotifications(notifications, lastSeenMs)),
-    [notifications, lastSeenMs, panelOpen]
+    () => countUnreadNotifications(notifications, lastSeenMs),
+    [notifications, lastSeenMs]
   );
 
   const markSeen = useCallback(

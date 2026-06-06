@@ -14,6 +14,7 @@ import { UserAvatar } from "@/components/ui/UserAvatar";
 import { NotificationsModal } from "@/components/layout/NotificationsModal";
 import { ProfileSearchModal } from "@/components/search/ProfileSearchModal";
 import { useNotificationUnread } from "@/hooks/useNotificationUnread";
+import { fetchNotificationsListPage } from "@/lib/fetchNotifications";
 import { useUiStore } from "@/store/ui";
 
 const SIDEBAR_WIDTH = 200;
@@ -44,10 +45,18 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const widthPx = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH;
 
   function openNotifications() {
-    setNotificationsSession((s) => s + 1);
+    const nextSession = notificationsSession + 1;
+    setNotificationsSession(nextSession);
     setNotificationsOpen(true);
     void queryClient.removeQueries({
       queryKey: ["notifications", user.fid, "list"],
+    });
+    void queryClient.prefetchInfiniteQuery({
+      queryKey: ["notifications", user.fid, "list", nextSession],
+      queryFn: ({ pageParam }) =>
+        fetchNotificationsListPage(pageParam as string | undefined),
+      initialPageParam: undefined as string | undefined,
+      staleTime: 0,
     });
     void refetchPeek();
   }

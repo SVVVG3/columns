@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useUiStore } from "@/store/ui";
@@ -19,7 +19,10 @@ import {
   notificationCastHash,
 } from "@/lib/notifications";
 import { NotificationCastPreview } from "@/components/notifications/NotificationCastPreview";
-import { fetchNotificationsApi } from "@/lib/fetchNotifications";
+import {
+  fetchNotificationsListPage,
+  type NotificationsListPage,
+} from "@/lib/fetchNotifications";
 
 function isFollowNotification(n: HypersnapNotification): boolean {
   return n.type === "follows" || n.type === "follow";
@@ -33,11 +36,6 @@ interface NotificationsPanelProps {
   viewerFid: number;
   /** Called after a successful fresh load — clears unread badge (ms = newest item). */
   onFreshLoad?: (latestMs: number) => void;
-}
-
-interface NotificationsResponse {
-  notifications: HypersnapNotification[];
-  next?: { cursor?: string } | null;
 }
 
 /** Notifications list body (used inside NotificationsModal). */
@@ -54,30 +52,37 @@ export function NotificationsPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const markedFreshRef = useRef(false);
-  const [freshReady, setFreshReady] = useState(false);
 
   const {
     data,
     isLoading,
     isError,
     isFetching,
+    isSuccess,
+    isPlaceholderData,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
     refetch,
-    isFetchedAfterMount,
   } = useInfiniteQuery({
     queryKey: ["notifications", viewerFid, "list", listSession],
-    queryFn: async ({ pageParam }) => {
-      const params = new URLSearchParams({ limit: "20" });
-      if (pageParam) params.set("cursor", String(pageParam));
-      else params.set("fresh", "1");
-      const res = await fetchNotificationsApi(params);
-      if (!res.ok) throw new Error("Failed to load notifications");
-      return res.json() as Promise<NotificationsResponse>;
-    },
+    queryFn: async ({ pageParam }) =>
+      fetchNotificationsListPage(pageParam as string | undefined),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next?.cursor ?? undefined,
+    placeholderData: () => {
+      const peek = queryClient.getQueryData<{ notifications?: HypersnapNotification[] }>([
+        "notifications",
+        viewerFid,
+        "peek",
+      ]);
+      const peekItems = peek?.notifications ?? [];
+      if (peekItems.length === 0) return undefined;
+      return {
+        pages: [{ notifications: peekItems, next: null } satisfies NotificationsListPage],
+        pageParams: [undefined],
+      };
+    },
     enabled: open && listSession > 0,
     staleTime: 0,
     gcTime: 0,
@@ -91,17 +96,17 @@ export function NotificationsPanel({
   );
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      markedFreshRef.current = false;
+      return;
+    }
     markedFreshRef.current = false;
-    setFreshReady(false);
   }, [open, listSession]);
 
   useEffect(() => {
     if (!open || markedFreshRef.current) return;
-    // Wait for a fetch that completed after this mount, not stale React Query pages.
-    if (!isFetchedAfterMount || isFetching) return;
+    if (!isSuccess || isFetching || isPlaceholderData) return;
     markedFreshRef.current = true;
-    setFreshReady(true);
     const latestMs = latestNotificationTimestampMs(items);
     onFreshLoad?.(latestMs);
     void queryClient.invalidateQueries({
@@ -109,8 +114,9 @@ export function NotificationsPanel({
     });
   }, [
     open,
-    isFetchedAfterMount,
+    isSuccess,
     isFetching,
+    isPlaceholderData,
     items,
     onFreshLoad,
     queryClient,
@@ -121,7 +127,8 @@ export function NotificationsPanel({
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (useUiStore.getState().selectedCastHash) return;
+      const { profilePreview, selectedCastHash } = useUiStore.getState();
+      if (profilePreview || selectedCastHash) return;
       onClose();
     };
     window.addEventListener("keydown", handler);
@@ -159,7 +166,8 @@ export function NotificationsPanel({
 
   if (!open) return null;
 
-  const showRefreshing = isFetching && items.length > 0;
+  const showRefreshing = isFetching && items.length > 0 && !isPlaceholderData;
+  const showSkeleton = items.length === 0 && (isLoading || isFetching);
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto feed-scroll min-h-0 flex flex-col">
@@ -169,7 +177,7 @@ export function NotificationsPanel({
         </p>
       )}
 
-      {!freshReady && (isLoading || isFetching) && (
+      {showSkeleton && (
         <div className="flex flex-col gap-2 p-3">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="flex gap-2.5 animate-pulse p-2">
@@ -196,13 +204,13 @@ export function NotificationsPanel({
         </div>
       )}
 
-      {freshReady && !isError && items.length === 0 && !isFetching && (
+      {!isError && !showSkeleton && items.length === 0 && isSuccess && !isFetching && (
         <div className="flex items-center justify-center py-16 px-4 text-sm text-[var(--muted)] text-center">
           No notifications yet.
         </div>
       )}
 
-      {freshReady &&
+      {!showSkeleton &&
         items.map((n) => (
           <NotificationRow
             key={aggregateNotificationKey(n)}
