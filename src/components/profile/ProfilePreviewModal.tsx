@@ -512,11 +512,15 @@ function ProfileWalletsDropdown({
   fid?: number | null;
 }) {
   return (
-    <details className="group w-full">
-      <summary className="text-xs text-[var(--muted)] text-center cursor-pointer list-none hover:text-[var(--foreground)] transition-colors [&::-webkit-details-marker]:hidden">
-        {fid != null && <span className="font-mono">FID {fid}</span>}
-        {fid != null && <ProfileMetaSeparator />}
-        <span className="inline-flex items-center gap-0.5 align-middle">
+    <div className="text-xs text-[var(--muted)] text-center">
+      {fid != null && (
+        <>
+          <span className="font-mono">FID {fid}</span>
+          <ProfileMetaSeparator />
+        </>
+      )}
+      <details className="group inline-block align-middle w-full">
+        <summary className="inline-flex items-center justify-center gap-0.5 cursor-pointer list-none hover:text-[var(--foreground)] transition-colors [&::-webkit-details-marker]:hidden">
           Wallets ({wallets.length})
           <svg
             className="w-3 h-3 transition-transform group-open:rotate-180"
@@ -527,36 +531,37 @@ function ProfileWalletsDropdown({
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
-        </span>
-      </summary>
-      <ul className="w-full mt-2 space-y-2">
-        {wallets.map((wallet) => (
-          <ProfileWalletRow key={wallet.id} wallet={wallet} />
-        ))}
-      </ul>
-    </details>
+        </summary>
+        <ul className="mt-1 max-h-32 overflow-y-auto feed-scroll space-y-px">
+          {wallets.map((wallet) => (
+            <ProfileWalletRow key={wallet.id} wallet={wallet} />
+          ))}
+        </ul>
+      </details>
+    </div>
   );
 }
 
 function ProfileWalletRow({ wallet }: { wallet: ProfileWallet }) {
   return (
-    <li className="flex flex-col items-center py-1">
-      <div className="flex items-center justify-center gap-1.5">
-        <WalletChainIcon chain={wallet.chain} />
-        <span className="text-[10px] font-medium text-[var(--muted)]">{wallet.label}</span>
-      </div>
-      <div className="flex items-center justify-center gap-1 mt-0.5 min-w-0 max-w-full">
-        <a
-          href={wallet.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs font-mono text-[var(--accent)] hover:underline truncate min-w-0"
-          title={wallet.address}
-        >
-          {shortenAddress(wallet.address)}
-        </a>
-        <CopyAddressButton address={wallet.address} />
-      </div>
+    <li className="flex items-center justify-center gap-1.5 py-0.5 min-w-0">
+      <WalletChainIcon chain={wallet.chain} />
+      <span
+        className="text-[10px] font-medium text-[var(--muted)] shrink-0 w-11 text-right"
+        title={wallet.label}
+      >
+        {wallet.label}
+      </span>
+      <a
+        href={wallet.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-[11px] font-mono text-[var(--accent)] hover:underline truncate min-w-0"
+        title={wallet.address}
+      >
+        {shortenAddress(wallet.address)}
+      </a>
+      <CopyAddressButton address={wallet.address} className="!p-0.5" />
     </li>
   );
 }
