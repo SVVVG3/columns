@@ -295,6 +295,34 @@ export function latestNotificationTimestampMs(
 }
 
 /** Count aggregated notifications newer than last-seen (peek window capped by API limit). */
+/**
+ * Keep peek (badge) items visible until the list fetch catches up.
+ * Prevents newest notifications flashing then vanishing when list lags peek.
+ */
+export function mergeNotificationsWithPeek(
+  list: HypersnapNotification[],
+  peek: HypersnapNotification[]
+): HypersnapNotification[] {
+  if (peek.length === 0) return list;
+  const byKey = new Map<string, HypersnapNotification>();
+  for (const n of list) {
+    byKey.set(aggregateNotificationKey(n), n);
+  }
+  for (const n of peek) {
+    const key = aggregateNotificationKey(n);
+    const existing = byKey.get(key);
+    if (
+      !existing ||
+      notificationTimestampMs(n) > notificationTimestampMs(existing)
+    ) {
+      byKey.set(key, n);
+    }
+  }
+  const merged = Array.from(byKey.values());
+  merged.sort((a, b) => notificationTimestampMs(b) - notificationTimestampMs(a));
+  return aggregateNotifications(merged);
+}
+
 export function countUnreadNotifications(
   notifications: HypersnapNotification[],
   lastSeenMs: number

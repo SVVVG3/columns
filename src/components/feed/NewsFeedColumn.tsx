@@ -81,7 +81,7 @@ export function NewsFeedColumn({ column, columnIndex }: NewsFeedColumnProps) {
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const refreshInterval = (column.refreshInterval ?? 60_000) + columnIndex * 5_000;
+  const refreshInterval = (column.refreshInterval ?? 60_000) + columnIndex * 1_000;
 
   const [fetchEnabled, setFetchEnabled] = useState(columnIndex === 0);
   useEffect(() => {
@@ -104,10 +104,7 @@ export function NewsFeedColumn({ column, columnIndex }: NewsFeedColumnProps) {
       },
       initialPageParam: undefined as string | undefined,
       getNextPageParam: (lastPage) => lastPage.next?.cursor ?? undefined,
-      refetchInterval: (query) => {
-        if ((query.state.data?.pages.length ?? 0) > 1) return false;
-        return refreshInterval;
-      },
+      refetchInterval: refreshInterval,
       refetchIntervalInBackground: false,
       enabled: fetchEnabled && (column.type !== "rss" || !!column.rssUrl),
       staleTime: 60_000,

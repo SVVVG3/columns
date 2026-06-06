@@ -72,6 +72,9 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
 
   function closeNotifications() {
     setNotificationsOpen(false);
+    void queryClient.invalidateQueries({
+      queryKey: ["notifications", user.fid, "peek"],
+    });
   }
 
   return (

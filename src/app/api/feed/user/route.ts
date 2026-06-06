@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { withCache } from "@/lib/feedCache";
+import { withCacheFresh } from "@/lib/feedCache";
 import { buildFeedCastsResponse } from "@/lib/feedResponse";
 import {
   clampPageSize,
@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const cursor = searchParams.get("cursor") ?? undefined;
   const pageSize = clampPageSize(Number(searchParams.get("limit")));
+  const fresh = searchParams.get("fresh") === "1" && !cursor;
 
   const fidsParam = searchParams.get("fids") ?? searchParams.get("fid");
   if (!fidsParam) {
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
   const cacheKey = `user:root:${fidsParam}:${cursor ?? ""}:${pageSize}`;
 
   try {
-    const feedData = await withCache(cacheKey, TTL, async () => {
+    const feedData = await withCacheFresh(cacheKey, TTL, fresh, async () => {
       if (fids.length === 1) {
         return fetchRootCastFeedPage(
           "/v2/farcaster/feed/user/casts",

@@ -12,6 +12,7 @@ import {
   formatNotificationTime,
   isCastTargetNotification,
   latestNotificationTimestampMs,
+  mergeNotificationsWithPeek,
   notificationActionSuffix,
   notificationActor,
   notificationActorCount,
@@ -52,6 +53,8 @@ export function NotificationsPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const markedFreshRef = useRef(false);
+  const listRetryRef = useRef(0);
+  const peekSnapshotMsRef = useRef(0);
 
   const {
     data,
@@ -86,41 +89,64 @@ export function NotificationsPanel({
     enabled: open && listSession > 0,
     staleTime: 0,
     gcTime: 0,
-    refetchOnMount: "always",
+    refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchInterval: open ? 60_000 : false,
   });
 
-  const items = aggregateNotifications(
+  const peekItems =
+    queryClient.getQueryData<{ notifications?: HypersnapNotification[] }>([
+      "notifications",
+      viewerFid,
+      "peek",
+    ])?.notifications ?? [];
+
+  const listItems = aggregateNotifications(
     data?.pages.flatMap((p) => p.notifications ?? []) ?? []
   );
+
+  const items = mergeNotificationsWithPeek(listItems, peekItems);
 
   useEffect(() => {
     if (!open) {
       markedFreshRef.current = false;
+      listRetryRef.current = 0;
       return;
     }
     markedFreshRef.current = false;
-  }, [open, listSession]);
+    listRetryRef.current = 0;
+    const peek = queryClient.getQueryData<{ notifications?: HypersnapNotification[] }>([
+      "notifications",
+      viewerFid,
+      "peek",
+    ]);
+    peekSnapshotMsRef.current = latestNotificationTimestampMs(peek?.notifications ?? []);
+  }, [open, listSession, queryClient, viewerFid]);
 
   useEffect(() => {
     if (!open || markedFreshRef.current) return;
     if (!isSuccess || isFetching || isPlaceholderData) return;
+
+    const listLatest = latestNotificationTimestampMs(listItems);
+    const peekLatest = peekSnapshotMsRef.current;
+
+    if (listLatest < peekLatest && listRetryRef.current < 2) {
+      listRetryRef.current += 1;
+      void refetch();
+      return;
+    }
+
     markedFreshRef.current = true;
-    const latestMs = latestNotificationTimestampMs(items);
-    onFreshLoad?.(latestMs);
-    void queryClient.invalidateQueries({
-      queryKey: ["notifications", viewerFid, "peek"],
-    });
+    onFreshLoad?.(latestNotificationTimestampMs(items));
   }, [
     open,
     isSuccess,
     isFetching,
     isPlaceholderData,
+    listItems,
     items,
     onFreshLoad,
-    queryClient,
-    viewerFid,
+    refetch,
   ]);
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { withCache } from "@/lib/feedCache";
+import { withCacheFresh } from "@/lib/feedCache";
 import { buildFeedCastsResponse } from "@/lib/feedResponse";
 import { clampPageSize, fetchRootCastFeedPage } from "@/lib/feedPagination";
 import { apiErrorFromHypersnap } from "@/lib/hypersnap";
@@ -16,11 +16,12 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const cursor = searchParams.get("cursor") ?? undefined;
   const pageSize = clampPageSize(Number(searchParams.get("limit")));
+  const fresh = searchParams.get("fresh") === "1" && !cursor;
   const fid = session.user.fid;
   const cacheKey = `trending:${cursor ?? ""}:${pageSize}`;
 
   try {
-    const feedData = await withCache(cacheKey, TTL, () =>
+    const feedData = await withCacheFresh(cacheKey, TTL, fresh, () =>
       fetchRootCastFeedPage("/v2/farcaster/feed/trending", { cursor }, pageSize)
     );
 

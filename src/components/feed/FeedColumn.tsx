@@ -12,7 +12,8 @@ import { isRootCast } from "@/lib/castFilters";
 import { MAX_FEED_CURSOR_BYTES } from "@/lib/feedPagination";
 import { AddColumnModal } from "@/components/feed/AddColumnModal";
 import { ShareColumnModal } from "@/components/feed/ShareColumnModal";
-import { useRef, useCallback, useState, useEffect } from "react";
+import { useRef, useCallback, useState, useEffect, useMemo } from "react";
+import { useFeedHeadRefresh } from "@/hooks/useFeedHeadRefresh";
 
 /** Column types that have configurable filters the user can edit */
 const EDITABLE_TYPES = new Set(["channel", "user", "keyword"]);
@@ -23,7 +24,7 @@ interface FeedColumnProps {
   viewerFid: number;
 }
 
-function buildFeedUrl(column: FeedColumnConfig, cursor?: string): string {
+function buildFeedUrl(column: FeedColumnConfig, cursor?: string, fresh?: boolean): string {
   const base = (() => {
     switch (column.type) {
       case "home": return "/api/feed/home";
@@ -47,6 +48,7 @@ function buildFeedUrl(column: FeedColumnConfig, cursor?: string): string {
   const params = new URLSearchParams();
   params.set("limit", "25");
   if (cursor) params.set("cursor", cursor);
+  if (fresh) params.set("fresh", "1");
   const qs = params.toString();
   return `${base}${base.includes("?") ? "&" : "?"}${qs}`;
 }
@@ -92,7 +94,24 @@ export function FeedColumn({ column, columnIndex, viewerFid }: FeedColumnProps) 
   };
 
   // Stagger background refresh so columns don't refetch in sync
-  const refreshInterval = (column.refreshInterval ?? 60_000) + columnIndex * 5_000;
+  const refreshInterval = (column.refreshInterval ?? 60_000) + columnIndex * 1_000;
+
+  const feedQueryKey = useMemo(
+    () =>
+      [
+        "feed",
+        column.type,
+        column.channelIds,
+        column.targetFids ?? column.targetFid,
+        column.queries ?? column.query,
+      ] as const,
+    [column.type, column.channelIds, column.targetFids, column.targetFid, column.queries, column.query]
+  );
+
+  const headRefreshUrl = useMemo(
+    () => buildFeedUrl(column, undefined, true),
+    [column]
+  );
 
   // Stagger initial fetch on page load — avoids N columns × hundreds of API calls at once
   const [fetchEnabled, setFetchEnabled] = useState(columnIndex === 0);
@@ -104,7 +123,7 @@ export function FeedColumn({ column, columnIndex, viewerFid }: FeedColumnProps) 
 
   const { data, error, fetchNextPage, hasNextPage, isFetchingNextPage, status, isFetching, isLoading, refetch } =
     useInfiniteQuery({
-      queryKey: ["feed", column.type, column.channelIds, column.targetFids ?? column.targetFid, column.queries ?? column.query],
+      queryKey: feedQueryKey,
       queryFn: async ({ pageParam }) => {
         let cursor = pageParam as string | undefined;
         // Drop oversized cursors (legacy full-cast blobs or too many tracked users).
@@ -138,14 +157,16 @@ export function FeedColumn({ column, columnIndex, viewerFid }: FeedColumnProps) 
         if (newCount === 0) return undefined;
         return cursor;
       },
-      refetchInterval: (query) => {
-        if ((query.state.data?.pages.length ?? 0) > 1) return false;
-        return refreshInterval;
-      },
-      refetchIntervalInBackground: false,
       enabled: fetchEnabled,
       staleTime: 30_000,
     });
+
+  useFeedHeadRefresh({
+    queryKey: feedQueryKey,
+    headUrl: headRefreshUrl,
+    refreshIntervalMs: refreshInterval,
+    enabled: fetchEnabled && status === "success",
+  });
 
   // Infinite scroll sentinel
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -349,9 +370,7 @@ export function FeedColumn({ column, columnIndex, viewerFid }: FeedColumnProps) 
             <button
               type="button"
               onClick={() => {
-                queryClient.resetQueries({
-                  queryKey: ["feed", column.type, column.channelIds, column.targetFids ?? column.targetFid, column.queries ?? column.query],
-                });
+                queryClient.resetQueries({ queryKey: feedQueryKey });
               }}
               className="text-xs text-[var(--accent)] hover:underline mt-1"
             >

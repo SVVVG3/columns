@@ -79,3 +79,14 @@ export async function withCache<T>(
   setCached(key, data, ttlMs);
   return data;
 }
+
+/** Like withCache, but bypasses cache for first-page background refresh (`fresh=1`, no cursor). */
+export async function withCacheFresh<T>(
+  key: string,
+  ttlMs: number,
+  fresh: boolean,
+  fn: () => Promise<T>
+): Promise<T> {
+  if (fresh) deleteCached(key);
+  return withCache(key, ttlMs, fn);
+}

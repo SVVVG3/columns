@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { withCache } from "@/lib/feedCache";
+import { withCacheFresh } from "@/lib/feedCache";
 import { buildFeedCastsResponse } from "@/lib/feedResponse";
 import { clampPageSize, fetchKeywordRootCastPage } from "@/lib/feedPagination";
 import { apiErrorFromHypersnap } from "@/lib/hypersnap";
@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
   const queriesParam = searchParams.get("queries") ?? searchParams.get("query");
   const cursor = searchParams.get("cursor") ?? undefined;
   const pageSize = clampPageSize(Number(searchParams.get("limit")));
+  const fresh = searchParams.get("fresh") === "1" && !cursor;
 
   if (!queriesParam) {
     return NextResponse.json({ error: "query or queries required" }, { status: 400 });
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
   const cacheKey = `keyword:${queriesParam}:${cursor ?? ""}:${pageSize}`;
 
   try {
-    const feedData = await withCache(cacheKey, TTL, () =>
+    const feedData = await withCacheFresh(cacheKey, TTL, fresh, () =>
       fetchKeywordRootCastPage(queries, cursor, pageSize)
     );
 
