@@ -11,7 +11,17 @@ import {
 /** GET /api/auth/session — return current session user (or null) */
 export async function GET() {
   const session = await getSession();
-  return NextResponse.json({ user: session.user ?? null });
+  const user = session.user ?? null;
+
+  if (user) {
+    void upsertColumnsUser({
+      fid: user.fid,
+      username: user.username,
+      displayName: user.displayName,
+    });
+  }
+
+  return NextResponse.json({ user });
 }
 
 /** POST /api/auth/session — set session after managed signer approval */

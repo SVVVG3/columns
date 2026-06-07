@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCsrf } from "@/lib/csrf";
+import { upsertColumnsUser } from "@/lib/columnsRegistry";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSession } from "@/lib/session";
 import type { FeedColumnConfig, PersistedLayout } from "@/types";
@@ -88,6 +89,12 @@ export async function PUT(req: NextRequest) {
   if (!layout) {
     return NextResponse.json({ error: "Invalid layout" }, { status: 400 });
   }
+
+  await upsertColumnsUser({
+    fid: session.user.fid,
+    username: session.user.username,
+    displayName: session.user.displayName,
+  });
 
   const now = new Date().toISOString();
   const { error } = await sb.from("user_column_layouts").upsert(

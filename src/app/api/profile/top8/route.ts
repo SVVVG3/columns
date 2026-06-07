@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCsrf } from "@/lib/csrf";
 import { hsnap } from "@/lib/hypersnap";
+import { upsertColumnsUser } from "@/lib/columnsRegistry";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSession } from "@/lib/session";
 import type { Top8Slot } from "@/types";
@@ -138,6 +139,12 @@ export async function PUT(req: NextRequest) {
   if (slots.some((s) => s.targetFid === ownerFid)) {
     return NextResponse.json({ error: "Cannot add yourself to Top 8" }, { status: 400 });
   }
+
+  await upsertColumnsUser({
+    fid: ownerFid,
+    username: session.user.username,
+    displayName: session.user.displayName,
+  });
 
   const { error: deleteError } = await sb
     .from("profile_top8")

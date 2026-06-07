@@ -28,6 +28,9 @@ interface SearchUser {
   pfp_url?: string;
 }
 
+/** Stable default — `data: slots = []` creates a new [] each render and retriggers effects. */
+const EMPTY_TOP8: Top8Slot[] = [];
+
 export function Top8Section({
   ownerFid,
   isOwnProfile,
@@ -45,19 +48,22 @@ export function Top8Section({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const { data: slots = [], isLoading } = useQuery({
+  const { data: slots, isLoading } = useQuery({
     queryKey: ["top8", ownerFid],
     queryFn: () => fetchTop8(ownerFid),
     staleTime: 60_000,
   });
+  const resolvedSlots = slots ?? EMPTY_TOP8;
 
   useEffect(() => {
     if (!editing) return;
-    setDraft(slots.map((s) => ({ ...s })));
+    setDraft(resolvedSlots.map((s) => ({ ...s })));
     setSearchQ("");
     setSearchResults([]);
     setSaveError(null);
-  }, [editing, slots]);
+    // Only reset the editor when opening — not on every parent re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
 
   const runSearch = useCallback(async (q: string) => {
     const trimmed = q.trim();
@@ -141,7 +147,7 @@ export function Top8Section({
     }
   }
 
-  const displaySlots = editing ? draft : slots;
+  const displaySlots = editing ? draft : resolvedSlots;
   const showSection = isOwnProfile || displaySlots.length > 0 || isLoading;
 
   if (!showSection) return null;
@@ -227,6 +233,7 @@ export function Top8Section({
                 value={searchQ}
                 onChange={(e) => setSearchQ(e.target.value)}
                 placeholder="Search @username to add…"
+                autoFocus
                 className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted)]"
               />
               {searching && (
