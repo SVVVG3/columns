@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { verifyCsrf } from "@/lib/csrf";
+import { upsertColumnsUser } from "@/lib/columnsRegistry";
 import {
   isAllowlistEnforced,
   isBetaGateEnabled,
@@ -46,6 +47,12 @@ export async function POST(req: NextRequest) {
 
   session.user = { fid: fidNum, signerUuid, username, displayName, pfpUrl };
   await session.save();
+
+  void upsertColumnsUser({
+    fid: fidNum,
+    username: username ?? undefined,
+    displayName: displayName ?? undefined,
+  });
 
   return NextResponse.json({ ok: true });
 }

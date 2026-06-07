@@ -9,6 +9,7 @@ import { ProfilePreviewModal } from "@/components/profile/ProfilePreviewModal";
 import { ReactionActorsModal } from "@/components/cast/ReactionActorsModal";
 import { useUiStore } from "@/store/ui";
 import { LayoutImportHandler } from "@/components/layout/LayoutImportHandler";
+import { LayoutSyncHandler } from "@/components/layout/LayoutSyncHandler";
 
 interface AppShellProps {
   user: SessionUser;
@@ -38,6 +39,7 @@ export function AppShell({ user }: AppShellProps) {
   return (
     <div className="flex h-full bg-[var(--background)]">
       <LayoutImportHandler />
+      <LayoutSyncHandler />
       <Sidebar user={user} onLogout={handleLogout} />
       <div className="flex-1 min-w-0">
         <ColumnContainer viewerFid={user.fid} />

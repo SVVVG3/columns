@@ -31,6 +31,8 @@ import {
   userColumnTargetFids,
 } from "@/lib/userColumn";
 import { CastCard } from "@/components/cast/CastCard";
+import { ColumnsBadge } from "@/components/profile/ColumnsBadge";
+import { Top8Section } from "@/components/profile/Top8Section";
 import { useColumnsStore } from "@/store/columns";
 import { useUiStore } from "@/store/ui";
 import type { FeedColumnConfig } from "@/types";
@@ -121,6 +123,17 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
     staleTime: 120_000,
   });
 
+  const { data: columnsBadge } = useQuery({
+    queryKey: ["columns-user", targetFid],
+    queryFn: async () => {
+      const res = await fetch(`/api/columns-user?fid=${targetFid}`);
+      if (!res.ok) return { isColumnsUser: false, showBadge: false };
+      return res.json() as Promise<{ isColumnsUser: boolean; showBadge: boolean }>;
+    },
+    enabled: targetFid != null,
+    staleTime: 300_000,
+  });
+
   useEffect(() => {
     if (!seed) return;
     const handler = (e: KeyboardEvent) => {
@@ -203,9 +216,12 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
               <div className="flex items-start gap-4 max-w-full">
               <UserAvatar src={pfpUrl} alt={displayName} size="xl" className="shrink-0" />
               <div className="min-w-0 pt-0.5 text-left">
-                <p className="text-base font-semibold text-[var(--foreground)] leading-tight truncate">
-                  {displayName}
-                </p>
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="text-base font-semibold text-[var(--foreground)] leading-tight truncate">
+                    {displayName}
+                  </p>
+                  {columnsBadge?.showBadge && <ColumnsBadge />}
+                </div>
                 <p className="text-sm text-[var(--muted)] truncate">@{username}</p>
                 {wallets.length > 0 ? (
                   <ProfileWalletsDropdown wallets={wallets} fid={fid} />
@@ -260,6 +276,13 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
 
             {(profileLinks.length > 0 || joined) && (
               <ProfileMetaLinksRow links={profileLinks} joined={joined} align="center" />
+            )}
+
+            {targetFid != null && (
+              <Top8Section
+                ownerFid={targetFid}
+                isOwnProfile={targetFid === viewerFid}
+              />
             )}
 
             {isError && (

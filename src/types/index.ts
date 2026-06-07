@@ -42,3 +42,11 @@ export interface SessionUser {
   displayName: string;
   pfpUrl: string;
 }
+
+export interface Top8Slot {
+  position: number;
+  fid: number;
+  username: string;
+  displayName: string;
+  pfpUrl: string | null;
+}
