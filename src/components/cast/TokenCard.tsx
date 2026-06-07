@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import type { TokenData } from "@/app/api/token/route";
+import { castConversationUrl } from "@/lib/snapEmbed";
+import { parseTokenUrl } from "@/lib/tokenEmbed";
 
 function formatTokenAge(createdAtMs?: number): string {
   if (!createdAtMs) return "—";
@@ -26,8 +28,18 @@ function formatBuyers(count?: number): string {
   return String(count);
 }
 
-export function TokenCard({ url }: { url: string }) {
+function tokenHref(url: string, castHash?: string): string {
+  if (castHash) return castConversationUrl(castHash);
+  const parsed = parseTokenUrl(url);
+  if (parsed?.ca) {
+    return `https://farcaster.xyz/~/c/${parsed.chain}:${parsed.ca}`;
+  }
+  return url;
+}
+
+export function TokenCard({ url, castHash }: { url: string; castHash?: string }) {
   const [token, setToken] = useState<TokenData | null>(null);
+  const href = tokenHref(url, castHash);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,7 +60,7 @@ export function TokenCard({ url }: { url: string }) {
 
   return (
     <a
-      href={url}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}

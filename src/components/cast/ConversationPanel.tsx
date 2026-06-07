@@ -26,8 +26,14 @@ function flattenReplies(cast: any): any[] {
 /** Centered thread modal with blurred app backdrop. */
 export function ConversationPanel({ viewerFid }: ConversationPanelProps) {
   const queryClient = useQueryClient();
-  const { selectedCastHash, conversationHistory, closeConversation, goBack } =
-    useUiStore();
+  const {
+    selectedCastHash,
+    conversationHistory,
+    closeConversation,
+    goBack,
+    profilePreview,
+    overlayFocus,
+  } = useUiStore();
   const isOpen = !!selectedCastHash;
   const canGoBack = conversationHistory.length > 1;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -40,12 +46,15 @@ export function ConversationPanel({ viewerFid }: ConversationPanelProps) {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      const { reactionActors, overlayFocus: focus } = useUiStore.getState();
+      if (reactionActors) return;
+      if (profilePreview && focus !== "conversation") return;
       if (canGoBack) goBack();
       else closeConversation();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isOpen, canGoBack, goBack, closeConversation]);
+  }, [isOpen, canGoBack, goBack, closeConversation, profilePreview]);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["conversation", selectedCastHash],
@@ -88,14 +97,23 @@ export function ConversationPanel({ viewerFid }: ConversationPanelProps) {
 
   if (!isOpen) return null;
 
+  const profileOpen = !!profilePreview;
+  const bothOpen = profileOpen;
+  const conversationOnTop = !bothOpen || overlayFocus === "conversation";
+
   return (
     <div
-      className="fixed inset-0 z-[85] flex items-start justify-center pt-[8vh] px-4 bg-black/55 backdrop-blur-md"
+      className={`fixed inset-0 flex items-start justify-center pt-[8vh] px-4 bg-black/55 backdrop-blur-md ${
+        conversationOnTop ? "z-[90]" : "z-[80]"
+      } ${bothOpen && !conversationOnTop ? "pointer-events-none" : ""}`}
       role="presentation"
-      onClick={closeConversation}
+      onClick={conversationOnTop ? closeConversation : undefined}
+      aria-hidden={bothOpen && !conversationOnTop}
     >
       <div
-        className="w-full max-w-lg bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[min(82vh,680px)]"
+        className={`w-full max-w-lg bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[min(82vh,680px)] transition-all duration-200 ${
+          bothOpen && !conversationOnTop ? "blur-md opacity-40 scale-[0.98]" : ""
+        }`}
         role="dialog"
         aria-label="Thread"
         onClick={(e) => e.stopPropagation()}

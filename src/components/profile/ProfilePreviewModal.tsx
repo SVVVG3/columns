@@ -92,6 +92,7 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
   const closeProfilePreview = useUiStore((s) => s.closeProfilePreview);
   const openProfilePreview = useUiStore((s) => s.openProfilePreview);
   const conversationOpen = useUiStore((s) => s.selectedCastHash != null);
+  const overlayFocus = useUiStore((s) => s.overlayFocus);
   const columns = useColumnsStore((s) => s.columns);
   const addColumn = useColumnsStore((s) => s.addColumn);
 
@@ -124,7 +125,9 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
     if (!seed) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (useUiStore.getState().selectedCastHash) return;
+      const { reactionActors, overlayFocus: focus, selectedCastHash } = useUiStore.getState();
+      if (reactionActors) return;
+      if (selectedCastHash && focus !== "profile") return;
       closeProfilePreview();
     };
     window.addEventListener("keydown", handler);
@@ -157,18 +160,21 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
     closeProfilePreview();
   }
 
+  const bothOpen = conversationOpen;
+  const profileOnTop = !bothOpen || overlayFocus === "profile";
+
   return (
     <div
-      className={`fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-[filter,opacity] duration-200 ${
-        conversationOpen ? "pointer-events-none" : ""
-      }`}
-      onClick={conversationOpen ? undefined : closeProfilePreview}
+      className={`fixed inset-0 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-[filter,opacity] duration-200 ${
+        profileOnTop ? "z-[90]" : "z-[80]"
+      } ${bothOpen && !profileOnTop ? "pointer-events-none" : ""}`}
+      onClick={profileOnTop ? closeProfilePreview : undefined}
       role="presentation"
-      aria-hidden={conversationOpen}
+      aria-hidden={bothOpen && !profileOnTop}
     >
       <div
         className={`w-full max-w-lg max-h-[min(92vh,720px)] flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden transition-all duration-200 ${
-          conversationOpen ? "blur-md opacity-40 scale-[0.98]" : ""
+          bothOpen && !profileOnTop ? "blur-md opacity-40 scale-[0.98]" : ""
         }`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"

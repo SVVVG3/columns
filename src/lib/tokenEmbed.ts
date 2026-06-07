@@ -143,6 +143,43 @@ export function collectTokenEmbedUrls(
   return out;
 }
 
+/** True when embed is only a chain tx reference (often mis-resolves to USDC, etc.). */
+export function isTxOnlyTokenEmbedUrl(url: string): boolean {
+  return /^eip155:\d+\/tx:0x[a-fA-F0-9]{64}$/i.test(url.trim());
+}
+
+/**
+ * Token tickers to show on a cast.
+ * Coin-channel casts use `parent_url` eip155 erc20 as the channel token; tx embeds
+ * must not override that (tx receipt scraping often picks the wrong registered coin).
+ */
+export function tokenUrlsForCast(
+  cast: { parent_url?: string; root_parent_url?: string; text?: string } | null | undefined,
+  embeds: Array<{ url?: string }>
+): string[] {
+  const channelToken = parseTokenParentUrl(cast);
+  const fromText = collectTokenEmbedUrls([], cast?.text);
+
+  if (channelToken?.ca) {
+    const channelUrl = canonicalTokenUrl(channelToken);
+    const channelKey = tokenCacheKey(channelToken);
+    const textHasOtherToken = fromText.some((url) => {
+      const parsed = parseTokenUrl(url);
+      return parsed?.ca && tokenCacheKey(parsed) !== channelKey;
+    });
+    if (!textHasOtherToken) {
+      return fromText.length > 0 ? fromText : [channelUrl];
+    }
+  }
+
+  const filteredEmbeds =
+    channelToken?.ca != null
+      ? embeds.filter((e) => !e.url || !isTxOnlyTokenEmbedUrl(e.url))
+      : embeds;
+
+  return collectTokenEmbedUrls(filteredEmbeds, cast?.text);
+}
+
 /** True if `url` refers to the same token as any URL in `tokenUrls`. */
 export function isSameTokenUrl(url: string, tokenUrls: string[]): boolean {
   const parsed = parseTokenUrl(url);

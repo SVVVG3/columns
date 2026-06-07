@@ -255,6 +255,34 @@ export function isThreadReplyNotification(n: HypersnapNotification): boolean {
   return isReplyNotification(n) && !isQuoteCastNotification(n);
 }
 
+export function isReactionNotification(n: HypersnapNotification): boolean {
+  return n.type === "likes" || n.type === "recasts" || n.type === "reaction";
+}
+
+/** Hypersnap uses separate `likes` / `recasts` types; legacy rows may use `reaction`. */
+export function notificationReactionType(
+  n: HypersnapNotification
+): "likes" | "recasts" | null {
+  if (n.type === "recasts") return "recasts";
+  if (n.type === "likes" || n.type === "reaction") return "likes";
+  return null;
+}
+
+/** All actors for aggregated like/recast notifications (when available). */
+export function notificationReactionActors(
+  n: HypersnapNotification
+): Record<string, unknown>[] {
+  if (!isReactionNotification(n)) return [];
+  const reactions = n.reactions;
+  if (Array.isArray(reactions) && reactions.length > 0) {
+    return reactions
+      .map((r) => (r.user ?? r) as Record<string, unknown>)
+      .filter((u) => u && typeof u === "object");
+  }
+  const actor = notificationActor(n);
+  return actor ? [actor] : [];
+}
+
 export function isCastTargetNotification(n: HypersnapNotification): boolean {
   return (
     n.type === "likes" ||

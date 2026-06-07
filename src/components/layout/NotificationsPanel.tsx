@@ -13,11 +13,14 @@ import {
   isCastTargetNotification,
   latestNotificationTimestampMs,
   mergeNotificationsWithPeek,
+  isReactionNotification,
   notificationActionSuffix,
   notificationActor,
   notificationActorCount,
   notificationActorDisplayName,
   notificationCastHash,
+  notificationReactionActors,
+  notificationReactionType,
 } from "@/lib/notifications";
 import { NotificationCastPreview } from "@/components/notifications/NotificationCastPreview";
 import {
@@ -50,6 +53,7 @@ export function NotificationsPanel({
   const queryClient = useQueryClient();
   const openConversation = useUiStore((s) => s.openConversation);
   const openProfilePreview = useUiStore((s) => s.openProfilePreview);
+  const openReactionActors = useUiStore((s) => s.openReactionActors);
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const markedFreshRef = useRef(false);
@@ -153,8 +157,8 @@ export function NotificationsPanel({
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      const { profilePreview, selectedCastHash } = useUiStore.getState();
-      if (profilePreview || selectedCastHash) return;
+      const { profilePreview, selectedCastHash, reactionActors } = useUiStore.getState();
+      if (profilePreview || selectedCastHash || reactionActors) return;
       onClose();
     };
     window.addEventListener("keydown", handler);
@@ -246,6 +250,16 @@ export function NotificationsPanel({
               const seed = profileSeedFromUnknown(actor);
               if (seed) openProfilePreview(seed);
             }}
+            onShowReactionActors={(notification) => {
+              const hash = notificationCastHash(notification);
+              const type = notificationReactionType(notification);
+              if (!hash || !type) return;
+              openReactionActors({
+                castHash: hash,
+                type,
+                seedActors: notificationReactionActors(notification),
+              });
+            }}
           />
         ))}
 
@@ -261,10 +275,12 @@ function NotificationRow({
   notification: n,
   onClick,
   onOpenProfile,
+  onShowReactionActors,
 }: {
   notification: HypersnapNotification;
   onClick: () => void;
   onOpenProfile: (actor: Record<string, unknown>) => void;
+  onShowReactionActors: (notification: HypersnapNotification) => void;
 }) {
   const actor = notificationActor(n);
   const pfp = actor?.pfp_url ?? actor?.pfpUrl ?? "";
@@ -304,6 +320,7 @@ function NotificationRow({
               <NotificationSummaryLine
                 notification={n}
                 onOpenProfile={() => actor && onOpenProfile(actor as Record<string, unknown>)}
+                onShowReactionActors={() => onShowReactionActors(n)}
               />
               <span className="text-[10px] text-[var(--muted)] shrink-0">
                 {formatNotificationTime(n)}
@@ -363,13 +380,20 @@ function NotificationActorAvatar({
 function NotificationSummaryLine({
   notification: n,
   onOpenProfile,
+  onShowReactionActors,
 }: {
   notification: HypersnapNotification;
   onOpenProfile: () => void;
+  onShowReactionActors: () => void;
 }) {
   const actor = notificationActor(n);
   const name = notificationActorDisplayName(actor);
-  const suffix = notificationActionSuffix(n, notificationActorCount(n));
+  const count = notificationActorCount(n);
+  const suffix = notificationActionSuffix(n, count);
+  const canShowActors =
+    isReactionNotification(n) &&
+    count > 1 &&
+    !!notificationCastHash(n);
 
   return (
     <p className="text-xs font-medium text-[var(--foreground)] leading-snug">
@@ -383,7 +407,20 @@ function NotificationSummaryLine({
       >
         {name}
       </button>
-      <span>{suffix}</span>
+      {canShowActors ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onShowReactionActors();
+          }}
+          className="hover:underline focus:outline-none text-inherit"
+        >
+          {suffix}
+        </button>
+      ) : (
+        <span>{suffix}</span>
+      )}
     </p>
   );
 }

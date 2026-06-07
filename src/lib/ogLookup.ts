@@ -38,6 +38,16 @@ export function isMiniAppUrl(url: string): boolean {
   return /farcaster\.xyz\/miniapps\//i.test(url) || /warpcast\.com\/miniapps\//i.test(url);
 }
 
+/** Embed metadata or cast.frames entry suggests a frame/mini-app (not a plain photo). */
+export function embedLooksLikeFrame(embed: EmbedLike): boolean {
+  if (isMiniAppUrl(embed.url ?? "")) return true;
+  if (embed.metadata?.miniapp) return true;
+  if (Array.isArray(embed.metadata?.frames) && embed.metadata.frames.length > 0) return true;
+  const html = embed.metadata?.html;
+  if (html?.ogTitle && Array.isArray(html.ogImage) && html.ogImage.length > 0) return true;
+  return false;
+}
+
 function isImageUrl(url: string, e: EmbedLike): boolean {
   return isImageEmbedUrl(url, e.metadata?.content_type);
 }
@@ -86,7 +96,8 @@ export function embedNeedsOgFetch(
 ): boolean {
   const url = embed.url;
   if (!url) return false;
-  if (isImageUrl(url, embed) || isVideoUrl(url, embed)) return false;
+  if (isVideoUrl(url, embed)) return false;
+  if (isImageUrl(url, embed) && !embedLooksLikeFrame(embed)) return false;
   if (
     isSpaceEmbedUrl(url) ||
     isTokenEmbedUrl(url) ||

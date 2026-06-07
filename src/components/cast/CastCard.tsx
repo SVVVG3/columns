@@ -13,7 +13,7 @@ import { useQuotedCast } from "@/hooks/useQuotedCast";
 import { isQuotedCastSeed } from "@/lib/castLookup";
 import { isSpaceEmbedUrl } from "@/lib/spaceEmbed";
 import {
-  collectTokenEmbedUrls,
+  tokenUrlsForCast,
   isEip155EmbedUri,
   isSameTokenUrl,
   isTokenEmbedUrl,
@@ -233,7 +233,13 @@ function isFrameEmbed(e: Embed, castFrameUrls: Set<string>): boolean {
   if (isMiniAppUrl(e.url)) return true;
   if (Array.isArray(e.metadata?.frames) && (e.metadata.frames as unknown[]).length > 0) return true;
   if (e.metadata?.miniapp) return true;
+  const html = e.metadata?.html;
+  if (html?.ogTitle && Array.isArray(html.ogImage) && html.ogImage.length > 0) return true;
   return false;
+}
+
+function isFrameLikeEmbed(e: Embed, castFrameUrls: Set<string>): boolean {
+  return !isVideoEmbed(e) && isFrameEmbed(e, castFrameUrls);
 }
 
 
@@ -241,7 +247,7 @@ function isFrameEmbed(e: Embed, castFrameUrls: Set<string>): boolean {
 export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: CastCardProps) {
   const embedded = variant === "embedded";
   const queryClient = useQueryClient();
-  const { openConversation, openProfilePreview } = useUiStore();
+  const { openConversation, openProfilePreview, openReactionActors } = useUiStore();
   const columns = useColumnsStore((s) => s.columns);
   const addColumn = useColumnsStore((s) => s.addColumn);
   const castChannelSlug = channelSlugFromCast(cast as Record<string, unknown>);
@@ -282,6 +288,14 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: 
     if (!columnHasChannel(columns, channelId)) {
       addColumn(channelColumnFromSlug(channelId));
     }
+  }
+
+  function showReactionActors(type: "likes" | "recasts") {
+    const hash = cast.hash as string | undefined;
+    if (!hash) return;
+    const count = type === "likes" ? likeCount : recastCount;
+    if (count <= 0) return;
+    openReactionActors({ castHash: hash, type });
   }
 
   function openMentionProfile(username: string) {
@@ -397,14 +411,24 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: 
     }
     return refs;
   })();
-  const imageEmbeds = embeds.filter(isImageEmbed).map((e) => e.url!);
-  const videoEmbeds = embeds.filter((e) => !isImageEmbed(e) && isVideoEmbed(e)).map((e) => e.url!);
-  const frameEmbeds = embeds.filter((e) => !isImageEmbed(e) && !isVideoEmbed(e) && isFrameEmbed(e, castFrameUrls));
+  const frameEmbeds = embeds.filter((e) => isFrameLikeEmbed(e, castFrameUrls));
+  const imageEmbeds = embeds
+    .filter((e) => isImageEmbed(e) && !isFrameLikeEmbed(e, castFrameUrls))
+    .map((e) => e.url!);
+  const videoEmbeds = embeds.filter((e) => !isFrameLikeEmbed(e, castFrameUrls) && isVideoEmbed(e)).map((e) => e.url!);
+  const orphanFrames = castFrames.filter((f: CastFrame) => {
+    if (!f.frames_url && !f.image && !(f.buttons && f.buttons.length > 0)) return false;
+    const frameUrl = f.frames_url ?? "";
+    if (frameUrl) {
+      return !frameEmbeds.some((e) => normalizeUrl(e.url!) === normalizeUrl(frameUrl));
+    }
+    return frameEmbeds.length === 0;
+  });
   const spaceEmbeds = embeds.filter(
     (e) => !!e.url && isSpaceEmbedUrl(e.url) && !isImageEmbed(e) && !isVideoEmbed(e)
   );
   const tokenParent = parseTokenParentUrl(cast);
-  const tokenUrls = collectTokenEmbedUrls(embeds, cast.text as string | undefined);
+  const tokenUrls = tokenUrlsForCast(cast, embeds);
   const snapUrls = (() => {
     const seen = new Set<string>();
     const out: string[] = [];
@@ -554,7 +578,9 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: 
             {/* Frame / Mini App embed previews */}
             {frameEmbeds.map((embed) => {
               const matchedFrame = castFrames.find(
-                (f: CastFrame) => f.frames_url === embed.url
+                (f: CastFrame) =>
+                  f.frames_url &&
+                  normalizeUrl(f.frames_url) === normalizeUrl(embed.url!)
               );
               return (
                 <MiniAppFrameCard
@@ -566,6 +592,15 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: 
                 />
               );
             })}
+            {orphanFrames.map((f: CastFrame) => (
+              <MiniAppFrameCard
+                key={f.frames_url ?? f.image ?? "frame"}
+                embed={{ url: f.frames_url, metadata: {} }}
+                castHash={cast.hash as string}
+                matchedFrame={f}
+                tokenParent={tokenParent}
+              />
+            ))}
 
             {/* Farcaster Snap interactive UI previews */}
             {snapUrls.map((url) => (
@@ -584,13 +619,13 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: 
 
             {/* Farcaster coin / ticker (from embeds or cast text) */}
             {tokenUrls.map((url) => (
-              <TokenCard key={url} url={url} />
+              <TokenCard key={url} url={url} castHash={cast.hash as string} />
             ))}
 
             {/* OG URL embeds (clanker / ~/c/ links → ticker card) */}
             {urlEmbeds.map((embed) =>
               isTokenEmbedUrl(embed.url!) ? (
-                <TokenCard key={embed.url} url={embed.url!} />
+                <TokenCard key={embed.url} url={embed.url!} castHash={cast.hash as string} />
               ) : (
                 <OGCard
                   key={embed.url}
@@ -616,7 +651,7 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: 
               </button>
 
               {/* Recast — menu: recast / remove recast or quote cast */}
-              <div ref={recastMenuRef} className="relative">
+              <div ref={recastMenuRef} className="relative flex items-center gap-1">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -627,8 +662,19 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: 
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  {recastCount > 0 && <span className="text-xs">{formatCount(recastCount)}</span>}
                 </button>
+                {recastCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      showReactionActors("recasts");
+                    }}
+                    className={`text-xs hover:underline focus:outline-none ${recasted ? "text-[var(--recast)]" : "text-[var(--muted)]"}`}
+                  >
+                    {formatCount(recastCount)}
+                  </button>
+                )}
                 {recastMenuOpen && (
                   <div className="absolute left-0 bottom-full mb-1 w-40 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-50 py-1">
                     <button
@@ -664,15 +710,28 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: 
               </div>
 
               {/* Like */}
-              <button
-                onClick={handleLike}
-                className={`flex items-center gap-1 transition-colors ${liked ? "text-[var(--like)]" : "text-[var(--muted)] hover:text-[var(--like)]"}`}
-              >
-                <svg className="w-3.5 h-3.5" fill={liked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                </svg>
-                {likeCount > 0 && <span className="text-xs">{formatCount(likeCount)}</span>}
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleLike}
+                  className={`flex items-center transition-colors ${liked ? "text-[var(--like)]" : "text-[var(--muted)] hover:text-[var(--like)]"}`}
+                >
+                  <svg className="w-3.5 h-3.5" fill={liked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                </button>
+                {likeCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      showReactionActors("likes");
+                    }}
+                    className={`text-xs hover:underline focus:outline-none ${liked ? "text-[var(--like)]" : "text-[var(--muted)]"}`}
+                  >
+                    {formatCount(likeCount)}
+                  </button>
+                )}
+              </div>
 
               {/* 3-dot menu */}
               <div ref={menuRef} className="ml-auto relative">
