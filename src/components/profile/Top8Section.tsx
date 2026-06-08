@@ -4,7 +4,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { sdk } from "@farcaster/miniapp-sdk";
+import { Top8RetroCell } from "@/components/profile/Top8RetroCell";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { TOP8_RETRO } from "@/lib/top8RetroTheme";
 import { useUiStore } from "@/store/ui";
 import type { Top8Slot } from "@/types";
 
@@ -63,6 +65,24 @@ export function Top8Section({
     staleTime: 60_000,
   });
   const resolvedSlots = slots ?? EMPTY_TOP8;
+
+  const { data: badgeMap = new Map<number, boolean>() } = useQuery({
+    queryKey: ["top8-badges", ownerFid, resolvedSlots.map((s) => s.fid).join(",")],
+    queryFn: async () => {
+      const fids = [...new Set(resolvedSlots.map((s) => s.fid))];
+      const entries = await Promise.all(
+        fids.map(async (fid) => {
+          const res = await fetch(`/api/columns-user?fid=${fid}`);
+          if (!res.ok) return [fid, false] as const;
+          const data = (await res.json()) as { showBadge?: boolean };
+          return [fid, !!data.showBadge] as const;
+        })
+      );
+      return new Map(entries);
+    },
+    enabled: linkMode && resolvedSlots.length > 0,
+    staleTime: 300_000,
+  });
 
   useEffect(() => {
     if (!editing) return;
@@ -171,6 +191,204 @@ export function Top8Section({
 
   if (!showSection) return null;
 
+  function handleSlotClick(slot: Top8Slot) {
+    if (editing) return;
+    if (linkMode) {
+      if (onProfileNavigate) {
+        onProfileNavigate(slot.username);
+        return;
+      }
+      router.push(`/profile/${encodeURIComponent(slot.username)}`);
+      return;
+    }
+    openProfilePreview({
+      fid: slot.fid,
+      username: slot.username,
+      displayName: slot.displayName,
+      pfpUrl: slot.pfpUrl ?? undefined,
+    });
+  }
+
+  const retroPanel = linkMode;
+
+  const gridContent = (
+    <>
+      {isLoading && !editing && (
+        <div className={`grid grid-cols-4 gap-3 ${retroPanel ? "p-3" : ""}`}>
+          {[...Array(8)].map((_, i) => (
+            <div
+              key={i}
+              className={`aspect-square animate-pulse ${
+                retroPanel ? "bg-[#2a2a35]" : "rounded-lg bg-[var(--surface-hover)] h-14"
+              }`}
+            />
+          ))}
+        </div>
+      )}
+
+      {!isLoading && !editing && displaySlots.length === 0 && isOwnProfile && (
+        <p
+          className={`text-xs text-center ${retroPanel ? "p-4" : ""}`}
+          style={retroPanel ? { color: TOP8_RETRO.textMuted } : undefined}
+        >
+          Pick up to 8 friends to show here.
+        </p>
+      )}
+
+      {displaySlots.length > 0 && (
+        <div className={`grid grid-cols-4 gap-3 ${retroPanel ? "p-3" : ""}`}>
+          {displaySlots.map((slot) =>
+            retroPanel ? (
+              <div key={slot.fid} className="relative min-w-0">
+                <Top8RetroCell
+                  slot={slot}
+                  showColumnsBadge={badgeMap.get(slot.fid) ?? false}
+                  onClick={() => handleSlotClick(slot)}
+                  disabled={editing}
+                />
+                {editing && (
+                  <button
+                    type="button"
+                    onClick={() => removeSlot(slot.fid)}
+                    className="absolute top-0 right-0 w-4 h-4 rounded-full bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] text-[10px] leading-none z-10"
+                    aria-label={`Remove @${slot.username}`}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div key={slot.fid} className="relative flex flex-col items-center gap-1 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => handleSlotClick(slot)}
+                  className={`flex flex-col items-center gap-1 min-w-0 w-full ${
+                    editing ? "cursor-default" : "hover:opacity-80 transition-opacity"
+                  }`}
+                  disabled={editing}
+                >
+                  <UserAvatar src={slot.pfpUrl} alt={slot.displayName} size="md" />
+                  <span className="text-[10px] text-[var(--foreground)] truncate w-full text-center">
+                    @{slot.username}
+                  </span>
+                </button>
+                {editing && (
+                  <button
+                    type="button"
+                    onClick={() => removeSlot(slot.fid)}
+                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] text-[10px] leading-none"
+                    aria-label={`Remove @${slot.username}`}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            )
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  if (retroPanel) {
+    return (
+      <div
+        className="mt-4 w-full overflow-hidden"
+        style={{
+          border: `2px solid ${TOP8_RETRO.panelBorder}`,
+          background: TOP8_RETRO.panel,
+        }}
+      >
+        <div
+          className="flex items-center justify-between gap-2 px-3 py-2"
+          style={{ background: TOP8_RETRO.accent }}
+        >
+          <p className="text-sm font-bold text-white">Top 8</p>
+          {isOwnProfile && !editing && (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="text-[11px] font-medium text-white/90 hover:text-white hover:underline"
+            >
+              Edit
+            </button>
+          )}
+        </div>
+        <div
+          className="border-b-2"
+          style={{ borderColor: TOP8_RETRO.accent }}
+        />
+        {gridContent}
+        {editing && (
+          <div className="px-3 pb-3 space-y-2">
+            {draft.length < 8 && (
+              <div>
+                <input
+                  type="text"
+                  value={searchQ}
+                  onChange={(e) => setSearchQ(e.target.value)}
+                  placeholder="Search @username to add…"
+                  autoFocus
+                  className="w-full px-3 py-2 rounded-lg border text-sm text-[var(--foreground)] placeholder:text-[var(--muted)]"
+                  style={{
+                    borderColor: TOP8_RETRO.panelBorder,
+                    background: TOP8_RETRO.outerBg,
+                  }}
+                />
+                {searching && (
+                  <p className="text-[10px] text-[var(--muted)] mt-1">Searching…</p>
+                )}
+                {searchResults.length > 0 && (
+                  <ul className="mt-1 rounded-lg border overflow-hidden max-h-32 overflow-y-auto feed-scroll"
+                    style={{ borderColor: TOP8_RETRO.panelBorder }}
+                  >
+                    {searchResults.map((u) => {
+                      const added = draft.some((s) => s.fid === u.fid);
+                      return (
+                        <li key={u.fid}>
+                          <button
+                            type="button"
+                            disabled={added || u.fid === ownerFid}
+                            onClick={() => addUser(u)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[var(--surface-hover)] disabled:opacity-50 text-sm"
+                          >
+                            <UserAvatar src={u.pfp_url} alt={u.username} size="sm" />
+                            <span className="truncate">@{u.username}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
+            {saveError && (
+              <p className="text-xs text-red-400 text-center">{saveError}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="flex-1 py-2 rounded-lg border text-sm font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+                style={{ borderColor: TOP8_RETRO.panelBorder }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveTop8()}
+                disabled={saving}
+                className="flex-1 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="mt-4 w-full border-t border-[var(--border)] pt-3">
       <div className="flex items-center justify-between gap-2 mb-2">
@@ -188,67 +406,7 @@ export function Top8Section({
         )}
       </div>
 
-      {isLoading && !editing && (
-        <div className="flex gap-2 animate-pulse">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="w-14 h-16 rounded-lg bg-[var(--surface-hover)]" />
-          ))}
-        </div>
-      )}
-
-      {!isLoading && !editing && displaySlots.length === 0 && isOwnProfile && (
-        <p className="text-xs text-[var(--muted)] text-center">
-          Pick up to 8 friends to show here.
-        </p>
-      )}
-
-      {displaySlots.length > 0 && (
-        <div className="grid grid-cols-4 gap-2">
-          {displaySlots.map((slot) => (
-            <div key={slot.fid} className="relative flex flex-col items-center gap-1 min-w-0">
-              <button
-                type="button"
-                onClick={() => {
-                  if (editing) return;
-                  if (linkMode) {
-                    if (onProfileNavigate) {
-                      onProfileNavigate(slot.username);
-                      return;
-                    }
-                    router.push(`/profile/${encodeURIComponent(slot.username)}`);
-                    return;
-                  }
-                  openProfilePreview({
-                    fid: slot.fid,
-                    username: slot.username,
-                    displayName: slot.displayName,
-                    pfpUrl: slot.pfpUrl ?? undefined,
-                  });
-                }}
-                className={`flex flex-col items-center gap-1 min-w-0 w-full ${
-                  editing ? "cursor-default" : "hover:opacity-80 transition-opacity"
-                }`}
-                disabled={editing}
-              >
-                <UserAvatar src={slot.pfpUrl} alt={slot.displayName} size="md" />
-                <span className="text-[10px] text-[var(--foreground)] truncate w-full text-center">
-                  @{slot.username}
-                </span>
-              </button>
-              {editing && (
-                <button
-                  type="button"
-                  onClick={() => removeSlot(slot.fid)}
-                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] text-[10px] leading-none"
-                  aria-label={`Remove @${slot.username}`}
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      {gridContent}
 
       {editing && (
         <div className="mt-3 space-y-2">

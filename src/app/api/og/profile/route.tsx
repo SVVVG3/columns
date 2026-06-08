@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { getColumnsUserBadges } from "@/lib/columnsRegistry";
 import { fetchPublicProfileByUsername } from "@/lib/fetchPublicProfile";
 import { loadTop8Slots } from "@/lib/profileTop8";
+import { TOP8_RETRO } from "@/lib/top8RetroTheme";
 import type { Top8Slot } from "@/types";
 import { getAppUrl } from "@/lib/appUrl";
 
@@ -10,13 +11,6 @@ export const runtime = "edge";
 
 const WIDTH = 1200;
 const HEIGHT = 800;
-
-const MS_ORANGE = "#ff6600";
-const MS_BLUE = "#003399";
-const MS_GREEN = "#33cc00";
-const MS_BORDER = "#6699cc";
-const MS_BG = "#ffffff";
-const MS_PANEL = "#f5f5f5";
 
 const PHOTO_SIZE = 118;
 const CELL_WIDTH = 250;
@@ -48,7 +42,7 @@ function ColumnsUserBadge({ logoUrl }: { logoUrl: string }) {
           ...flex(),
           fontSize: 13,
           fontWeight: 700,
-          color: "#7c3aed",
+          color: TOP8_RETRO.accentMuted,
         }}
       >
         Columns User
@@ -65,22 +59,22 @@ function OnlineNowBadge() {
         marginTop: 6,
       }}
     >
-      <div style={{ ...flex(), fontSize: 13, color: MS_ORANGE }}>(</div>
+      <div style={{ ...flex(), fontSize: 13, color: TOP8_RETRO.accentMuted }}>(</div>
       <div
         style={{
           width: 10,
           height: 10,
           borderRadius: 5,
-          background: MS_ORANGE,
+          background: TOP8_RETRO.accent,
         }}
       />
-      <div style={{ ...flex(), fontSize: 13, color: MS_ORANGE }}>)</div>
+      <div style={{ ...flex(), fontSize: 13, color: TOP8_RETRO.accentMuted }}>)</div>
       <div
         style={{
           ...flex(),
           fontSize: 13,
           fontWeight: 700,
-          color: MS_GREEN,
+          color: TOP8_RETRO.online,
         }}
       >
         Online Now!
@@ -116,7 +110,7 @@ function Top8Cell({
           ...flex(),
           fontSize: 18,
           fontWeight: 700,
-          color: MS_BLUE,
+          color: TOP8_RETRO.link,
           maxWidth: CELL_WIDTH,
           marginBottom: 6,
         }}
@@ -127,7 +121,7 @@ function Top8Cell({
         style={{
           ...flex(),
           padding: 3,
-          background: MS_BORDER,
+          background: TOP8_RETRO.panelBorder,
         }}
       >
         {slot.pfpUrl ? (
@@ -144,7 +138,7 @@ function Top8Cell({
             style={{
               width: PHOTO_SIZE,
               height: PHOTO_SIZE,
-              background: "#d4d4d8",
+              background: TOP8_RETRO.photoPlaceholder,
             }}
           />
         )}
@@ -204,10 +198,7 @@ export async function GET(req: NextRequest) {
   const hasTop8 = top8.length > 0;
   const friendCount = top8.length;
 
-  const badgeFids = [
-    profile.fid,
-    ...top8.map((s) => s.fid),
-  ];
+  const badgeFids = [profile.fid, ...top8.map((s) => s.fid)];
   const badgeMap = await getColumnsUserBadges(badgeFids);
   const ownerHasBadge = badgeMap.get(profile.fid) ?? false;
 
@@ -220,26 +211,25 @@ export async function GET(req: NextRequest) {
           ...flex({ flexDirection: "column" }),
           width: WIDTH,
           height: HEIGHT,
-          background: MS_BG,
-          color: "#111",
+          background: TOP8_RETRO.outerBg,
+          color: TOP8_RETRO.text,
           fontFamily: "Arial, Helvetica, sans-serif",
-          position: "relative",
-          padding: 24,
+          padding: 12,
         }}
       >
         <div
           style={{
             ...flex({ flexDirection: "column" }),
-            border: `2px solid ${MS_BORDER}`,
-            background: MS_PANEL,
-            padding: 0,
+            border: `2px solid ${TOP8_RETRO.panelBorder}`,
+            background: TOP8_RETRO.panel,
             flex: 1,
+            width: "100%",
           }}
         >
           <div
             style={{
               ...flex({ alignItems: "center" }),
-              background: MS_ORANGE,
+              background: TOP8_RETRO.accent,
               color: "#fff",
               fontSize: 28,
               fontWeight: 700,
@@ -249,13 +239,18 @@ export async function GET(req: NextRequest) {
             {headerTitle}
           </div>
 
-          <div style={{ ...flex({ flexDirection: "column" }), padding: "16px 20px 20px" }}>
+          <div
+            style={{
+              ...flex({ flexDirection: "column", flex: 1 }),
+              padding: "14px 18px 10px",
+            }}
+          >
             <div style={{ ...flex({ alignItems: "center", gap: 14 }) }}>
               <div
                 style={{
                   ...flex(),
                   padding: 2,
-                  background: MS_BORDER,
+                  background: TOP8_RETRO.panelBorder,
                 }}
               >
                 {profile.pfpUrl ? (
@@ -268,19 +263,27 @@ export async function GET(req: NextRequest) {
                     style={{ objectFit: "cover" }}
                   />
                 ) : (
-                  <div style={{ width: 64, height: 64, background: "#d4d4d8" }} />
+                  <div
+                    style={{
+                      width: 64,
+                      height: 64,
+                      background: TOP8_RETRO.photoPlaceholder,
+                    }}
+                  />
                 )}
               </div>
               <div style={{ ...flex({ flexDirection: "column", gap: 4 }) }}>
-                <div style={{ ...flex(), fontSize: 22, fontWeight: 700, color: "#111" }}>
+                <div style={{ ...flex(), fontSize: 22, fontWeight: 700, color: TOP8_RETRO.text }}>
                   {profile.displayName}
                 </div>
-                <div style={{ ...flex(), fontSize: 18, color: MS_BLUE }}>
+                <div style={{ ...flex(), fontSize: 18, color: TOP8_RETRO.link }}>
                   @{profile.username}
                 </div>
-                <div style={{ ...flex(), fontSize: 16, color: "#333" }}>
+                <div style={{ ...flex(), fontSize: 16, color: TOP8_RETRO.textMuted }}>
                   <span>{profile.displayName} has </span>
-                  <span style={{ color: MS_ORANGE, fontWeight: 700 }}>{friendCount}</span>
+                  <span style={{ color: TOP8_RETRO.accentMuted, fontWeight: 700 }}>
+                    {friendCount}
+                  </span>
                   <span> Friends.</span>
                 </div>
                 {ownerHasBadge ? <ColumnsUserBadge logoUrl={logoUrl} /> : null}
@@ -293,8 +296,8 @@ export async function GET(req: NextRequest) {
                   ...flex({
                     flexDirection: "column",
                     alignItems: "center",
-                    gap: 18,
-                    marginTop: 22,
+                    gap: 16,
+                    marginTop: 18,
                   }),
                 }}
               >
@@ -303,9 +306,9 @@ export async function GET(req: NextRequest) {
                     ...flex(),
                     fontSize: 20,
                     fontWeight: 700,
-                    color: MS_ORANGE,
+                    color: TOP8_RETRO.accentMuted,
                     width: "100%",
-                    borderBottom: `2px solid ${MS_ORANGE}`,
+                    borderBottom: `2px solid ${TOP8_RETRO.accent}`,
                     paddingBottom: 6,
                   }}
                 >
@@ -318,35 +321,42 @@ export async function GET(req: NextRequest) {
               <div
                 style={{
                   ...flex(),
-                  marginTop: 28,
-                  fontSize: 22,
-                  color: "#666",
+                  marginTop: 24,
+                  fontSize: 20,
+                  color: TOP8_RETRO.textMuted,
                 }}
               >
                 No Top 8 yet — add friends on Columns!
               </div>
             )}
-          </div>
-        </div>
 
-        <div
-          style={{
-            ...flex({ alignItems: "center", gap: 8 }),
-            position: "absolute",
-            right: 28,
-            bottom: 20,
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={logoUrl}
-            alt=""
-            width={36}
-            height={36}
-            style={{ borderRadius: 6, objectFit: "cover" }}
-          />
-          <div style={{ ...flex(), fontSize: 16, fontWeight: 700, color: "#7c3aed" }}>
-            Columns
+            <div
+              style={{
+                ...flex({ alignItems: "center", gap: 8, justifyContent: "flex-end" }),
+                marginTop: "auto",
+                paddingTop: 14,
+                paddingRight: 4,
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={logoUrl}
+                alt=""
+                width={32}
+                height={32}
+                style={{ borderRadius: 6, objectFit: "cover" }}
+              />
+              <div
+                style={{
+                  ...flex(),
+                  fontSize: 15,
+                  fontWeight: 700,
+                  color: TOP8_RETRO.accentMuted,
+                }}
+              >
+                Columns
+              </div>
+            </div>
           </div>
         </div>
       </div>
