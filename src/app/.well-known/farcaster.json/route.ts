@@ -12,14 +12,14 @@ export async function GET() {
     version: "1" as const,
     name: "Columns",
     iconUrl: `${appUrl}/columns-logo.png`,
-    homeUrl: `${appUrl}/profile/me`,
+    homeUrl: `${appUrl}/columns`,
     imageUrl: homeMiniAppEmbedImageUrl(),
-    buttonTitle: "My Profile",
+    buttonTitle: "My Columns",
     splashImageUrl: `${appUrl}/columns-logo.png`,
     splashBackgroundColor: MINIAPP_SPLASH_BACKGROUND,
-    subtitle: "Top 8 on Columns",
+    subtitle: "Your Farcaster feed on mobile",
     description:
-      "View Columns profiles, curate your Top 8 friends, and share embeddable profile cards on Farcaster.",
+      "Read your Farcaster feed, curate your Top 8 friends, and share embeddable profile cards — all in Columns.",
     primaryCategory: "social" as const,
     tags: ["farcaster", "profiles", "social"],
   };

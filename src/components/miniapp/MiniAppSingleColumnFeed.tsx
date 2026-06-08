@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useCallback, useRef } from "react";
 import { CastCard } from "@/components/cast/CastCard";
@@ -15,15 +16,55 @@ import { MAX_FEED_CURSOR_BYTES } from "@/lib/feedPagination";
 import type { NewsArticle, NewsFeedPage } from "@/lib/newsArticle";
 import type { FeedColumnConfig } from "@/types";
 
+export function RefreshButton({
+  isFetching,
+  onRefresh,
+}: {
+  isFetching: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onRefresh}
+      disabled={isFetching}
+      className="text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-40 p-1.5 rounded-lg shrink-0"
+      title="Refresh"
+    >
+      <svg
+        className={`w-5 h-5 ${isFetching ? "animate-spin" : ""}`}
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        aria-hidden
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+        />
+      </svg>
+    </button>
+  );
+}
+
 export function MiniAppSingleColumnFeed({
   column,
   viewerFid,
   autoRefresh = true,
+  renderHeader,
 }: {
   column: FeedColumnConfig;
   viewerFid: number;
   /** When false, disable automatic head refresh (manual only). */
   autoRefresh?: boolean;
+  /**
+   * Optional render prop that replaces the default title+refresh header row.
+   * Receives current fetching state and a refetch callback so the parent can
+   * place the refresh button anywhere it likes (e.g. next to a dropdown).
+   */
+  renderHeader?: (isFetching: boolean, refetch: () => void) => React.ReactNode;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isNews = isNewsFeedColumn(column);
@@ -123,33 +164,16 @@ export function MiniAppSingleColumnFeed({
 
   const isFallback = !isNews && data?.pages[0]?.isFallback;
 
+  const defaultHeader = (
+    <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b border-[var(--border)] bg-[var(--background)]">
+      <p className="text-sm font-semibold truncate text-[var(--muted)]">{column.title}</p>
+      <RefreshButton isFetching={isFetching} onRefresh={() => void refetch()} />
+    </div>
+  );
+
   return (
     <div className="h-full min-h-0 flex flex-col">
-      <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b border-[var(--border)] bg-[var(--background)]">
-        <p className="text-sm font-semibold truncate">{column.title}</p>
-        <button
-          type="button"
-          onClick={() => void refetch()}
-          disabled={isFetching}
-          className="text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-40 p-1.5 rounded-lg shrink-0"
-          title="Refresh"
-        >
-          <svg
-            className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-        </button>
-      </div>
+      {renderHeader ? renderHeader(isFetching, () => void refetch()) : defaultHeader}
 
       {isFallback && (
         <div className="px-3 py-1.5 text-xs text-[var(--muted)] bg-[var(--surface)] border-b border-[var(--border)]">

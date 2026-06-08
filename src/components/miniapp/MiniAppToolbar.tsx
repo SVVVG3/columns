@@ -38,18 +38,18 @@ export function MiniAppToolbar({
   }, [infoOpen]);
 
   return (
-    <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] px-6 py-2 max-w-lg mx-auto w-full">
+    <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] px-6 py-3 max-w-lg mx-auto w-full">
       <div className="flex items-center justify-between">
         {/* Left: Info button → popover with Follow Columns + Join Community */}
         <div ref={infoRef} className="relative">
           <button
             type="button"
             onClick={() => setInfoOpen((o) => !o)}
-            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+            className="w-14 h-14 flex items-center justify-center rounded-full hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
             aria-label="Info"
             aria-expanded={infoOpen}
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </button>
@@ -95,7 +95,7 @@ export function MiniAppToolbar({
         {/* Center: Columns logo → /columns */}
         <Link
           href="/columns"
-          className={`w-11 h-11 flex items-center justify-center rounded-full transition-colors ${
+          className={`w-14 h-14 flex items-center justify-center rounded-full transition-colors ${
             activePage === "columns"
               ? "bg-[var(--accent)]/15"
               : "hover:bg-[var(--surface-hover)]"
@@ -105,8 +105,8 @@ export function MiniAppToolbar({
           <Image
             src={columnsLogo}
             alt="Columns"
-            width={28}
-            height={28}
+            width={36}
+            height={36}
             className="rounded-md object-cover"
           />
         </Link>
@@ -114,7 +114,7 @@ export function MiniAppToolbar({
         {/* Right: Profile avatar → /profile/me */}
         <Link
           href="/profile/me"
-          className={`w-11 h-11 flex items-center justify-center rounded-full transition-colors ${
+          className={`w-14 h-14 flex items-center justify-center rounded-full transition-colors ${
             activePage === "profile"
               ? "ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[var(--background)]"
               : "hover:opacity-80"
@@ -126,12 +126,12 @@ export function MiniAppToolbar({
             <img
               src={viewerPfp}
               alt=""
-              width={36}
-              height={36}
-              className="w-9 h-9 rounded-full object-cover"
+              width={44}
+              height={44}
+              className="w-11 h-11 rounded-full object-cover"
             />
           ) : (
-            <div className="w-9 h-9 rounded-full bg-[var(--surface-hover)]" />
+            <div className="w-11 h-11 rounded-full bg-[var(--surface-hover)]" />
           )}
         </Link>
       </div>

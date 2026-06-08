@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { sdk } from "@farcaster/miniapp-sdk";
-import { MiniAppSingleColumnFeed } from "@/components/miniapp/MiniAppSingleColumnFeed";
+import {
+  MiniAppSingleColumnFeed,
+  RefreshButton,
+} from "@/components/miniapp/MiniAppSingleColumnFeed";
 import { MiniAppToolbar } from "@/components/miniapp/MiniAppToolbar";
 import {
   columnsCommunityChannelUrl,
@@ -154,40 +157,42 @@ export function MiniAppColumnsClient() {
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-[var(--background)] text-[var(--foreground)] max-w-lg mx-auto w-full">
-      {/* Column selector — only shown to allowlisted users with multiple columns */}
-      {allowed && (
-        <div className="shrink-0 border-b border-[var(--border)] px-4 py-3">
-          <label className="block text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)] mb-1.5">
-            Column
-          </label>
-          {layoutLoading ? (
-            <p className="text-sm text-[var(--muted)]">Loading saved columns…</p>
-          ) : savedColumns.length === 0 ? (
-            <p className="text-sm text-[var(--muted)]">
-              No columns saved yet. Set up your board on desktop Columns first.
-            </p>
-          ) : (
-            <select
-              value={selectedId ?? savedColumns[0].id}
-              onChange={(e) => setSelectedId(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm font-medium text-[var(--foreground)]"
-            >
-              {savedColumns.map((col) => (
-                <option key={col.id} value={col.id}>
-                  {col.title}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      )}
-
       <div className="flex-1 min-h-0">
         {selectedColumn ? (
           <MiniAppSingleColumnFeed
             column={selectedColumn}
             viewerFid={viewer.fid}
             autoRefresh={allowed === true}
+            renderHeader={(isFetching, refetch) =>
+              allowed ? (
+                /* Allowlisted: dropdown + refresh in one row */
+                <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-[var(--border)] bg-[var(--background)]">
+                  {layoutLoading ? (
+                    <p className="flex-1 text-sm text-[var(--muted)]">Loading…</p>
+                  ) : savedColumns.length === 0 ? (
+                    <p className="flex-1 text-sm text-[var(--muted)]">No columns saved yet.</p>
+                  ) : (
+                    <select
+                      value={selectedId ?? savedColumns[0].id}
+                      onChange={(e) => setSelectedId(e.target.value)}
+                      className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm font-medium text-[var(--foreground)]"
+                    >
+                      {savedColumns.map((col) => (
+                        <option key={col.id} value={col.id}>
+                          {col.title}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <RefreshButton isFetching={isFetching} onRefresh={refetch} />
+                </div>
+              ) : (
+                /* Non-allowlisted: just refresh button */
+                <div className="shrink-0 flex items-center justify-end px-3 py-2 border-b border-[var(--border)] bg-[var(--background)]">
+                  <RefreshButton isFetching={isFetching} onRefresh={refetch} />
+                </div>
+              )
+            }
           />
         ) : (
           <div className="flex items-center justify-center h-full text-sm text-[var(--muted)] px-6 text-center">
