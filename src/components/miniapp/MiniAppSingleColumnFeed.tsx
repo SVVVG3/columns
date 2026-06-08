@@ -119,7 +119,9 @@ export function MiniAppSingleColumnFeed({
         return newCount === 0 ? undefined : cursor;
       },
       staleTime: 30_000,
-      enabled: !isNews || !!column.rssUrl,
+      // Only disable for RSS columns that are missing their feed URL.
+      // CoinDesk (also isNews) has no rssUrl but is always fetchable.
+      enabled: column.type !== "rss" || !!column.rssUrl,
     });
 
   useFeedHeadRefresh({
