@@ -14,6 +14,7 @@ import {
 } from "@/lib/appUrl";
 import { miniappFetch } from "@/lib/miniappFetch";
 import { miniappSession } from "@/lib/miniappSession";
+import { useUiStore } from "@/store/ui";
 import type { FeedColumnConfig, SessionUser } from "@/types";
 
 /** Home feed column shown to all non-allowlisted mini app users. */
@@ -125,6 +126,18 @@ export function MiniAppColumnsClient() {
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // When a cast is tapped, open it in Farcaster and close the mini app.
+  const selectedCastHash = useUiStore((s) => s.selectedCastHash);
+  const closeConversation = useUiStore((s) => s.closeConversation);
+  useEffect(() => {
+    if (!selectedCastHash) return;
+    const hash = selectedCastHash.startsWith("0x")
+      ? selectedCastHash
+      : `0x${selectedCastHash}`;
+    void sdk.actions.viewCast({ hash, close: true }).catch(() => {});
+    closeConversation();
+  }, [selectedCastHash, closeConversation]);
 
   const { data: savedColumns = [], isLoading: layoutLoading } = useQuery({
     queryKey: ["miniapp-layout", viewer?.fid],
