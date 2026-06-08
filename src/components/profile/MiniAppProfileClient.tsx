@@ -2,17 +2,17 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { sdk } from "@farcaster/miniapp-sdk";
+import farcasterLogoWhite from "../../../public/farcaster-logo-white.png";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { ColumnsBadge } from "@/components/profile/ColumnsBadge";
 import {
   ProfileMetaLinksRow,
   ProfileWalletsDropdown,
 } from "@/components/profile/profileMeta";
-import { MiniAppProfileMenu } from "@/components/profile/MiniAppProfileMenu";
 import { Top8Section } from "@/components/profile/Top8Section";
+import { MiniAppToolbar } from "@/components/miniapp/MiniAppToolbar";
 import {
   columnsCommunityChannelUrl,
   columnsFarcasterProfileUrl,
@@ -27,6 +27,7 @@ import {
 } from "@/lib/profilePreview";
 import { useUiStore } from "@/store/ui";
 import type { SessionUser } from "@/types";
+import { useQuery } from "@tanstack/react-query";
 
 async function fetchPublicProfile(username: string): Promise<ProfileDetails> {
   const res = await fetch(
@@ -53,6 +54,81 @@ async function fetchSessionUser(): Promise<SessionUser | null> {
   return null;
 }
 
+/** Small popover attached to the Farcaster icon button in the profile header. */
+function FarcasterActionsPopover({
+  fcUrl,
+  ownsProfile,
+  onShare,
+}: {
+  fcUrl: string | null;
+  ownsProfile: boolean;
+  onShare: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [open]);
+
+  if (!fcUrl && !ownsProfile) return null;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="p-1.5 rounded-full hover:bg-[var(--surface-hover)] transition-colors"
+        aria-label="Farcaster actions"
+        aria-expanded={open}
+      >
+        <Image
+          src={farcasterLogoWhite}
+          alt=""
+          width={22}
+          height={22}
+          className="object-contain"
+        />
+      </button>
+
+      {open && (
+        <div className="absolute top-full right-0 mt-1.5 w-48 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-lg overflow-hidden z-20">
+          {fcUrl && (
+            <a
+              href={fcUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2.5 px-4 py-3 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+              onClick={() => setOpen(false)}
+            >
+              View on Farcaster
+            </a>
+          )}
+          {ownsProfile && (
+            <button
+              type="button"
+              className={`w-full flex items-center gap-2.5 px-4 py-3 text-sm font-medium text-left text-[var(--foreground)] hover:bg-[var(--surface-hover)] ${fcUrl ? "border-t border-[var(--border)]" : ""}`}
+              onClick={() => {
+                setOpen(false);
+                onShare();
+              }}
+            >
+              Copy share link
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface MiniAppProfileClientProps {
   username: string;
   isMeRoute?: boolean;
@@ -72,7 +148,6 @@ export function MiniAppProfileClient({
   const [signInError, setSignInError] = useState<string | null>(null);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
   const [sdkReady, setSdkReady] = useState(false);
-  const [hostFid, setHostFid] = useState<number | null>(null);
 
   const profileEnabled = username.length > 0;
 
@@ -123,25 +198,7 @@ export function MiniAppProfileClient({
   useEffect(() => {
     void sdk.actions.ready().then(() => setSdkReady(true)).catch(() => setSdkReady(true));
     void refreshViewer();
-    void sdk.context
-      .then((ctx) => {
-        if (ctx?.user?.fid) setHostFid(ctx.user.fid);
-      })
-      .catch(() => {});
   }, [refreshViewer]);
-
-  const accessFid = viewer?.fid ?? hostFid;
-  const { data: columnsAccess = false } = useQuery({
-    queryKey: ["miniapp-columns-access", accessFid],
-    queryFn: async () => {
-      const res = await fetch(`/api/miniapp/columns-access?fid=${accessFid}`);
-      if (!res.ok) return false;
-      const data = (await res.json()) as { allowed?: boolean };
-      return !!data.allowed;
-    },
-    enabled: accessFid != null,
-    staleTime: 300_000,
-  });
 
   useEffect(() => {
     if (!isMeRoute || !sdkReady || viewer) return;
@@ -285,6 +342,13 @@ export function MiniAppProfileClient({
               <div className="flex items-center gap-2 min-w-0">
                 <p className="text-lg font-semibold truncate">{profile.displayName}</p>
                 {columnsBadge?.showBadge && <ColumnsBadge />}
+                <div className="ml-auto shrink-0">
+                  <FarcasterActionsPopover
+                    fcUrl={fcUrl}
+                    ownsProfile={ownsProfile}
+                    onShare={() => void handleShare()}
+                  />
+                </div>
               </div>
               <p className="text-sm text-[var(--muted)] truncate">@{profile.username}</p>
               <ProfileWalletsDropdown wallets={wallets} fid={profile.fid} />
@@ -309,6 +373,13 @@ export function MiniAppProfileClient({
 
           <ProfileMetaLinksRow links={profileLinks} joined={joined} align="left" />
 
+          {shareMsg && (
+            <p className="mt-2 text-[10px] text-[var(--accent)]">{shareMsg}</p>
+          )}
+          {signInError && (
+            <p className="mt-2 text-[10px] text-red-400">{signInError}</p>
+          )}
+
           <Top8Section
             ownerFid={profile.fid}
             isOwnProfile={ownsProfile}
@@ -318,62 +389,12 @@ export function MiniAppProfileClient({
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] px-4 py-3 max-w-lg mx-auto w-full">
-        <MiniAppProfileMenu
-          items={[
-            {
-              id: "share",
-              label: "Copy share link",
-              onClick: () => void handleShare(),
-              hidden: !ownsProfile,
-            },
-            {
-              id: "sign-in",
-              label: signInLoading ? "Signing in…" : "Sign in with Farcaster",
-              onClick: () => void signInWithMiniApp(),
-              hidden: ownsProfile || !!viewer,
-              disabled: signInLoading,
-            },
-            {
-              id: "my-columns",
-              label: "My Columns",
-              href: "/columns",
-              icon: "columns",
-              hidden: !columnsAccess,
-            },
-            {
-              id: "farcaster",
-              label: "View on Farcaster",
-              href: fcUrl ?? undefined,
-              hidden: !fcUrl,
-            },
-            {
-              id: "my-profile",
-              label: "View My Profile",
-              href: "/profile/me",
-            },
-            {
-              id: "follow-columns",
-              label: "Follow Columns",
-              href: columnsUrl,
-              icon: "columns",
-            },
-            {
-              id: "community",
-              label: "Join Community",
-              href: communityUrl,
-              icon: "farcaster",
-            },
-          ]}
-        />
-
-        {shareMsg && (
-          <p className="mt-2 text-[10px] text-[var(--accent)] text-center">{shareMsg}</p>
-        )}
-        {signInError && (
-          <p className="mt-2 text-[10px] text-red-400 text-center">{signInError}</p>
-        )}
-      </div>
+      <MiniAppToolbar
+        viewerPfp={viewer?.pfpUrl}
+        followColumnsUrl={columnsUrl}
+        communityUrl={communityUrl}
+        activePage="profile"
+      />
     </div>
   );
 }

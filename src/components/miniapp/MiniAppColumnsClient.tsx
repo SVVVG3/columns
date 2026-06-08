@@ -1,19 +1,23 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { sdk } from "@farcaster/miniapp-sdk";
-import { MiniAppProfileMenu } from "@/components/profile/MiniAppProfileMenu";
 import { MiniAppSingleColumnFeed } from "@/components/miniapp/MiniAppSingleColumnFeed";
+import { MiniAppToolbar } from "@/components/miniapp/MiniAppToolbar";
 import {
   columnsCommunityChannelUrl,
   columnsFarcasterProfileUrl,
-  profileShareUrl,
 } from "@/lib/appUrl";
 import { miniappFetch } from "@/lib/miniappFetch";
-import { farcasterProfileUrl } from "@/lib/profilePreview";
 import type { FeedColumnConfig, SessionUser } from "@/types";
+
+/** Home feed column shown to all non-allowlisted mini app users. */
+const HOME_COLUMN: FeedColumnConfig = {
+  id: "home",
+  type: "home",
+  title: "Home Feed",
+};
 
 async function fetchColumnsAccess(fid: number): Promise<boolean> {
   const res = await fetch(`/api/miniapp/columns-access?fid=${fid}`);
@@ -37,12 +41,11 @@ async function fetchLayout(): Promise<FeedColumnConfig[]> {
 }
 
 export function MiniAppColumnsClient() {
-  const router = useRouter();
   const [viewer, setViewer] = useState<SessionUser | null>(null);
+  const [allowed, setAllowed] = useState<boolean | null>(null);
   const [signInLoading, setSignInLoading] = useState(true);
   const [signInError, setSignInError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [shareMsg, setShareMsg] = useState<string | null>(null);
 
   const refreshViewer = useCallback(async () => {
     const res = await miniappFetch("/api/auth/miniapp", { cache: "no-store" });
@@ -68,11 +71,9 @@ export function MiniAppColumnsClient() {
           setSignInError("Open this in Warpcast or another Farcaster client.");
           return;
         }
-        const allowed = await fetchColumnsAccess(fid);
-        if (!allowed) {
-          router.replace("/profile/me");
-          return;
-        }
+
+        const isAllowed = await fetchColumnsAccess(fid);
+        setAllowed(isAllowed);
 
         let user = await refreshViewer();
         if (!user) {
@@ -88,14 +89,17 @@ export function MiniAppColumnsClient() {
         setSignInLoading(false);
       }
     })();
-  }, [refreshViewer, router]);
+  }, [refreshViewer]);
 
-  const { data: columns = [], isLoading: layoutLoading } = useQuery({
+  const { data: savedColumns = [], isLoading: layoutLoading } = useQuery({
     queryKey: ["miniapp-layout", viewer?.fid],
     queryFn: fetchLayout,
-    enabled: viewer?.fid != null,
+    enabled: viewer?.fid != null && allowed === true,
     staleTime: 60_000,
   });
+
+  // Allowlisted users pick from their saved columns; others always see home feed.
+  const columns: FeedColumnConfig[] = allowed ? savedColumns : [HOME_COLUMN];
 
   useEffect(() => {
     if (columns.length === 0) {
@@ -112,26 +116,13 @@ export function MiniAppColumnsClient() {
     [columns, selectedId]
   );
 
-  async function handleShare() {
-    if (!viewer?.username) return;
-    const url = profileShareUrl(viewer.username);
-    try {
-      await navigator.clipboard.writeText(url);
-      setShareMsg("Link copied — paste into a cast to share your profile card.");
-    } catch {
-      setShareMsg(url);
-    }
-    setTimeout(() => setShareMsg(null), 4000);
-  }
-
   const columnsUrl = columnsFarcasterProfileUrl();
   const communityUrl = columnsCommunityChannelUrl();
-  const fcUrl = viewer?.username ? farcasterProfileUrl(viewer.username) : null;
 
   if (signInLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--background)] text-[var(--muted)]">
-        Loading your columns…
+        Loading…
       </div>
     );
   }
@@ -163,84 +154,56 @@ export function MiniAppColumnsClient() {
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-[var(--background)] text-[var(--foreground)] max-w-lg mx-auto w-full">
-      <div className="shrink-0 border-b border-[var(--border)] px-4 py-3">
-        <label className="block text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)] mb-1.5">
-          Column
-        </label>
-        {layoutLoading ? (
-          <p className="text-sm text-[var(--muted)]">Loading saved columns…</p>
-        ) : columns.length === 0 ? (
-          <p className="text-sm text-[var(--muted)]">
-            No columns saved yet. Set up your board on desktop Columns first.
-          </p>
-        ) : (
-          <select
-            value={selectedId ?? columns[0].id}
-            onChange={(e) => setSelectedId(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm font-medium text-[var(--foreground)]"
-          >
-            {columns.map((col) => (
-              <option key={col.id} value={col.id}>
-                {col.title}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
+      {/* Column selector — only shown to allowlisted users with multiple columns */}
+      {allowed && (
+        <div className="shrink-0 border-b border-[var(--border)] px-4 py-3">
+          <label className="block text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)] mb-1.5">
+            Column
+          </label>
+          {layoutLoading ? (
+            <p className="text-sm text-[var(--muted)]">Loading saved columns…</p>
+          ) : savedColumns.length === 0 ? (
+            <p className="text-sm text-[var(--muted)]">
+              No columns saved yet. Set up your board on desktop Columns first.
+            </p>
+          ) : (
+            <select
+              value={selectedId ?? savedColumns[0].id}
+              onChange={(e) => setSelectedId(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm font-medium text-[var(--foreground)]"
+            >
+              {savedColumns.map((col) => (
+                <option key={col.id} value={col.id}>
+                  {col.title}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
 
       <div className="flex-1 min-h-0">
         {selectedColumn ? (
-          <MiniAppSingleColumnFeed column={selectedColumn} viewerFid={viewer.fid} />
+          <MiniAppSingleColumnFeed
+            column={selectedColumn}
+            viewerFid={viewer.fid}
+            autoRefresh={allowed === true}
+          />
         ) : (
           <div className="flex items-center justify-center h-full text-sm text-[var(--muted)] px-6 text-center">
-            Your saved columns will appear here once you configure them on desktop.
+            {allowed
+              ? "Your saved columns will appear here once you configure them on desktop."
+              : "Loading your feed…"}
           </div>
         )}
       </div>
 
-      <div className="shrink-0 border-t border-[var(--border)] px-4 py-3">
-        <MiniAppProfileMenu
-          items={[
-            {
-              id: "my-columns",
-              label: "My Columns",
-              href: "/columns",
-              icon: "columns",
-            },
-            {
-              id: "share",
-              label: "Copy share link",
-              onClick: () => void handleShare(),
-            },
-            {
-              id: "farcaster",
-              label: "View on Farcaster",
-              href: fcUrl ?? undefined,
-              hidden: !fcUrl,
-            },
-            {
-              id: "my-profile",
-              label: "View My Profile",
-              href: "/profile/me",
-            },
-            {
-              id: "follow-columns",
-              label: "Follow Columns",
-              href: columnsUrl,
-              icon: "columns",
-            },
-            {
-              id: "community",
-              label: "Join Community",
-              href: communityUrl,
-              icon: "farcaster",
-            },
-          ]}
-        />
-        {shareMsg && (
-          <p className="mt-2 text-[10px] text-[var(--accent)] text-center">{shareMsg}</p>
-        )}
-      </div>
+      <MiniAppToolbar
+        viewerPfp={viewer.pfpUrl}
+        followColumnsUrl={columnsUrl}
+        communityUrl={communityUrl}
+        activePage="columns"
+      />
     </div>
   );
 }

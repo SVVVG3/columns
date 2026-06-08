@@ -18,9 +18,12 @@ import type { FeedColumnConfig } from "@/types";
 export function MiniAppSingleColumnFeed({
   column,
   viewerFid,
+  autoRefresh = true,
 }: {
   column: FeedColumnConfig;
   viewerFid: number;
+  /** When false, disable automatic head refresh (manual only). */
+  autoRefresh?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isNews = isNewsFeedColumn(column);
@@ -82,7 +85,7 @@ export function MiniAppSingleColumnFeed({
     queryKey: feedQueryKey,
     headUrl: headRefreshUrl,
     refreshIntervalMs: refreshInterval,
-    enabled: status === "success",
+    enabled: autoRefresh && status === "success",
   });
 
   const observerRef = useRef<IntersectionObserver | null>(null);

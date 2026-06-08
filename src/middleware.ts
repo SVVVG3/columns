@@ -29,6 +29,7 @@ const PROFILE_ONLY_ALLOWED_API = [
   "/api/columns-user",
   "/api/user/search",
   "/api/og/profile",
+  "/api/feed/home",
 ];
 
 function isProfileOnlyAllowedApi(pathname: string): boolean {
