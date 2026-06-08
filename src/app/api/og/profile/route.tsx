@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import { NextRequest } from "next/server";
 import { getColumnsUserBadges } from "@/lib/columnsRegistry";
 import { fetchPublicProfileByUsername } from "@/lib/fetchPublicProfile";
+import { formatProfileCount } from "@/lib/profilePreview";
 import { loadTop8Slots } from "@/lib/profileTop8";
 import { TOP8_RETRO } from "@/lib/top8RetroTheme";
 import type { Top8Slot } from "@/types";
@@ -12,8 +13,8 @@ export const runtime = "edge";
 const WIDTH = 1200;
 const HEIGHT = 800;
 
-const PHOTO_SIZE = 118;
-const CELL_WIDTH = 250;
+const PHOTO_SIZE = 136;
+const CELL_WIDTH = 272;
 
 function flex(
   extra: Record<string, string | number> = {}
@@ -21,32 +22,48 @@ function flex(
   return { display: "flex", ...extra };
 }
 
-function ColumnsUserBadge({ logoUrl }: { logoUrl: string }) {
+function ColumnsLogo({
+  logoUrl,
+  size = 14,
+}: {
+  logoUrl: string;
+  size?: number;
+}) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={logoUrl}
+      alt=""
+      width={size}
+      height={size}
+      style={{ borderRadius: 2, objectFit: "cover" }}
+    />
+  );
+}
+
+function FriendName({
+  name,
+  logoUrl,
+  logoSide,
+}: {
+  name: string;
+  logoUrl: string;
+  logoSide?: "left" | "right";
+}) {
   return (
     <div
       style={{
-        ...flex({ alignItems: "center", gap: 4 }),
-        marginTop: 6,
+        ...flex({ alignItems: "center", gap: 6, justifyContent: "center" }),
+        fontSize: 18,
+        fontWeight: 700,
+        color: TOP8_RETRO.link,
+        maxWidth: CELL_WIDTH,
+        marginBottom: 6,
       }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={logoUrl}
-        alt=""
-        width={14}
-        height={14}
-        style={{ borderRadius: 2, objectFit: "cover" }}
-      />
-      <div
-        style={{
-          ...flex(),
-          fontSize: 13,
-          fontWeight: 700,
-          color: TOP8_RETRO.accentMuted,
-        }}
-      >
-        Columns User
-      </div>
+      {logoSide === "left" ? <ColumnsLogo logoUrl={logoUrl} size={16} /> : null}
+      <div style={{ ...flex() }}>{name}</div>
+      {logoSide === "right" ? <ColumnsLogo logoUrl={logoUrl} size={16} /> : null}
     </div>
   );
 }
@@ -105,18 +122,11 @@ function Top8Cell({
         width: CELL_WIDTH,
       }}
     >
-      <div
-        style={{
-          ...flex(),
-          fontSize: 18,
-          fontWeight: 700,
-          color: TOP8_RETRO.link,
-          maxWidth: CELL_WIDTH,
-          marginBottom: 6,
-        }}
-      >
-        {displayName}
-      </div>
+      <FriendName
+        name={displayName}
+        logoUrl={logoUrl}
+        logoSide={showColumnsBadge ? "left" : undefined}
+      />
       <div
         style={{
           ...flex(),
@@ -143,11 +153,7 @@ function Top8Cell({
           />
         )}
       </div>
-      {showColumnsBadge ? (
-        <ColumnsUserBadge logoUrl={logoUrl} />
-      ) : (
-        <OnlineNowBadge />
-      )}
+      <OnlineNowBadge />
     </div>
   );
 }
@@ -164,7 +170,7 @@ function Top8Row({
   logoUrl: string;
 }) {
   return (
-    <div style={{ ...flex({ gap: 16, justifyContent: "center" }) }}>
+    <div style={{ ...flex({ gap: 10, justifyContent: "center" }) }}>
       {slots.map((slot, index) => (
         <Top8Cell
           key={`${rowKey}-${slot?.fid ?? index}`}
@@ -189,6 +195,10 @@ export async function GET(req: NextRequest) {
   }
 
   const top8 = await loadTop8Slots(profile.fid);
+
+  const badgeMap = await getColumnsUserBadges([profile.fid, ...top8.map((s) => s.fid)]);
+  const followerLabel = formatProfileCount(profile.followerCount);
+
   const appUrl = getAppUrl();
   const logoUrl = `${appUrl}/columns-logo.png`;
 
@@ -196,10 +206,6 @@ export async function GET(req: NextRequest) {
   const top8Row1 = top8Cells.slice(0, 4);
   const top8Row2 = top8Cells.slice(4, 8);
   const hasTop8 = top8.length > 0;
-  const friendCount = top8.length;
-
-  const badgeFids = [profile.fid, ...top8.map((s) => s.fid)];
-  const badgeMap = await getColumnsUserBadges(badgeFids);
   const ownerHasBadge = badgeMap.get(profile.fid) ?? false;
 
   const headerTitle = `${profile.displayName}'s Friend Space`;
@@ -273,20 +279,25 @@ export async function GET(req: NextRequest) {
                 )}
               </div>
               <div style={{ ...flex({ flexDirection: "column", gap: 4 }) }}>
-                <div style={{ ...flex(), fontSize: 22, fontWeight: 700, color: TOP8_RETRO.text }}>
-                  {profile.displayName}
+                <div
+                  style={{
+                    ...flex({ alignItems: "center", gap: 8 }),
+                    fontSize: 20,
+                    color: TOP8_RETRO.link,
+                  }}
+                >
+                  <div style={{ ...flex() }}>@{profile.username}</div>
+                  {ownerHasBadge ? <ColumnsLogo logoUrl={logoUrl} size={18} /> : null}
                 </div>
-                <div style={{ ...flex(), fontSize: 18, color: TOP8_RETRO.link }}>
-                  @{profile.username}
-                </div>
-                <div style={{ ...flex(), fontSize: 16, color: TOP8_RETRO.textMuted }}>
-                  <span>{profile.displayName} has </span>
-                  <span style={{ color: TOP8_RETRO.accentMuted, fontWeight: 700 }}>
-                    {friendCount}
-                  </span>
-                  <span> Friends.</span>
-                </div>
-                {ownerHasBadge ? <ColumnsUserBadge logoUrl={logoUrl} /> : null}
+                {followerLabel ? (
+                  <div style={{ ...flex(), fontSize: 16, color: TOP8_RETRO.textMuted }}>
+                    <span>{profile.displayName} has </span>
+                    <span style={{ color: TOP8_RETRO.accentMuted, fontWeight: 700 }}>
+                      {followerLabel}
+                    </span>
+                    <span> Friends.</span>
+                  </div>
+                ) : null}
               </div>
             </div>
 

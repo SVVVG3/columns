@@ -19,15 +19,6 @@ function OnlineNowBadge() {
   );
 }
 
-function ColumnsUserBadge() {
-  return (
-    <p className="mt-1.5 inline-flex items-center justify-center gap-1 text-[9px] font-bold leading-none">
-      <Image src={columnsLogo} alt="" width={12} height={12} className="rounded-sm object-cover" />
-      <span style={{ color: TOP8_RETRO.accentMuted }}>Columns User</span>
-    </p>
-  );
-}
-
 export function Top8RetroCell({
   slot,
   showColumnsBadge,
@@ -52,10 +43,19 @@ export function Top8RetroCell({
         }`}
       >
         <span
-          className="text-[11px] font-bold truncate w-full text-center mb-1"
+          className="inline-flex items-center justify-center gap-1 text-[11px] font-bold truncate w-full text-center mb-1 min-w-0"
           style={{ color: TOP8_RETRO.link }}
         >
-          {displayName}
+          {showColumnsBadge && (
+            <Image
+              src={columnsLogo}
+              alt=""
+              width={12}
+              height={12}
+              className="rounded-sm object-cover shrink-0"
+            />
+          )}
+          <span className="truncate">{displayName}</span>
         </span>
         <div
           className="p-0.5 w-full"
@@ -75,7 +75,7 @@ export function Top8RetroCell({
             />
           )}
         </div>
-        {showColumnsBadge ? <ColumnsUserBadge /> : <OnlineNowBadge />}
+        <OnlineNowBadge />
       </button>
     </div>
   );

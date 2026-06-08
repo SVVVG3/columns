@@ -11,6 +11,7 @@ import {
   ProfileMetaLinksRow,
   ProfileWalletsDropdown,
 } from "@/components/profile/profileMeta";
+import { MiniAppProfileMenu } from "@/components/profile/MiniAppProfileMenu";
 import { Top8Section } from "@/components/profile/Top8Section";
 import {
   columnsCommunityChannelUrl,
@@ -299,62 +300,46 @@ export function MiniAppProfileClient({
       </div>
 
       <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] px-4 py-3 max-w-lg mx-auto w-full">
-        {ownsProfile && (
-          <button
-            type="button"
-            onClick={() => void handleShare()}
-            className="w-full py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium"
-          >
-            Copy share link
-          </button>
-        )}
-        {!ownsProfile && !viewer && (
-          <button
-            type="button"
-            onClick={() => void signInWithMiniApp()}
-            disabled={signInLoading}
-            className="w-full py-2 rounded-lg bg-[var(--accent)] text-white text-sm font-medium disabled:opacity-50"
-          >
-            {signInLoading ? "Signing in…" : "Sign in with Farcaster"}
-          </button>
-        )}
-
-        <div
-          className={`grid grid-cols-2 gap-2 ${ownsProfile || (!ownsProfile && !viewer) ? "mt-2" : ""}`}
-        >
-          {fcUrl && (
-            <a
-              href={fcUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="py-2 px-2 rounded-lg border border-[var(--border)] text-center text-xs font-medium hover:bg-[var(--surface-hover)]"
-            >
-              View on Farcaster
-            </a>
-          )}
-          <a
-            href="/profile/me"
-            className="py-2 px-2 rounded-lg border border-[var(--border)] text-center text-xs font-medium hover:bg-[var(--surface-hover)]"
-          >
-            View My Profile
-          </a>
-          <a
-            href={columnsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="py-2 px-2 rounded-lg border border-[var(--border)] text-center text-xs font-medium hover:bg-[var(--surface-hover)]"
-          >
-            Follow Columns
-          </a>
-          <a
-            href={communityUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="py-2 px-2 rounded-lg border border-[var(--border)] text-center text-xs font-medium hover:bg-[var(--surface-hover)]"
-          >
-            Join Community
-          </a>
-        </div>
+        <MiniAppProfileMenu
+          items={[
+            {
+              id: "share",
+              label: "Copy share link",
+              onClick: () => void handleShare(),
+              hidden: !ownsProfile,
+            },
+            {
+              id: "sign-in",
+              label: signInLoading ? "Signing in…" : "Sign in with Farcaster",
+              onClick: () => void signInWithMiniApp(),
+              hidden: ownsProfile || !!viewer,
+              disabled: signInLoading,
+            },
+            {
+              id: "farcaster",
+              label: "View on Farcaster",
+              href: fcUrl ?? undefined,
+              hidden: !fcUrl,
+            },
+            {
+              id: "my-profile",
+              label: "View My Profile",
+              href: "/profile/me",
+            },
+            {
+              id: "follow-columns",
+              label: "Follow Columns",
+              href: columnsUrl,
+              icon: "columns",
+            },
+            {
+              id: "community",
+              label: "Join Community",
+              href: communityUrl,
+              icon: "farcaster",
+            },
+          ]}
+        />
 
         {shareMsg && (
           <p className="mt-2 text-[10px] text-[var(--accent)] text-center">{shareMsg}</p>
