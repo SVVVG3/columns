@@ -408,7 +408,7 @@ function ProfileAddToColumnControl({
             : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
         }`}
       >
-        {message ?? "Add / remove column"}
+        {message ?? "Add to column"}
       </summary>
       <ul className="absolute bottom-full left-0 right-0 mb-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-xl overflow-hidden z-10 max-h-40 overflow-y-auto feed-scroll">
         {userColumns.map((col) => {
