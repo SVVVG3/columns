@@ -94,6 +94,7 @@ export async function PUT(req: NextRequest) {
     fid: session.user.fid,
     username: session.user.username,
     displayName: session.user.displayName,
+    grantBadge: true,
   });
 
   const now = new Date().toISOString();

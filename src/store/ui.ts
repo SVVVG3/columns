@@ -25,7 +25,8 @@ interface UiState {
   /** Pop the current cast off the stack (go back, or close if at root) */
   goBack: () => void;
   closeConversation: () => void;
-  profilePreview: ProfilePreviewSeed | null;
+  /** Stack of profile modals — top entry is the active preview */
+  profilePreviewStack: ProfilePreviewSeed[];
   openProfilePreview: (seed: ProfilePreviewSeed) => void;
   closeProfilePreview: () => void;
   reactionActors: ReactionActorsState | null;
@@ -55,7 +56,7 @@ export const useUiStore = create<UiState>()((set) => ({
         selectedCastHash,
         overlayFocus: selectedCastHash
           ? "conversation"
-          : s.profilePreview
+          : s.profilePreviewStack.length > 0
             ? "profile"
             : null,
       };
@@ -64,16 +65,27 @@ export const useUiStore = create<UiState>()((set) => ({
     set((s) => ({
       conversationHistory: [],
       selectedCastHash: null,
-      overlayFocus: s.profilePreview ? "profile" : null,
+      overlayFocus: s.profilePreviewStack.length > 0 ? "profile" : null,
     })),
-  profilePreview: null,
+  profilePreviewStack: [],
   openProfilePreview: (seed) =>
-    set({ profilePreview: seed, overlayFocus: "profile" }),
-  closeProfilePreview: () =>
     set((s) => ({
-      profilePreview: null,
-      overlayFocus: s.selectedCastHash ? "conversation" : null,
+      profilePreviewStack: [...s.profilePreviewStack, seed],
+      overlayFocus: "profile",
     })),
+  closeProfilePreview: () =>
+    set((s) => {
+      const stack = s.profilePreviewStack.slice(0, -1);
+      return {
+        profilePreviewStack: stack,
+        overlayFocus:
+          stack.length > 0
+            ? "profile"
+            : s.selectedCastHash
+              ? "conversation"
+              : null,
+      };
+    }),
   reactionActors: null,
   openReactionActors: (state) => set({ reactionActors: state }),
   closeReactionActors: () => set({ reactionActors: null }),

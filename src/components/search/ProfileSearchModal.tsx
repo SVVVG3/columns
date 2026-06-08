@@ -55,7 +55,7 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const openProfilePreview = useUiStore((s) => s.openProfilePreview);
   const openConversation = useUiStore((s) => s.openConversation);
-  const profilePreviewOpen = useUiStore((s) => s.profilePreview != null);
+  const profilePreviewOpen = useUiStore((s) => s.profilePreviewStack.length > 0);
   const conversationOpen = useUiStore((s) => s.selectedCastHash != null);
   const childOverlayOpen = profilePreviewOpen || conversationOpen;
 
@@ -114,8 +114,8 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
   useEffect(() => {
     if (!open) return;
     function onKeyDown(e: KeyboardEvent) {
-      const { profilePreview, selectedCastHash } = useUiStore.getState();
-      if (profilePreview || selectedCastHash) return;
+      const { profilePreviewStack, selectedCastHash } = useUiStore.getState();
+      if (profilePreviewStack.length > 0 || selectedCastHash) return;
 
       if (e.key === "Escape") {
         e.preventDefault();

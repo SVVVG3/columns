@@ -13,11 +13,12 @@ export async function GET() {
   const session = await getSession();
   const user = session.user ?? null;
 
-  if (user) {
+  if (user && !user.profileOnly) {
     void upsertColumnsUser({
       fid: user.fid,
       username: user.username,
       displayName: user.displayName,
+      grantBadge: true,
     });
   }
 
@@ -55,13 +56,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  session.user = { fid: fidNum, signerUuid, username, displayName, pfpUrl };
+  session.user = {
+    fid: fidNum,
+    signerUuid,
+    username,
+    displayName,
+    pfpUrl,
+    profileOnly: false,
+  };
   await session.save();
 
   void upsertColumnsUser({
     fid: fidNum,
     username: username ?? undefined,
     displayName: displayName ?? undefined,
+    grantBadge: true,
   });
 
   return NextResponse.json({ ok: true });

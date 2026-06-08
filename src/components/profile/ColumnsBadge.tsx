@@ -1,11 +1,25 @@
-/** Small badge shown on profiles of Columns users. */
+import Image from "next/image";
+import columnsLogo from "../../../public/columns-logo.png";
+
+/** Badge shown on profiles of Columns users. */
 export function ColumnsBadge() {
   return (
     <span
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30"
-      title="Uses Columns"
+      className="inline-flex items-center gap-1.5 shrink-0"
+      title="Columns User"
     >
-      Columns
+      <span className="w-5 h-5 rounded-md overflow-hidden shrink-0 bg-[var(--surface)] border border-[var(--accent)]/30 flex items-center justify-center">
+        <Image
+          src={columnsLogo}
+          alt=""
+          width={20}
+          height={20}
+          className="w-full h-full object-cover"
+        />
+      </span>
+      <span className="text-[11px] font-semibold text-[var(--accent)] whitespace-nowrap">
+        Columns User
+      </span>
     </span>
   );
 }

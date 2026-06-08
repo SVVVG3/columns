@@ -117,6 +117,7 @@ export async function PUT(req: NextRequest) {
   if (!session.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // Allowed for profile-only mini app sessions (no allowlist required).
 
   const sb = getSupabaseAdmin();
   if (!sb) {

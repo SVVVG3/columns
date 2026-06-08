@@ -21,7 +21,7 @@ export function NotificationsModal({
   viewerFid,
   onFreshLoad,
 }: NotificationsModalProps) {
-  const profilePreviewOpen = useUiStore((s) => s.profilePreview != null);
+  const profilePreviewOpen = useUiStore((s) => s.profilePreviewStack.length > 0);
   const conversationOpen = useUiStore((s) => s.selectedCastHash != null);
   const childOverlayOpen = profilePreviewOpen || conversationOpen;
   const ignoreBackdropUntilRef = useRef(0);
@@ -35,8 +35,8 @@ export function NotificationsModal({
     if (!open) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
-      const { profilePreview, selectedCastHash } = useUiStore.getState();
-      if (profilePreview || selectedCastHash) return;
+      const { profilePreviewStack, selectedCastHash } = useUiStore.getState();
+      if (profilePreviewStack.length > 0 || selectedCastHash) return;
       onClose();
     }
     window.addEventListener("keydown", onKeyDown);

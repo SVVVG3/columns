@@ -31,7 +31,7 @@ export function ConversationPanel({ viewerFid }: ConversationPanelProps) {
     conversationHistory,
     closeConversation,
     goBack,
-    profilePreview,
+    profilePreviewStack,
     overlayFocus,
   } = useUiStore();
   const isOpen = !!selectedCastHash;
@@ -48,13 +48,13 @@ export function ConversationPanel({ viewerFid }: ConversationPanelProps) {
       if (e.key !== "Escape") return;
       const { reactionActors, overlayFocus: focus } = useUiStore.getState();
       if (reactionActors) return;
-      if (profilePreview && focus !== "conversation") return;
+      if (profilePreviewStack.length > 0 && focus !== "conversation") return;
       if (canGoBack) goBack();
       else closeConversation();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isOpen, canGoBack, goBack, closeConversation, profilePreview]);
+  }, [isOpen, canGoBack, goBack, closeConversation, profilePreviewStack.length]);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["conversation", selectedCastHash],
@@ -97,7 +97,7 @@ export function ConversationPanel({ viewerFid }: ConversationPanelProps) {
 
   if (!isOpen) return null;
 
-  const profileOpen = !!profilePreview;
+  const profileOpen = profilePreviewStack.length > 0;
   const bothOpen = profileOpen;
   const conversationOnTop = !bothOpen || overlayFocus === "conversation";
 

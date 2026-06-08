@@ -8,6 +8,10 @@ export interface SessionData {
   user?: SessionUser;
 }
 
+export function isProfileOnlySession(user?: SessionUser): boolean {
+  return !!user?.profileOnly;
+}
+
 export const sessionOptions: SessionOptions = {
   cookieName: "fc_session",
   password: process.env.SESSION_SECRET as string,

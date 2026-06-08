@@ -90,7 +90,8 @@ interface ProfilePreviewModalProps {
 }
 
 export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
-  const seed = useUiStore((s) => s.profilePreview);
+  const profileStack = useUiStore((s) => s.profilePreviewStack);
+  const seed = profileStack[profileStack.length - 1] ?? null;
   const closeProfilePreview = useUiStore((s) => s.closeProfilePreview);
   const openProfilePreview = useUiStore((s) => s.openProfilePreview);
   const conversationOpen = useUiStore((s) => s.selectedCastHash != null);
@@ -216,13 +217,15 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
               <div className="flex items-start gap-4 max-w-full">
               <UserAvatar src={pfpUrl} alt={displayName} size="xl" className="shrink-0" />
               <div className="min-w-0 pt-0.5 text-left">
-                <div className="flex items-center gap-2 min-w-0">
-                  <p className="text-base font-semibold text-[var(--foreground)] leading-tight truncate">
-                    {displayName}
-                  </p>
-                  {columnsBadge?.showBadge && <ColumnsBadge />}
-                </div>
+                <p className="text-base font-semibold text-[var(--foreground)] leading-tight truncate">
+                  {displayName}
+                </p>
                 <p className="text-sm text-[var(--muted)] truncate">@{username}</p>
+                {columnsBadge?.showBadge && (
+                  <div className="mt-1.5">
+                    <ColumnsBadge />
+                  </div>
+                )}
                 {wallets.length > 0 ? (
                   <ProfileWalletsDropdown wallets={wallets} fid={fid} />
                 ) : fid != null ? (

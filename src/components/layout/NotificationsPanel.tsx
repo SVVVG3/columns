@@ -157,8 +157,8 @@ export function NotificationsPanel({
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      const { profilePreview, selectedCastHash, reactionActors } = useUiStore.getState();
-      if (profilePreview || selectedCastHash || reactionActors) return;
+      const { profilePreviewStack, selectedCastHash, reactionActors } = useUiStore.getState();
+      if (profilePreviewStack.length > 0 || selectedCastHash || reactionActors) return;
       onClose();
     };
     window.addEventListener("keydown", handler);

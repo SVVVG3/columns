@@ -41,6 +41,8 @@ export interface SessionUser {
   username: string;
   displayName: string;
   pfpUrl: string;
+  /** Mini app profile sign-in only — no full Columns board access. */
+  profileOnly?: boolean;
 }
 
 export interface Top8Slot {

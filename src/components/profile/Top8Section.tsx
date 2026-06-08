@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserAvatar } from "@/components/ui/UserAvatar";
@@ -34,10 +35,14 @@ const EMPTY_TOP8: Top8Slot[] = [];
 export function Top8Section({
   ownerFid,
   isOwnProfile,
+  linkMode = false,
 }: {
   ownerFid: number;
   isOwnProfile: boolean;
+  /** Navigate to /profile/:user instead of in-app modal */
+  linkMode?: boolean;
 }) {
+  const router = useRouter();
   const openProfilePreview = useUiStore((s) => s.openProfilePreview);
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
@@ -189,16 +194,19 @@ export function Top8Section({
             <div key={slot.fid} className="relative flex flex-col items-center gap-1 min-w-0">
               <button
                 type="button"
-                onClick={() =>
-                  editing
-                    ? undefined
-                    : openProfilePreview({
-                        fid: slot.fid,
-                        username: slot.username,
-                        displayName: slot.displayName,
-                        pfpUrl: slot.pfpUrl ?? undefined,
-                      })
-                }
+                onClick={() => {
+                  if (editing) return;
+                  if (linkMode) {
+                    router.push(`/profile/${encodeURIComponent(slot.username)}`);
+                    return;
+                  }
+                  openProfilePreview({
+                    fid: slot.fid,
+                    username: slot.username,
+                    displayName: slot.displayName,
+                    pfpUrl: slot.pfpUrl ?? undefined,
+                  });
+                }}
                 className={`flex flex-col items-center gap-1 min-w-0 w-full ${
                   editing ? "cursor-default" : "hover:opacity-80 transition-opacity"
                 }`}

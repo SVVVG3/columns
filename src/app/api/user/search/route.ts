@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
   if (!session.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // Profile-only mini app users may search to edit Top 8.
 
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q")?.trim();

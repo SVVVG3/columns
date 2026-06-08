@@ -4,24 +4,50 @@ export async function upsertColumnsUser(params: {
   fid: number;
   username?: string;
   displayName?: string;
+  /**
+   * Full Columns app sign-in (allowlisted + managed signer).
+   * When true, grants the Columns User badge. Profile-only mini app users must not pass this.
+   */
+  grantBadge?: boolean;
 }): Promise<void> {
   const sb = getSupabaseAdmin();
   if (!sb) return;
 
   const now = new Date().toISOString();
-  const { error } = await sb.from("columns_users").upsert(
-    {
-      fid: params.fid,
-      username: params.username ?? null,
-      display_name: params.displayName ?? null,
-      last_seen_at: now,
-    },
-    { onConflict: "fid", ignoreDuplicates: false }
-  );
+  const row = {
+    fid: params.fid,
+    username: params.username ?? null,
+    display_name: params.displayName ?? null,
+    last_seen_at: now,
+  };
 
-  if (error) {
-    console.error("[columnsRegistry] upsert failed:", error.message);
+  if (params.grantBadge === true) {
+    const { error } = await sb.from("columns_users").upsert(
+      { ...row, show_columns_badge: true },
+      { onConflict: "fid" }
+    );
+    if (error) console.error("[columnsRegistry] upsert failed:", error.message);
+    return;
   }
+
+  // Profile-only / Top 8: ensure row exists (FK) but never grant or revoke badge.
+  const { data: existing } = await sb
+    .from("columns_users")
+    .select("fid")
+    .eq("fid", params.fid)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await sb.from("columns_users").update(row).eq("fid", params.fid);
+    if (error) console.error("[columnsRegistry] update failed:", error.message);
+    return;
+  }
+
+  const { error } = await sb.from("columns_users").insert({
+    ...row,
+    show_columns_badge: false,
+  });
+  if (error) console.error("[columnsRegistry] insert failed:", error.message);
 }
 
 export async function getColumnsUserBadge(fid: number): Promise<{
