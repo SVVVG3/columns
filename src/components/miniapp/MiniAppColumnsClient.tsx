@@ -135,7 +135,7 @@ export function MiniAppColumnsClient() {
     const hash = selectedCastHash.startsWith("0x")
       ? selectedCastHash
       : `0x${selectedCastHash}`;
-    void sdk.actions.viewCast({ hash, close: true }).catch(() => {});
+    void sdk.actions.viewCast({ hash }).catch(() => {});
     closeConversation();
   }, [selectedCastHash, closeConversation]);
 

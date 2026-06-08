@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { checkUserFollows } from "@/lib/followCheck";
+import { hsnap } from "@/lib/hypersnap";
 
 /** FID of the @columns Farcaster profile (FARCASTER_DEVELOPER_FID). */
 function getColumnsFid(): number {
@@ -11,35 +12,24 @@ function getColumnsFid(): number {
 }
 
 /**
- * True if `fid` is a member/follower of the /columns Farcaster channel.
- * Uses the Neynar REST API since Hypersnap does not expose channel-follow checks.
+ * True if `fid` is a follower/member of the /columns Farcaster channel.
+ * Uses Hypersnap's channel/members endpoint (same data source as the social graph).
+ * Paginates up to 10 pages (1 000 members) before giving up.
  */
 async function checkChannelFollow(fid: number): Promise<boolean> {
-  const apiKey = process.env.NEYNAR_API_KEY?.trim();
-  if (!apiKey) return false;
-
   try {
-    // Paginate up to 3 pages (300 channels) looking for "columns"
     let cursor: string | undefined;
-    for (let page = 0; page < 3; page++) {
-      const url = new URL("https://api.neynar.com/v2/farcaster/user/channels");
-      url.searchParams.set("fid", String(fid));
-      url.searchParams.set("type", "following");
-      url.searchParams.set("limit", "100");
-      if (cursor) url.searchParams.set("cursor", cursor);
-
-      const res = await fetch(url.toString(), {
-        headers: { "x-api-key": apiKey },
-        next: { revalidate: 0 },
-      });
-      if (!res.ok) break;
-
-      const data = (await res.json()) as {
-        channels?: Array<{ id?: string }>;
+    for (let page = 0; page < 10; page++) {
+      const data = await hsnap<{
+        users?: Array<{ fid?: number }>;
         next?: { cursor?: string };
-      };
+      }>("/v2/farcaster/channel/members", {
+        channel_id: "columns",
+        limit: 100,
+        cursor,
+      });
 
-      if ((data.channels ?? []).some((ch) => ch.id === "columns")) return true;
+      if ((data.users ?? []).some((u) => u.fid === fid)) return true;
       if (!data.next?.cursor) break;
       cursor = data.next.cursor;
     }

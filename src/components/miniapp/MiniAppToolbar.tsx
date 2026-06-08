@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import columnsLogo from "../../../public/columns-logo.png";
 import farcasterLogoWhite from "../../../public/farcaster-logo-white.png";
@@ -38,6 +38,9 @@ export function MiniAppToolbar({
   const [infoOpen, setInfoOpen] = useState(false);
   const [waitlist, setWaitlist] = useState<WaitlistState>({ status: "idle" });
   const infoRef = useRef<HTMLDivElement>(null);
+  // Tracks whether we've already done the initial waitlist status fetch so we
+  // don't re-run the check every time the popover state changes.
+  const hasFetchedWaitlist = useRef(false);
 
   // Pre-load both pages for instant tab switching
   useEffect(() => {
@@ -45,17 +48,24 @@ export function MiniAppToolbar({
     router.prefetch("/profile/me");
   }, [router]);
 
-  // When info opens and we have a viewer, check waitlist status once
-  useEffect(() => {
-    if (!infoOpen || !viewerFid || waitlist.status !== "idle") return;
+  // Check waitlist status once when the popover first opens.
+  // Intentionally NOT including waitlist.status — changing it must not retrigger
+  // the initial fetch (that caused an infinite "Checking…" loop).
+  const checkWaitlistStatus = useCallback(() => {
+    if (!viewerFid || hasFetchedWaitlist.current) return;
+    hasFetchedWaitlist.current = true;
     setWaitlist({ status: "loading" });
     void fetch(`/api/waitlist?fid=${viewerFid}`)
-      .then((r) => r.json())
-      .then((data: { onWaitlist?: boolean }) => {
+      .then((r) => r.json() as Promise<{ onWaitlist?: boolean }>)
+      .then((data) => {
         setWaitlist(data.onWaitlist ? { status: "joined" } : { status: "idle" });
       })
       .catch(() => setWaitlist({ status: "idle" }));
-  }, [infoOpen, viewerFid, waitlist.status]);
+  }, [viewerFid]);
+
+  useEffect(() => {
+    if (infoOpen) checkWaitlistStatus();
+  }, [infoOpen, checkWaitlistStatus]);
 
   useEffect(() => {
     if (!infoOpen) return;
@@ -189,19 +199,17 @@ export function MiniAppToolbar({
         {/* Center: Columns logo → /columns — largest, most prominent */}
         <Link
           href="/columns"
-          className={`w-16 h-16 flex items-center justify-center rounded-2xl transition-all shadow-lg ${
-            activePage === "columns"
-              ? "bg-[var(--accent)] scale-105"
-              : "bg-[var(--accent)]/80 hover:bg-[var(--accent)] hover:scale-105"
+          className={`w-16 h-16 flex items-center justify-center transition-all ${
+            activePage === "columns" ? "scale-105" : "hover:scale-105"
           }`}
           aria-label="My Columns"
         >
           <Image
             src={columnsLogo}
             alt="Columns"
-            width={42}
-            height={42}
-            className="rounded-lg object-cover"
+            width={56}
+            height={56}
+            className="rounded-xl object-cover"
           />
         </Link>
 
