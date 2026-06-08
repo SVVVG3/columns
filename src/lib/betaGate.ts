@@ -23,3 +23,9 @@ export function isFidAllowed(fid: number): boolean {
   if (!isAllowlistEnforced()) return true;
   return getAllowedFids().has(fid);
 }
+
+/** Mini app column viewer — only explicit ALLOWED_FIDS (empty env = no access). */
+export function canUseMiniAppColumns(fid: number): boolean {
+  const allowed = getAllowedFids();
+  return allowed.size > 0 && allowed.has(fid);
+}

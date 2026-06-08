@@ -72,6 +72,7 @@ export function MiniAppProfileClient({
   const [signInError, setSignInError] = useState<string | null>(null);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
   const [sdkReady, setSdkReady] = useState(false);
+  const [hostFid, setHostFid] = useState<number | null>(null);
 
   const profileEnabled = username.length > 0;
 
@@ -122,7 +123,25 @@ export function MiniAppProfileClient({
   useEffect(() => {
     void sdk.actions.ready().then(() => setSdkReady(true)).catch(() => setSdkReady(true));
     void refreshViewer();
+    void sdk.context
+      .then((ctx) => {
+        if (ctx?.user?.fid) setHostFid(ctx.user.fid);
+      })
+      .catch(() => {});
   }, [refreshViewer]);
+
+  const accessFid = viewer?.fid ?? hostFid;
+  const { data: columnsAccess = false } = useQuery({
+    queryKey: ["miniapp-columns-access", accessFid],
+    queryFn: async () => {
+      const res = await fetch(`/api/miniapp/columns-access?fid=${accessFid}`);
+      if (!res.ok) return false;
+      const data = (await res.json()) as { allowed?: boolean };
+      return !!data.allowed;
+    },
+    enabled: accessFid != null,
+    staleTime: 300_000,
+  });
 
   useEffect(() => {
     if (!isMeRoute || !sdkReady || viewer) return;
@@ -314,6 +333,13 @@ export function MiniAppProfileClient({
               onClick: () => void signInWithMiniApp(),
               hidden: ownsProfile || !!viewer,
               disabled: signInLoading,
+            },
+            {
+              id: "my-columns",
+              label: "My Columns",
+              href: "/columns",
+              icon: "columns",
+              hidden: !columnsAccess,
             },
             {
               id: "farcaster",

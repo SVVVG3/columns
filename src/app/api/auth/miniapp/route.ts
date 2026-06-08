@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { upsertColumnsUser } from "@/lib/columnsRegistry";
+import { canUseMiniAppColumns } from "@/lib/betaGate";
 import { verifyQuickAuthToken } from "@/lib/miniappAuth";
 import { getSession } from "@/lib/session";
 import { lookupUserByFid } from "@/lib/userSearch";
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
       displayName: session.user.displayName,
       pfpUrl: session.user.pfpUrl,
       profileOnly: true,
+      columnsAccess: canUseMiniAppColumns(session.user.fid),
     },
   });
 }
@@ -52,5 +54,9 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   const session = await getSession();
   const user = session.user?.profileOnly ? session.user : null;
-  return NextResponse.json({ user });
+  return NextResponse.json({
+    user: user
+      ? { ...user, columnsAccess: canUseMiniAppColumns(user.fid) }
+      : null,
+  });
 }
