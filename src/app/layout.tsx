@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/layout/Providers";
+import {
+  buildHomeFrameEmbedJson,
+  buildHomeMiniAppEmbed,
+} from "@/lib/miniappShare";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,6 +19,8 @@ const geistMono = Geist_Mono({
 
 const appUrl =
   process.env.NEXT_PUBLIC_APP_URL ?? "https://mycolumns.xyz";
+
+const homeMiniAppEmbed = buildHomeMiniAppEmbed();
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
@@ -38,6 +44,10 @@ export const metadata: Metadata = {
     title: "Columns",
     description: "Multi-Column Farcaster Desktop Client",
     images: ["/og-image.png"],
+  },
+  other: {
+    "fc:miniapp": JSON.stringify(homeMiniAppEmbed),
+    "fc:frame": buildHomeFrameEmbedJson(),
   },
 };
 
