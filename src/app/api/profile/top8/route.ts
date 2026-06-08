@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCsrf } from "@/lib/csrf";
-import { hsnap } from "@/lib/hypersnap";
 import { upsertColumnsUser } from "@/lib/columnsRegistry";
+import {
+  hydrateTop8Slots,
+  loadTop8StoredSlots,
+  saveTop8Slots,
+} from "@/lib/profileTop8";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSession } from "@/lib/session";
-import type { Top8Slot } from "@/types";
 
 interface Top8PutSlot {
   position: number;
@@ -42,44 +45,6 @@ function parsePutSlots(body: unknown): Top8PutSlot[] | null {
   return parsed;
 }
 
-async function hydrateTop8Slots(
-  rows: { position: number; target_fid: number }[]
-): Promise<Top8Slot[]> {
-  if (rows.length === 0) return [];
-
-  const fids = [...new Set(rows.map((r) => r.target_fid))].sort((a, b) => a - b);
-  let users: {
-    fid?: number;
-    username?: string;
-    display_name?: string;
-    pfp_url?: string;
-  }[] = [];
-
-  try {
-    const data = await hsnap<{ users: typeof users }>("/v2/farcaster/user/bulk", {
-      fids: fids.join(","),
-    });
-    users = data.users ?? [];
-  } catch (err) {
-    console.error("[/api/profile/top8] bulk hydrate failed:", err);
-  }
-
-  const byFid = new Map(users.map((u) => [u.fid, u]));
-
-  return rows
-    .sort((a, b) => a.position - b.position)
-    .map((row) => {
-      const u = byFid.get(row.target_fid);
-      return {
-        position: row.position,
-        fid: row.target_fid,
-        username: u?.username ?? String(row.target_fid),
-        displayName: u?.display_name ?? u?.username ?? String(row.target_fid),
-        pfpUrl: u?.pfp_url ?? null,
-      };
-    });
-}
-
 /** GET /api/profile/top8?fid= — Top 8 slots for a profile (public read). */
 export async function GET(req: NextRequest) {
   const ownerFid = parseInt(req.nextUrl.searchParams.get("fid") ?? "", 10);
@@ -92,19 +57,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ slots: [], configured: false });
   }
 
-  const { data, error } = await sb
-    .from("profile_top8")
-    .select("position, target_fid")
-    .eq("owner_fid", ownerFid)
-    .order("position", { ascending: true });
-
-  if (error) {
-    console.error("[/api/profile/top8 GET]", error.message);
+  try {
+    const rows = await loadTop8StoredSlots(ownerFid);
+    const slots = await hydrateTop8Slots(rows);
+    return NextResponse.json({ slots, configured: true });
+  } catch (err) {
+    console.error("[/api/profile/top8 GET]", err);
     return NextResponse.json({ error: "Failed to load Top 8" }, { status: 500 });
   }
-
-  const slots = await hydrateTop8Slots(data ?? []);
-  return NextResponse.json({ slots, configured: true });
 }
 
 /** PUT /api/profile/top8 — replace owner's Top 8 (session auth). */
@@ -147,35 +107,12 @@ export async function PUT(req: NextRequest) {
     displayName: session.user.displayName,
   });
 
-  const { error: deleteError } = await sb
-    .from("profile_top8")
-    .delete()
-    .eq("owner_fid", ownerFid);
-
-  if (deleteError) {
-    console.error("[/api/profile/top8 PUT delete]", deleteError.message);
+  try {
+    const stored = await saveTop8Slots(ownerFid, slots);
+    const hydrated = await hydrateTop8Slots(stored);
+    return NextResponse.json({ ok: true, slots: hydrated });
+  } catch (err) {
+    console.error("[/api/profile/top8 PUT]", err);
     return NextResponse.json({ error: "Failed to update Top 8" }, { status: 500 });
   }
-
-  if (slots.length > 0) {
-    const { error: insertError } = await sb.from("profile_top8").insert(
-      slots.map((s) => ({
-        owner_fid: ownerFid,
-        position: s.position,
-        target_fid: s.targetFid,
-      }))
-    );
-
-    if (insertError) {
-      console.error("[/api/profile/top8 PUT insert]", insertError.message);
-      return NextResponse.json({ error: "Failed to update Top 8" }, { status: 500 });
-    }
-  }
-
-  const rows = slots.map((s) => ({
-    position: s.position,
-    target_fid: s.targetFid,
-  }));
-  const hydrated = await hydrateTop8Slots(rows);
-  return NextResponse.json({ ok: true, slots: hydrated });
 }

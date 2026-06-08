@@ -9,6 +9,8 @@ export const runtime = "edge";
 
 const WIDTH = 1200;
 const HEIGHT = 800;
+const AVATAR_SIZE = 100;
+const CELL_WIDTH = 150;
 
 function flex(
   extra: Record<string, string | number> = {}
@@ -18,14 +20,14 @@ function flex(
 
 function Top8Cell({ slot }: { slot: Top8Slot | null }) {
   if (!slot) {
-    return <div style={{ ...flex(), width: 110, height: 100 }} />;
+    return <div style={{ ...flex(), width: CELL_WIDTH, height: 140 }} />;
   }
 
   return (
     <div
       style={{
         ...flex({ flexDirection: "column", alignItems: "center" }),
-        width: 110,
+        width: CELL_WIDTH,
       }}
     >
       <div style={flex()}>
@@ -34,16 +36,20 @@ function Top8Cell({ slot }: { slot: Top8Slot | null }) {
           <img
             src={slot.pfpUrl}
             alt=""
-            width={72}
-            height={72}
-            style={{ borderRadius: 36, objectFit: "cover" }}
+            width={AVATAR_SIZE}
+            height={AVATAR_SIZE}
+            style={{
+              borderRadius: AVATAR_SIZE / 2,
+              objectFit: "cover",
+              border: "3px solid rgba(139,92,246,0.45)",
+            }}
           />
         ) : (
           <div
             style={{
-              width: 72,
-              height: 72,
-              borderRadius: 36,
+              width: AVATAR_SIZE,
+              height: AVATAR_SIZE,
+              borderRadius: AVATAR_SIZE / 2,
               background: "#3f3f46",
             }}
           />
@@ -52,10 +58,11 @@ function Top8Cell({ slot }: { slot: Top8Slot | null }) {
       <div
         style={{
           ...flex(),
-          fontSize: 14,
+          fontSize: 18,
+          fontWeight: 600,
           color: "#e4e4e7",
-          marginTop: 8,
-          maxWidth: 110,
+          marginTop: 12,
+          maxWidth: CELL_WIDTH,
         }}
       >
         @{slot.username}
@@ -66,7 +73,7 @@ function Top8Cell({ slot }: { slot: Top8Slot | null }) {
 
 function Top8Row({ slots, rowKey }: { slots: (Top8Slot | null)[]; rowKey: string }) {
   return (
-    <div style={{ ...flex({ gap: 20 }) }}>
+    <div style={{ ...flex({ gap: 36, justifyContent: "center" }) }}>
       {slots.map((slot, index) => (
         <Top8Cell key={`${rowKey}-${slot?.fid ?? index}`} slot={slot} />
       ))}
@@ -88,9 +95,7 @@ export async function GET(req: NextRequest) {
   const top8 = await loadTop8Slots(profile.fid);
   const appUrl = getAppUrl();
   const logoUrl = `${appUrl}/columns-logo.png`;
-  const bioText = profile.bio
-    ? `${profile.bio.slice(0, 120)}${profile.bio.length > 120 ? "…" : ""}`
-    : "";
+  const title = `@${profile.username}'s Top 8:`;
 
   const top8Cells: (Top8Slot | null)[] = Array.from({ length: 8 }, (_, i) => top8[i] ?? null);
   const top8Row1 = top8Cells.slice(0, 4);
@@ -101,92 +106,89 @@ export async function GET(req: NextRequest) {
     (
       <div
         style={{
-          ...flex({ flexDirection: "column" }),
+          ...flex({ flexDirection: "column", alignItems: "center" }),
           width: WIDTH,
           height: HEIGHT,
           background: "linear-gradient(145deg, #12121a 0%, #0c0c0f 55%, #1a1030 100%)",
           color: "#fff",
           fontFamily: "system-ui, sans-serif",
           position: "relative",
-          padding: 48,
+          padding: "40px 48px 48px",
         }}
       >
-        <div style={{ ...flex({ alignItems: "center", gap: 28 }) }}>
+        <div
+          style={{
+            ...flex({ flexDirection: "column", alignItems: "center", gap: 20 }),
+            marginTop: 12,
+          }}
+        >
           <div style={flex()}>
             {profile.pfpUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={profile.pfpUrl}
                 alt=""
-                width={140}
-                height={140}
+                width={120}
+                height={120}
                 style={{
-                  borderRadius: 24,
+                  borderRadius: 28,
                   objectFit: "cover",
-                  border: "4px solid rgba(139,92,246,0.5)",
+                  border: "4px solid rgba(139,92,246,0.55)",
                 }}
               />
             ) : (
               <div
                 style={{
-                  width: 140,
-                  height: 140,
-                  borderRadius: 24,
+                  width: 120,
+                  height: 120,
+                  borderRadius: 28,
                   background: "#2a2a35",
                 }}
               />
             )}
           </div>
-          <div style={{ ...flex({ flexDirection: "column", gap: 8 }) }}>
-            <div style={{ ...flex(), fontSize: 52, fontWeight: 700 }}>
-              {profile.displayName}
-            </div>
-            <div style={{ ...flex(), fontSize: 32, color: "#a1a1aa" }}>
-              @{profile.username}
-            </div>
-            {bioText ? (
-              <div
-                style={{
-                  ...flex(),
-                  fontSize: 22,
-                  color: "#d4d4d8",
-                  maxWidth: 720,
-                  lineHeight: 1.35,
-                  marginTop: 4,
-                }}
-              >
-                {bioText}
-              </div>
-            ) : null}
+          <div
+            style={{
+              ...flex(),
+              fontSize: 44,
+              fontWeight: 700,
+              color: "#a78bfa",
+            }}
+          >
+            {title}
           </div>
         </div>
 
-        <div
-          style={{
-            ...flex(),
-            marginTop: 36,
-            fontSize: 20,
-            color: "#a78bfa",
-            fontWeight: 600,
-          }}
-        >
-          Top 8
-        </div>
-
         {hasTop8 ? (
-          <div style={{ ...flex({ flexDirection: "column", gap: 20, marginTop: 16 }) }}>
+          <div
+            style={{
+              ...flex({
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 32,
+                marginTop: 40,
+              }),
+            }}
+          >
             <Top8Row slots={top8Row1} rowKey="r1" />
             <Top8Row slots={top8Row2} rowKey="r2" />
           </div>
         ) : (
-          <div style={{ ...flex(), marginTop: 16, fontSize: 24, color: "#71717a" }}>
+          <div
+            style={{
+              ...flex(),
+              marginTop: 48,
+              fontSize: 28,
+              color: "#71717a",
+            }}
+          >
             No Top 8 yet
           </div>
         )}
 
         <div
           style={{
-            ...flex({ alignItems: "center", gap: 12 }),
+            ...flex(),
             position: "absolute",
             right: 40,
             bottom: 36,
@@ -196,13 +198,10 @@ export async function GET(req: NextRequest) {
           <img
             src={logoUrl}
             alt=""
-            width={44}
-            height={44}
-            style={{ borderRadius: 10, objectFit: "cover" }}
+            width={88}
+            height={88}
+            style={{ borderRadius: 16, objectFit: "cover" }}
           />
-          <div style={{ ...flex(), fontSize: 22, fontWeight: 700, color: "#a78bfa" }}>
-            Columns
-          </div>
         </div>
       </div>
     ),
