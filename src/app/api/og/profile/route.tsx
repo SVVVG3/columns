@@ -220,7 +220,7 @@ export async function GET(req: NextRequest) {
           background: TOP8_RETRO.outerBg,
           color: TOP8_RETRO.text,
           fontFamily: "Arial, Helvetica, sans-serif",
-          padding: 12,
+          padding: 24,
         }}
       >
         <div
@@ -230,6 +230,8 @@ export async function GET(req: NextRequest) {
             background: TOP8_RETRO.panel,
             flex: 1,
             width: "100%",
+            borderRadius: 12,
+            overflow: "hidden",
           }}
         >
           <div
@@ -290,12 +292,24 @@ export async function GET(req: NextRequest) {
                   {ownerHasBadge ? <ColumnsLogo logoUrl={logoUrl} size={18} /> : null}
                 </div>
                 {followerLabel ? (
-                  <div style={{ ...flex(), fontSize: 16, color: TOP8_RETRO.textMuted }}>
-                    <span>{profile.displayName} has </span>
-                    <span style={{ color: TOP8_RETRO.accentMuted, fontWeight: 700 }}>
+                  <div
+                    style={{
+                      ...flex({ alignItems: "center" }),
+                      fontSize: 16,
+                      color: TOP8_RETRO.textMuted,
+                    }}
+                  >
+                    <span>{profile.displayName} has</span>
+                    <span
+                      style={{
+                        color: TOP8_RETRO.accentMuted,
+                        fontWeight: 700,
+                        padding: "0 10px",
+                      }}
+                    >
                       {followerLabel}
                     </span>
-                    <span> Friends.</span>
+                    <span>Friends.</span>
                   </div>
                 ) : null}
               </div>
@@ -343,24 +357,24 @@ export async function GET(req: NextRequest) {
 
             <div
               style={{
-                ...flex({ alignItems: "center", gap: 8, justifyContent: "flex-end" }),
+                ...flex({ alignItems: "center", gap: 10, justifyContent: "flex-end" }),
                 marginTop: "auto",
                 paddingTop: 14,
-                paddingRight: 4,
+                paddingRight: 8,
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={logoUrl}
                 alt=""
-                width={32}
-                height={32}
-                style={{ borderRadius: 6, objectFit: "cover" }}
+                width={64}
+                height={64}
+                style={{ borderRadius: 8, objectFit: "cover" }}
               />
               <div
                 style={{
                   ...flex(),
-                  fontSize: 15,
+                  fontSize: 18,
                   fontWeight: 700,
                   color: TOP8_RETRO.accentMuted,
                 }}
