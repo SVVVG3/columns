@@ -235,8 +235,8 @@ export function MiniAppProfileClient({
   const canGoBack = miniAppProfileStack.length > 0;
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <div className="max-w-lg mx-auto pb-8">
+    <div className="h-full min-h-0 flex flex-col bg-[var(--background)] text-[var(--foreground)]">
+      <div className="flex-1 min-h-0 overflow-y-auto feed-scroll max-w-lg mx-auto w-full">
         {canGoBack && (
           <div className="px-4 pt-3">
             <button
@@ -258,7 +258,7 @@ export function MiniAppProfileClient({
           </div>
         ) : null}
 
-        <div className="px-4 pt-4">
+        <div className="px-4 pt-4 pb-4">
           <div className="flex items-start gap-4">
             <UserAvatar src={profile.pfpUrl} alt={profile.displayName} size="xl" />
             <div className="min-w-0 flex-1 pt-1">
@@ -295,68 +295,73 @@ export function MiniAppProfileClient({
             linkMode
             onProfileNavigate={navigateToProfile}
           />
-
-          <div className="mt-6 flex flex-col gap-2">
-            {ownsProfile && (
-              <button
-                type="button"
-                onClick={() => void handleShare()}
-                className="w-full py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium"
-              >
-                Copy share link
-              </button>
-            )}
-            {!ownsProfile && !viewer && (
-              <button
-                type="button"
-                onClick={() => void signInWithMiniApp()}
-                disabled={signInLoading}
-                className="w-full py-2.5 rounded-xl bg-[var(--accent)] text-white text-sm font-medium disabled:opacity-50"
-              >
-                {signInLoading ? "Signing in…" : "Sign in with Farcaster"}
-              </button>
-            )}
-            {fcUrl && (
-              <a
-                href={fcUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full py-2.5 rounded-xl border border-[var(--border)] text-center text-sm font-medium hover:bg-[var(--surface-hover)]"
-              >
-                View on Farcaster
-              </a>
-            )}
-            <a
-              href="/profile/me"
-              className="w-full py-2.5 rounded-xl border border-[var(--border)] text-center text-sm font-medium hover:bg-[var(--surface-hover)]"
-            >
-              View My Profile
-            </a>
-            <a
-              href={columnsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2.5 rounded-xl border border-[var(--border)] text-center text-sm font-medium hover:bg-[var(--surface-hover)]"
-            >
-              Follow Columns
-            </a>
-            <a
-              href={communityUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2.5 rounded-xl border border-[var(--border)] text-center text-sm font-medium hover:bg-[var(--surface-hover)]"
-            >
-              Join Our Community
-            </a>
-          </div>
-
-          {shareMsg && (
-            <p className="mt-3 text-xs text-[var(--accent)] text-center">{shareMsg}</p>
-          )}
-          {signInError && (
-            <p className="mt-3 text-xs text-red-400 text-center">{signInError}</p>
-          )}
         </div>
+      </div>
+
+      <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] px-4 py-3 max-w-lg mx-auto w-full">
+        {ownsProfile && (
+          <button
+            type="button"
+            onClick={() => void handleShare()}
+            className="w-full py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium"
+          >
+            Copy share link
+          </button>
+        )}
+        {!ownsProfile && !viewer && (
+          <button
+            type="button"
+            onClick={() => void signInWithMiniApp()}
+            disabled={signInLoading}
+            className="w-full py-2 rounded-lg bg-[var(--accent)] text-white text-sm font-medium disabled:opacity-50"
+          >
+            {signInLoading ? "Signing in…" : "Sign in with Farcaster"}
+          </button>
+        )}
+
+        <div
+          className={`grid grid-cols-2 gap-2 ${ownsProfile || (!ownsProfile && !viewer) ? "mt-2" : ""}`}
+        >
+          {fcUrl && (
+            <a
+              href={fcUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="py-2 px-2 rounded-lg border border-[var(--border)] text-center text-xs font-medium hover:bg-[var(--surface-hover)]"
+            >
+              View on Farcaster
+            </a>
+          )}
+          <a
+            href="/profile/me"
+            className="py-2 px-2 rounded-lg border border-[var(--border)] text-center text-xs font-medium hover:bg-[var(--surface-hover)]"
+          >
+            View My Profile
+          </a>
+          <a
+            href={columnsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="py-2 px-2 rounded-lg border border-[var(--border)] text-center text-xs font-medium hover:bg-[var(--surface-hover)]"
+          >
+            Follow Columns
+          </a>
+          <a
+            href={communityUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="py-2 px-2 rounded-lg border border-[var(--border)] text-center text-xs font-medium hover:bg-[var(--surface-hover)]"
+          >
+            Join Community
+          </a>
+        </div>
+
+        {shareMsg && (
+          <p className="mt-2 text-[10px] text-[var(--accent)] text-center">{shareMsg}</p>
+        )}
+        {signInError && (
+          <p className="mt-2 text-[10px] text-red-400 text-center">{signInError}</p>
+        )}
       </div>
     </div>
   );

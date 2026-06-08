@@ -9,6 +9,11 @@ function splitTrailingPunctuation(value: string): { core: string; trailing: stri
   return { core, trailing: value.slice(core.length) };
 }
 
+/** Display URL without scheme (https://mintedmerch.shop → mintedmerch.shop). */
+export function formatUrlDisplayLabel(url: string): string {
+  return url.replace(/^https?:\/\//i, "").replace(/^www\./i, "");
+}
+
 export interface LinkifyTextOptions {
   /** Open in-app profile preview when an @mention is clicked. */
   onMentionClick?: (username: string) => void;
@@ -80,6 +85,7 @@ export function renderLinkifiedText(
       const raw = protocolUrl ?? bareDomain ?? full;
       const { core, trailing } = splitTrailingPunctuation(raw);
       const href = protocolUrl ? core : `https://${core}`;
+      const label = formatUrlDisplayLabel(core);
 
       nodes.push(
         <a
@@ -89,7 +95,7 @@ export function renderLinkifiedText(
           rel="noopener noreferrer"
           className="text-[var(--accent)] hover:underline break-all"
         >
-          {core}
+          {label}
         </a>
       );
       if (trailing) nodes.push(trailing);
