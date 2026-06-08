@@ -24,6 +24,15 @@ const HOME_COLUMN: FeedColumnConfig = {
   title: "Home Feed",
 };
 
+const SELECTED_COL_KEY = "miniapp_selected_col";
+
+function readSavedColumnId(): string | null {
+  try { return sessionStorage.getItem(SELECTED_COL_KEY); } catch { return null; }
+}
+function saveColumnId(id: string): void {
+  try { sessionStorage.setItem(SELECTED_COL_KEY, id); } catch { /* ignore */ }
+}
+
 async function fetchColumnsAccess(fid: number): Promise<boolean> {
   const res = await fetch(`/api/miniapp/columns-access?fid=${fid}`);
   if (!res.ok) return false;
@@ -52,7 +61,9 @@ export function MiniAppColumnsClient() {
   const [allowed, setAllowed] = useState<boolean | null>(cached?.allowed ?? null);
   const [signInLoading, setSignInLoading] = useState(cached === null);
   const [signInError, setSignInError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Seed from sessionStorage so the previously-selected column is restored
+  // when navigating away and back within the same session.
+  const [selectedId, setSelectedId] = useState<string | null>(readSavedColumnId);
 
   const refreshViewer = useCallback(async () => {
     const res = await miniappFetch("/api/auth/miniapp", { cache: "no-store" });
@@ -149,15 +160,25 @@ export function MiniAppColumnsClient() {
   // Allowlisted users pick from their saved columns; others always see home feed.
   const columns: FeedColumnConfig[] = allowed ? savedColumns : [HOME_COLUMN];
 
+  // Persist selected column so it survives navigation to profile and back.
+  useEffect(() => {
+    if (selectedId) saveColumnId(selectedId);
+  }, [selectedId]);
+
   useEffect(() => {
     if (columns.length === 0) {
       setSelectedId(null);
       return;
     }
-    if (!selectedId || !columns.some((c) => c.id === selectedId)) {
+    // Prefer the previously-saved column if it still exists in the list.
+    const saved = readSavedColumnId();
+    if (saved && columns.some((c) => c.id === saved)) {
+      setSelectedId(saved);
+    } else if (!selectedId || !columns.some((c) => c.id === selectedId)) {
       setSelectedId(columns[0].id);
     }
-  }, [columns, selectedId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [columns]);
 
   const selectedColumn = useMemo(
     () => columns.find((c) => c.id === selectedId) ?? null,
@@ -220,7 +241,7 @@ export function MiniAppColumnsClient() {
                   ) : (
                     <select
                       value={selectedId ?? savedColumns[0].id}
-                      onChange={(e) => setSelectedId(e.target.value)}
+                      onChange={(e) => { setSelectedId(e.target.value); saveColumnId(e.target.value); }}
                       className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm font-medium text-[var(--foreground)]"
                     >
                       {savedColumns.map((col) => (

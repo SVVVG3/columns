@@ -218,7 +218,7 @@ export function MiniAppToolbar({
           href="/profile/me"
           className={`w-14 h-14 flex items-center justify-center rounded-full transition-colors ${
             activePage === "profile"
-              ? "ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[var(--background)]"
+              ? "ring-2 ring-[var(--brand)] ring-offset-2 ring-offset-[var(--background)]"
               : "hover:opacity-80"
           }`}
           aria-label="My Profile"
