@@ -371,17 +371,6 @@ export async function GET(req: NextRequest) {
                 height={64}
                 style={{ borderRadius: 8, objectFit: "cover" }}
               />
-              <div
-                style={{
-                  ...flex(),
-                  fontSize: 52,
-                  fontWeight: 700,
-                  color: "#ffffff",
-                  lineHeight: 1,
-                }}
-              >
-                Columns
-              </div>
             </div>
           </div>
         </div>
