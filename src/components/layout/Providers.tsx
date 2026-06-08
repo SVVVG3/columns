@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useState } from "react";
 import { LayoutParamCapture } from "@/components/layout/LayoutParamCapture";
+import { MiniAppHomeRedirect } from "@/components/layout/MiniAppHomeRedirect";
 import { MiniAppReady } from "@/components/layout/MiniAppReady";
 
 // ─── Theme context ────────────────────────────────────────────────────────────
@@ -67,6 +68,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ThemeProvider>
         <LayoutParamCapture />
         <MiniAppReady />
+        <MiniAppHomeRedirect />
         {children}
       </ThemeProvider>
     </QueryClientProvider>

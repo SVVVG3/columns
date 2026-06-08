@@ -17,3 +17,13 @@ export function profileOgImageUrl(username: string): string {
   const clean = username.replace(/^@/, "").trim();
   return `${getAppUrl()}/api/og/profile?username=${encodeURIComponent(clean)}`;
 }
+
+export const COLUMNS_FARCASTER_USERNAME = "columns";
+
+export function columnsFarcasterProfileUrl(): string {
+  return `https://farcaster.xyz/${COLUMNS_FARCASTER_USERNAME}`;
+}
+
+export function columnsCommunityChannelUrl(): string {
+  return "https://farcaster.xyz/~/channel/columns";
+}

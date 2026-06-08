@@ -7,14 +7,24 @@ import { useQuery } from "@tanstack/react-query";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { ColumnsBadge } from "@/components/profile/ColumnsBadge";
+import {
+  ProfileMetaLinksRow,
+  ProfileWalletsDropdown,
+} from "@/components/profile/profileMeta";
 import { Top8Section } from "@/components/profile/Top8Section";
-import { profileShareUrl } from "@/lib/appUrl";
+import {
+  columnsCommunityChannelUrl,
+  columnsFarcasterProfileUrl,
+  profileShareUrl,
+} from "@/lib/appUrl";
+import { renderLinkifiedText } from "@/lib/linkifyText";
 import {
   farcasterProfileUrl,
   formatProfileCount,
   formatProfileJoinedDate,
   type ProfileDetails,
 } from "@/lib/profilePreview";
+import { useUiStore } from "@/store/ui";
 import type { SessionUser } from "@/types";
 
 async function fetchPublicProfile(username: string): Promise<ProfileDetails> {
@@ -27,10 +37,19 @@ async function fetchPublicProfile(username: string): Promise<ProfileDetails> {
 }
 
 async function fetchSessionUser(): Promise<SessionUser | null> {
-  const res = await fetch("/api/auth/session", { cache: "no-store" });
-  if (!res.ok) return null;
-  const data = (await res.json()) as { user?: SessionUser | null };
-  return data.user ?? null;
+  const sessionRes = await fetch("/api/auth/session", { cache: "no-store" });
+  if (sessionRes.ok) {
+    const data = (await sessionRes.json()) as { user?: SessionUser | null };
+    if (data.user) return data.user;
+  }
+
+  const miniRes = await fetch("/api/auth/miniapp", { cache: "no-store" });
+  if (miniRes.ok) {
+    const data = (await miniRes.json()) as { user?: SessionUser | null };
+    if (data.user) return data.user;
+  }
+
+  return null;
 }
 
 interface MiniAppProfileClientProps {
@@ -43,6 +62,10 @@ export function MiniAppProfileClient({
   isMeRoute = false,
 }: MiniAppProfileClientProps) {
   const router = useRouter();
+  const miniAppProfileStack = useUiStore((s) => s.miniAppProfileStack);
+  const pushMiniAppProfile = useUiStore((s) => s.pushMiniAppProfile);
+  const popMiniAppProfile = useUiStore((s) => s.popMiniAppProfile);
+
   const [viewer, setViewer] = useState<SessionUser | null>(null);
   const [signInLoading, setSignInLoading] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
@@ -75,18 +98,7 @@ export function MiniAppProfileClient({
     return user;
   }, []);
 
-  useEffect(() => {
-    void sdk.actions.ready().then(() => setSdkReady(true)).catch(() => setSdkReady(true));
-    void refreshViewer();
-  }, [refreshViewer]);
-
-  useEffect(() => {
-    if (!isMeRoute || !sdkReady || viewer) return;
-    void signInWithMiniApp();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMeRoute, sdkReady, viewer]);
-
-  async function signInWithMiniApp() {
+  const signInWithMiniApp = useCallback(async () => {
     setSignInLoading(true);
     setSignInError(null);
     try {
@@ -95,16 +107,60 @@ export function MiniAppProfileClient({
       });
       if (!res.ok) {
         setSignInError("Sign in was cancelled or failed.");
-        return;
+        return null;
       }
-      const user = await refreshViewer();
-      if (user && isMeRoute && user.username) {
-        router.replace(`/profile/${encodeURIComponent(user.username)}`);
-      }
+      return await refreshViewer();
     } catch {
       setSignInError("Open this page in Warpcast or another Farcaster client to sign in.");
+      return null;
     } finally {
       setSignInLoading(false);
+    }
+  }, [refreshViewer]);
+
+  useEffect(() => {
+    void sdk.actions.ready().then(() => setSdkReady(true)).catch(() => setSdkReady(true));
+    void refreshViewer();
+  }, [refreshViewer]);
+
+  useEffect(() => {
+    if (!isMeRoute || !sdkReady || viewer) return;
+    void signInWithMiniApp().then((user) => {
+      if (user?.username) {
+        router.replace(`/profile/${encodeURIComponent(user.username)}`);
+      }
+    });
+  }, [isMeRoute, sdkReady, viewer, signInWithMiniApp, router]);
+
+  /** Sign in when viewing your own profile via a share link (not only /profile/me). */
+  useEffect(() => {
+    if (!sdkReady || viewer || !profile) return;
+    void (async () => {
+      try {
+        const ctx = await sdk.context;
+        if (ctx?.user?.fid === profile.fid) {
+          await signInWithMiniApp();
+        }
+      } catch {
+        /* not in a mini app host */
+      }
+    })();
+  }, [sdkReady, viewer, profile, signInWithMiniApp]);
+
+  const navigateToProfile = useCallback(
+    (targetUsername: string) => {
+      const clean = targetUsername.replace(/^@/, "").trim();
+      if (!clean || clean === username) return;
+      pushMiniAppProfile(username);
+      router.push(`/profile/${encodeURIComponent(clean)}`);
+    },
+    [username, pushMiniAppProfile, router]
+  );
+
+  function handleBack() {
+    const prev = popMiniAppProfile();
+    if (prev) {
+      router.push(`/profile/${encodeURIComponent(prev)}`);
     }
   }
 
@@ -165,15 +221,37 @@ export function MiniAppProfileClient({
     );
   }
 
-  const isOwnProfile = viewer?.fid === profile.fid;
+  const viewerFid = viewer?.fid;
+  const ownsProfile = viewerFid != null && viewerFid === profile.fid;
+
   const fcUrl = farcasterProfileUrl(profile.username);
+  const columnsUrl = columnsFarcasterProfileUrl();
+  const communityUrl = columnsCommunityChannelUrl();
   const joined = formatProfileJoinedDate(profile.registeredAt);
   const followers = formatProfileCount(profile.followerCount);
   const following = formatProfileCount(profile.followingCount);
+  const wallets = profile.wallets ?? [];
+  const profileLinks = profile.profileLinks ?? [];
+  const canGoBack = miniAppProfileStack.length > 0;
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <div className="max-w-lg mx-auto pb-8">
+        {canGoBack && (
+          <div className="px-4 pt-3">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--accent)] hover:underline"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back
+            </button>
+          </div>
+        )}
+
         {profile.bannerUrl ? (
           <div className="relative w-full aspect-[3/1] bg-[var(--surface-hover)]">
             <Image src={profile.bannerUrl} alt="" fill className="object-cover" unoptimized />
@@ -184,42 +262,42 @@ export function MiniAppProfileClient({
           <div className="flex items-start gap-4">
             <UserAvatar src={profile.pfpUrl} alt={profile.displayName} size="xl" />
             <div className="min-w-0 flex-1 pt-1">
-              <p className="text-lg font-semibold truncate">{profile.displayName}</p>
+              <div className="flex items-center gap-2 min-w-0">
+                <p className="text-lg font-semibold truncate">{profile.displayName}</p>
+                {columnsBadge?.showBadge && <ColumnsBadge />}
+              </div>
               <p className="text-sm text-[var(--muted)] truncate">@{profile.username}</p>
-              {columnsBadge?.showBadge && (
-                <div className="mt-2">
-                  <ColumnsBadge />
-                </div>
-              )}
+              <ProfileWalletsDropdown wallets={wallets} fid={profile.fid} />
             </div>
           </div>
 
           {profile.bio ? (
-            <p className="mt-4 text-sm leading-relaxed whitespace-pre-wrap">{profile.bio}</p>
+            <p className="mt-4 text-sm leading-relaxed whitespace-pre-wrap break-words">
+              {renderLinkifiedText(profile.bio, {
+                onMentionClick: (mentionUsername) => navigateToProfile(mentionUsername),
+              })}
+            </p>
           ) : null}
 
-          {(followers != null || following != null || joined) && (
+          {(followers != null || following != null) && (
             <p className="mt-3 text-xs text-[var(--muted)]">
               {followers != null && <span>{followers} followers</span>}
               {followers != null && following != null && <span> · </span>}
               {following != null && <span>{following} following</span>}
-              {joined && (
-                <>
-                  {(followers != null || following != null) && <span> · </span>}
-                  <span>Joined {joined}</span>
-                </>
-              )}
             </p>
           )}
 
+          <ProfileMetaLinksRow links={profileLinks} joined={joined} align="left" />
+
           <Top8Section
             ownerFid={profile.fid}
-            isOwnProfile={isOwnProfile}
+            isOwnProfile={ownsProfile}
             linkMode
+            onProfileNavigate={navigateToProfile}
           />
 
           <div className="mt-6 flex flex-col gap-2">
-            {isOwnProfile && (
+            {ownsProfile && (
               <button
                 type="button"
                 onClick={() => void handleShare()}
@@ -228,7 +306,7 @@ export function MiniAppProfileClient({
                 Copy share link
               </button>
             )}
-            {!isOwnProfile && isMeRoute && !viewer && (
+            {!ownsProfile && !viewer && (
               <button
                 type="button"
                 onClick={() => void signInWithMiniApp()}
@@ -249,10 +327,26 @@ export function MiniAppProfileClient({
               </a>
             )}
             <a
-              href="/"
-              className="w-full py-2.5 rounded-xl border border-[var(--border)] text-center text-sm text-[var(--muted)] hover:bg-[var(--surface-hover)]"
+              href="/profile/me"
+              className="w-full py-2.5 rounded-xl border border-[var(--border)] text-center text-sm font-medium hover:bg-[var(--surface-hover)]"
             >
-              Columns app
+              View My Profile
+            </a>
+            <a
+              href={columnsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-2.5 rounded-xl border border-[var(--border)] text-center text-sm font-medium hover:bg-[var(--surface-hover)]"
+            >
+              Follow Columns
+            </a>
+            <a
+              href={communityUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-2.5 rounded-xl border border-[var(--border)] text-center text-sm font-medium hover:bg-[var(--surface-hover)]"
+            >
+              Join Our Community
             </a>
           </div>
 

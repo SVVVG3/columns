@@ -32,6 +32,10 @@ interface UiState {
   reactionActors: ReactionActorsState | null;
   openReactionActors: (state: ReactionActorsState) => void;
   closeReactionActors: () => void;
+  /** Username stack for mini app profile drill-down (Top 8 → profile → back). */
+  miniAppProfileStack: string[];
+  pushMiniAppProfile: (username: string) => void;
+  popMiniAppProfile: () => string | null;
 }
 
 export const useUiStore = create<UiState>()((set) => ({
@@ -89,4 +93,18 @@ export const useUiStore = create<UiState>()((set) => ({
   reactionActors: null,
   openReactionActors: (state) => set({ reactionActors: state }),
   closeReactionActors: () => set({ reactionActors: null }),
+  miniAppProfileStack: [],
+  pushMiniAppProfile: (username) =>
+    set((s) => ({
+      miniAppProfileStack: [...s.miniAppProfileStack, username.replace(/^@/, "").trim()],
+    })),
+  popMiniAppProfile: () => {
+    let prev: string | null = null;
+    set((s) => {
+      if (s.miniAppProfileStack.length === 0) return s;
+      prev = s.miniAppProfileStack[s.miniAppProfileStack.length - 1]!;
+      return { miniAppProfileStack: s.miniAppProfileStack.slice(0, -1) };
+    });
+    return prev;
+  },
 }));

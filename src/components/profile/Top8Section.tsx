@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { sdk } from "@farcaster/miniapp-sdk";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useUiStore } from "@/store/ui";
 import type { Top8Slot } from "@/types";
@@ -36,11 +37,14 @@ export function Top8Section({
   ownerFid,
   isOwnProfile,
   linkMode = false,
+  onProfileNavigate,
 }: {
   ownerFid: number;
   isOwnProfile: boolean;
   /** Navigate to /profile/:user instead of in-app modal */
   linkMode?: boolean;
+  /** Mini app: custom navigation (e.g. push back stack before routing) */
+  onProfileNavigate?: (username: string) => void;
 }) {
   const router = useRouter();
   const openProfilePreview = useUiStore((s) => s.openProfilePreview);
@@ -124,17 +128,27 @@ export function Top8Section({
   async function saveTop8() {
     setSaving(true);
     setSaveError(null);
+    const body = JSON.stringify({
+      slots: draft.map((s) => ({
+        position: s.position,
+        targetFid: s.fid,
+      })),
+    });
     try {
-      const res = await fetch("/api/profile/top8", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slots: draft.map((s) => ({
-            position: s.position,
-            targetFid: s.fid,
-          })),
-        }),
-      });
+      let res: Response;
+      try {
+        res = await sdk.quickAuth.fetch("/api/profile/top8", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body,
+        });
+      } catch {
+        res = await fetch("/api/profile/top8", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body,
+        });
+      }
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         slots?: Top8Slot[];
@@ -197,6 +211,10 @@ export function Top8Section({
                 onClick={() => {
                   if (editing) return;
                   if (linkMode) {
+                    if (onProfileNavigate) {
+                      onProfileNavigate(slot.username);
+                      return;
+                    }
                     router.push(`/profile/${encodeURIComponent(slot.username)}`);
                     return;
                   }
