@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useState } from "react";
 import { LayoutParamCapture } from "@/components/layout/LayoutParamCapture";
+import { MiniAppReady } from "@/components/layout/MiniAppReady";
 
 // ─── Theme context ────────────────────────────────────────────────────────────
 type ThemeMode = "dark" | "light";
@@ -65,6 +66,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <LayoutParamCapture />
+        <MiniAppReady />
         {children}
       </ThemeProvider>
     </QueryClientProvider>

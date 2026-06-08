@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAppUrl } from "@/lib/appUrl";
-import { homeMiniAppEmbedImageUrl } from "@/lib/miniappShare";
+import {
+  homeMiniAppEmbedImageUrl,
+  MINIAPP_SPLASH_BACKGROUND,
+} from "@/lib/miniappShare";
 
 export async function GET() {
   const appUrl = getAppUrl();
@@ -13,7 +16,7 @@ export async function GET() {
     imageUrl: homeMiniAppEmbedImageUrl(),
     buttonTitle: "My Profile",
     splashImageUrl: `${appUrl}/columns-logo.png`,
-    splashBackgroundColor: "#0c0c0f",
+    splashBackgroundColor: MINIAPP_SPLASH_BACKGROUND,
     subtitle: "Top 8 on Columns",
     description:
       "View Columns profiles, curate your Top 8 friends, and share embeddable profile cards on Farcaster.",

@@ -9,8 +9,8 @@ export const runtime = "edge";
 
 const WIDTH = 1200;
 const HEIGHT = 800;
-const AVATAR_SIZE = 100;
-const CELL_WIDTH = 150;
+const AVATAR_SIZE = 150;
+const CELL_WIDTH = 225;
 
 function flex(
   extra: Record<string, string | number> = {}
@@ -20,7 +20,7 @@ function flex(
 
 function Top8Cell({ slot }: { slot: Top8Slot | null }) {
   if (!slot) {
-    return <div style={{ ...flex(), width: CELL_WIDTH, height: 140 }} />;
+    return <div style={{ ...flex(), width: CELL_WIDTH, height: 210 }} />;
   }
 
   return (
@@ -58,10 +58,10 @@ function Top8Cell({ slot }: { slot: Top8Slot | null }) {
       <div
         style={{
           ...flex(),
-          fontSize: 18,
+          fontSize: 27,
           fontWeight: 600,
           color: "#e4e4e7",
-          marginTop: 12,
+          marginTop: 14,
           maxWidth: CELL_WIDTH,
         }}
       >
@@ -73,7 +73,7 @@ function Top8Cell({ slot }: { slot: Top8Slot | null }) {
 
 function Top8Row({ slots, rowKey }: { slots: (Top8Slot | null)[]; rowKey: string }) {
   return (
-    <div style={{ ...flex({ gap: 36, justifyContent: "center" }) }}>
+    <div style={{ ...flex({ gap: 24, justifyContent: "center" }) }}>
       {slots.map((slot, index) => (
         <Top8Cell key={`${rowKey}-${slot?.fid ?? index}`} slot={slot} />
       ))}
@@ -165,8 +165,8 @@ export async function GET(req: NextRequest) {
               ...flex({
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 32,
-                marginTop: 40,
+                gap: 20,
+                marginTop: 28,
               }),
             }}
           >

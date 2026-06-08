@@ -1,5 +1,7 @@
 import { getAppUrl, profileOgImageUrl, profileShareUrl } from "@/lib/appUrl";
 
+export const MINIAPP_SPLASH_BACKGROUND = "#393a8a";
+
 export interface MiniAppEmbedPayload {
   version: "1";
   imageUrl: string;
@@ -32,7 +34,7 @@ export function buildHomeMiniAppEmbed(): MiniAppEmbedPayload {
         name: "Columns",
         url: appUrl,
         splashImageUrl: `${appUrl}/columns-logo.png`,
-        splashBackgroundColor: "#0c0c0f",
+        splashBackgroundColor: MINIAPP_SPLASH_BACKGROUND,
       },
     },
   };
@@ -62,7 +64,7 @@ export function buildProfileMiniAppEmbed(username: string): MiniAppEmbedPayload 
         name: "Columns",
         url: profileUrl,
         splashImageUrl: `${appUrl}/columns-logo.png`,
-        splashBackgroundColor: "#0c0c0f",
+        splashBackgroundColor: MINIAPP_SPLASH_BACKGROUND,
       },
     },
   };
