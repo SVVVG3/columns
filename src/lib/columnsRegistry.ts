@@ -73,3 +73,30 @@ export async function getColumnsUserBadge(fid: number): Promise<{
     showBadge: data?.show_columns_badge ?? false,
   };
 }
+
+/** Batch badge lookup for OG images (Top 8 slots). */
+export async function getColumnsUserBadges(
+  fids: number[]
+): Promise<Map<number, boolean>> {
+  const map = new Map<number, boolean>();
+  if (fids.length === 0) return map;
+
+  const sb = getSupabaseAdmin();
+  if (!sb) return map;
+
+  const unique = [...new Set(fids)];
+  const { data, error } = await sb
+    .from("columns_users")
+    .select("fid, show_columns_badge")
+    .in("fid", unique);
+
+  if (error) {
+    console.error("[columnsRegistry] batch badge lookup failed:", error.message);
+    return map;
+  }
+
+  for (const row of data ?? []) {
+    map.set(row.fid, row.show_columns_badge ?? false);
+  }
+  return map;
+}

@@ -14,13 +14,10 @@ export function MiniAppHomeRedirect() {
     if (didRedirect.current || pathname !== "/") return;
 
     void (async () => {
-      try {
-        await sdk.context;
-        didRedirect.current = true;
-        router.replace("/profile/me");
-      } catch {
-        // Normal browser tab — keep the full Columns home experience.
-      }
+      const inMiniApp = await sdk.isInMiniApp();
+      if (!inMiniApp) return;
+      didRedirect.current = true;
+      router.replace("/profile/me");
     })();
   }, [pathname, router]);
 
