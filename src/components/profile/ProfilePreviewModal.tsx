@@ -358,17 +358,16 @@ function ProfileAddToColumnControl({
 
   function addToColumn(column: FeedColumnConfig) {
     if (fid == null) return;
-    const existing = userColumnTargetFids(column);
-    if (userColumnHasFid(column, fid)) {
-      setMessage(`Already in ${column.title}`);
-      return;
-    }
-    const next = [...existing, fid];
-    updateColumn(column.id, {
-      targetFids: next,
-      targetFid: undefined,
-    });
+    const next = [...userColumnTargetFids(column), fid];
+    updateColumn(column.id, { targetFids: next, targetFid: undefined });
     setMessage(`Added to ${column.title}`);
+  }
+
+  function removeFromColumn(column: FeedColumnConfig) {
+    if (fid == null) return;
+    const next = userColumnTargetFids(column).filter((f) => f !== fid);
+    updateColumn(column.id, { targetFids: next, targetFid: undefined });
+    setMessage(`Removed from ${column.title}`);
   }
 
   const disabled = fid == null || userColumns.length === 0;
@@ -385,12 +384,16 @@ function ProfileAddToColumnControl({
     return (
       <button
         type="button"
-        disabled={disabled || already}
-        title={already ? `Already in ${col.title}` : hint}
-        onClick={() => addToColumn(col)}
-        className="flex-1 py-2 rounded-xl border border-[var(--border)] text-sm font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        disabled={disabled}
+        title={hint}
+        onClick={() => already ? removeFromColumn(col) : addToColumn(col)}
+        className={`flex-1 py-2 rounded-xl border text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+          already
+            ? "border-[var(--border)] text-[var(--muted)] hover:text-red-400 hover:border-red-400/50 hover:bg-red-400/5"
+            : "border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+        }`}
       >
-        {message ?? (already ? "In column" : "Add to column")}
+        {message ?? (already ? "Remove from column" : "Add to column")}
       </button>
     );
   }
@@ -405,7 +408,7 @@ function ProfileAddToColumnControl({
             : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
         }`}
       >
-        {message ?? "Add to column"}
+        {message ?? "Add / remove column"}
       </summary>
       <ul className="absolute bottom-full left-0 right-0 mb-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-xl overflow-hidden z-10 max-h-40 overflow-y-auto feed-scroll">
         {userColumns.map((col) => {
@@ -414,14 +417,19 @@ function ProfileAddToColumnControl({
             <li key={col.id}>
               <button
                 type="button"
-                disabled={already}
-                onClick={() => addToColumn(col)}
-                className="w-full px-3 py-2.5 text-left text-sm hover:bg-[var(--surface-hover)] disabled:opacity-50 transition-colors"
+                onClick={() => already ? removeFromColumn(col) : addToColumn(col)}
+                className={`w-full px-3 py-2.5 text-left text-sm transition-colors ${
+                  already
+                    ? "hover:bg-red-400/10 group/item"
+                    : "hover:bg-[var(--surface-hover)]"
+                }`}
               >
-                <span className="font-medium text-[var(--foreground)]">{col.title}</span>
-                {already && (
-                  <span className="block text-[10px] text-[var(--muted)]">Already added</span>
-                )}
+                <span className={`font-medium ${already ? "text-[var(--foreground)]" : "text-[var(--foreground)]"}`}>
+                  {col.title}
+                </span>
+                <span className={`block text-[10px] ${already ? "text-[var(--recast)] group-hover/item:text-red-400" : "text-[var(--muted)]"}`}>
+                  {already ? "✓ Added — click to remove" : "Click to add"}
+                </span>
               </button>
             </li>
           );
