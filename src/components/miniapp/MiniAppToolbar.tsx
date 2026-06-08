@@ -3,12 +3,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import columnsLogo from "../../../public/columns-logo.png";
 import farcasterLogoWhite from "../../../public/farcaster-logo-white.png";
 
 interface MiniAppToolbarProps {
   /** Viewer's profile picture URL — shown as the right-most avatar button. */
   viewerPfp?: string | null;
+  /** Viewer's FID — required to enable the waitlist flow. */
+  viewerFid?: number;
   /** Where Follow Columns links to (external Farcaster URL). */
   followColumnsUrl: string;
   /** Where Join Community links to (external Farcaster URL). */
@@ -17,14 +20,42 @@ interface MiniAppToolbarProps {
   activePage?: "columns" | "profile";
 }
 
+type WaitlistState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "joined" }
+  | { status: "needs_follow"; followsProfile: boolean; followsChannel: boolean }
+  | { status: "error" };
+
 export function MiniAppToolbar({
   viewerPfp,
+  viewerFid,
   followColumnsUrl,
   communityUrl,
   activePage,
 }: MiniAppToolbarProps) {
+  const router = useRouter();
   const [infoOpen, setInfoOpen] = useState(false);
+  const [waitlist, setWaitlist] = useState<WaitlistState>({ status: "idle" });
   const infoRef = useRef<HTMLDivElement>(null);
+
+  // Pre-load both pages for instant tab switching
+  useEffect(() => {
+    router.prefetch("/columns");
+    router.prefetch("/profile/me");
+  }, [router]);
+
+  // When info opens and we have a viewer, check waitlist status once
+  useEffect(() => {
+    if (!infoOpen || !viewerFid || waitlist.status !== "idle") return;
+    setWaitlist({ status: "loading" });
+    void fetch(`/api/waitlist?fid=${viewerFid}`)
+      .then((r) => r.json())
+      .then((data: { onWaitlist?: boolean }) => {
+        setWaitlist(data.onWaitlist ? { status: "joined" } : { status: "idle" });
+      })
+      .catch(() => setWaitlist({ status: "idle" }));
+  }, [infoOpen, viewerFid, waitlist.status]);
 
   useEffect(() => {
     if (!infoOpen) return;
@@ -37,10 +68,37 @@ export function MiniAppToolbar({
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [infoOpen]);
 
+  async function handleJoinWaitlist() {
+    if (!viewerFid) return;
+    setWaitlist({ status: "loading" });
+    try {
+      const res = await fetch("/api/waitlist", { method: "POST" });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        needsFollow?: boolean;
+        followsProfile?: boolean;
+        followsChannel?: boolean;
+      };
+      if (data.ok) {
+        setWaitlist({ status: "joined" });
+      } else if (data.needsFollow) {
+        setWaitlist({
+          status: "needs_follow",
+          followsProfile: data.followsProfile ?? false,
+          followsChannel: data.followsChannel ?? false,
+        });
+      } else {
+        setWaitlist({ status: "error" });
+      }
+    } catch {
+      setWaitlist({ status: "error" });
+    }
+  }
+
   return (
     <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] px-6 py-3 max-w-lg mx-auto w-full">
       <div className="flex items-center justify-between">
-        {/* Left: Info button → popover with Follow Columns + Join Community */}
+        {/* Left: Info button → popover */}
         <div ref={infoRef} className="relative">
           <button
             type="button"
@@ -55,7 +113,8 @@ export function MiniAppToolbar({
           </button>
 
           {infoOpen && (
-            <div className="absolute bottom-full left-0 mb-2 w-52 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-lg overflow-hidden z-20">
+            <div className="absolute bottom-full left-0 mb-2 w-64 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-lg overflow-hidden z-20">
+              {/* Follow Columns */}
               <a
                 href={followColumnsUrl}
                 target="_blank"
@@ -63,15 +122,11 @@ export function MiniAppToolbar({
                 className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
                 onClick={() => setInfoOpen(false)}
               >
-                <Image
-                  src={columnsLogo}
-                  alt=""
-                  width={18}
-                  height={18}
-                  className="rounded-sm object-cover shrink-0"
-                />
+                <Image src={columnsLogo} alt="" width={18} height={18} className="rounded-sm object-cover shrink-0" />
                 Follow Columns
               </a>
+
+              {/* Join Community */}
               <a
                 href={communityUrl}
                 target="_blank"
@@ -79,35 +134,74 @@ export function MiniAppToolbar({
                 className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)] border-t border-[var(--border)]"
                 onClick={() => setInfoOpen(false)}
               >
-                <Image
-                  src={farcasterLogoWhite}
-                  alt=""
-                  width={18}
-                  height={18}
-                  className="rounded-sm object-cover shrink-0"
-                />
+                <Image src={farcasterLogoWhite} alt="" width={18} height={18} className="rounded-sm object-cover shrink-0" />
                 Join Community
               </a>
+
+              {/* Join Waitlist */}
+              <div className="border-t border-[var(--border)]">
+                {waitlist.status === "joined" ? (
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <span className="text-[var(--recast)] text-lg leading-none">✓</span>
+                    <span className="text-sm font-medium text-[var(--recast)]">You're on the waitlist!</span>
+                  </div>
+                ) : waitlist.status === "needs_follow" ? (
+                  <div className="px-4 py-3 space-y-1">
+                    <p className="text-xs font-semibold text-[var(--foreground)]">To join the waitlist:</p>
+                    <p className={`text-xs ${waitlist.followsProfile ? "text-[var(--recast)]" : "text-[var(--muted)]"}`}>
+                      {waitlist.followsProfile ? "✓" : "○"} Follow <a href={followColumnsUrl} target="_blank" rel="noopener noreferrer" className="underline">@columns</a>
+                    </p>
+                    <p className={`text-xs ${waitlist.followsChannel ? "text-[var(--recast)]" : "text-[var(--muted)]"}`}>
+                      {waitlist.followsChannel ? "✓" : "○"} Follow the <a href="https://farcaster.xyz/~/channel/columns" target="_blank" rel="noopener noreferrer" className="underline">/columns</a> channel
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void handleJoinWaitlist()}
+                      className="mt-1 text-xs font-medium text-[var(--accent)] hover:underline"
+                    >
+                      Check again →
+                    </button>
+                  </div>
+                ) : waitlist.status === "error" ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleJoinWaitlist()}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-400 hover:bg-[var(--surface-hover)]"
+                  >
+                    Something went wrong — try again
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => viewerFid ? void handleJoinWaitlist() : undefined}
+                    disabled={waitlist.status === "loading" || !viewerFid}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="text-base leading-none">🎟</span>
+                    {waitlist.status === "loading" ? "Checking…" : "Join Waitlist"}
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
 
-        {/* Center: Columns logo → /columns */}
+        {/* Center: Columns logo → /columns — largest, most prominent */}
         <Link
           href="/columns"
-          className={`w-14 h-14 flex items-center justify-center rounded-full transition-colors ${
+          className={`w-16 h-16 flex items-center justify-center rounded-2xl transition-all shadow-lg ${
             activePage === "columns"
-              ? "bg-[var(--accent)]/15"
-              : "hover:bg-[var(--surface-hover)]"
+              ? "bg-[var(--accent)] scale-105"
+              : "bg-[var(--accent)]/80 hover:bg-[var(--accent)] hover:scale-105"
           }`}
           aria-label="My Columns"
         >
           <Image
             src={columnsLogo}
             alt="Columns"
-            width={36}
-            height={36}
-            className="rounded-md object-cover"
+            width={42}
+            height={42}
+            className="rounded-lg object-cover"
           />
         </Link>
 

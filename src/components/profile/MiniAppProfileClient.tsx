@@ -18,6 +18,7 @@ import {
   columnsFarcasterProfileUrl,
   profileShareUrl,
 } from "@/lib/appUrl";
+import { miniappSession } from "@/lib/miniappSession";
 import { renderLinkifiedText } from "@/lib/linkifyText";
 import {
   farcasterProfileUrl,
@@ -172,6 +173,7 @@ export function MiniAppProfileClient({
   const refreshViewer = useCallback(async () => {
     const user = await fetchSessionUser();
     setViewer(user);
+    if (user) miniappSession.write(user, miniappSession.read()?.allowed ?? false);
     return user;
   }, []);
 
@@ -391,6 +393,7 @@ export function MiniAppProfileClient({
 
       <MiniAppToolbar
         viewerPfp={viewer?.pfpUrl}
+        viewerFid={viewer?.fid}
         followColumnsUrl={columnsUrl}
         communityUrl={communityUrl}
         activePage="profile"

@@ -13,6 +13,7 @@ import {
   columnsFarcasterProfileUrl,
 } from "@/lib/appUrl";
 import { miniappFetch } from "@/lib/miniappFetch";
+import { miniappSession } from "@/lib/miniappSession";
 import type { FeedColumnConfig, SessionUser } from "@/types";
 
 /** Home feed column shown to all non-allowlisted mini app users. */
@@ -44,9 +45,11 @@ async function fetchLayout(): Promise<FeedColumnConfig[]> {
 }
 
 export function MiniAppColumnsClient() {
-  const [viewer, setViewer] = useState<SessionUser | null>(null);
-  const [allowed, setAllowed] = useState<boolean | null>(null);
-  const [signInLoading, setSignInLoading] = useState(true);
+  // Seed from cache so we skip the loading spinner on re-visits
+  const cached = miniappSession.read();
+  const [viewer, setViewer] = useState<SessionUser | null>(cached?.viewer ?? null);
+  const [allowed, setAllowed] = useState<boolean | null>(cached?.allowed ?? null);
+  const [signInLoading, setSignInLoading] = useState(cached === null);
   const [signInError, setSignInError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -64,6 +67,29 @@ export function MiniAppColumnsClient() {
 
   useEffect(() => {
     void sdk.actions.ready().catch(() => {});
+
+    // If we have a cached session, revalidate silently in the background
+    if (cached) {
+      void (async () => {
+        try {
+          const ctx = await sdk.context;
+          const fid = ctx?.user?.fid ?? cached.viewer.fid;
+          const [isAllowed, user] = await Promise.all([
+            fetchColumnsAccess(fid),
+            refreshViewer(),
+          ]);
+          const resolvedUser = user ?? cached.viewer;
+          setAllowed(isAllowed);
+          setViewer(resolvedUser);
+          miniappSession.write(resolvedUser, isAllowed);
+        } catch {
+          /* keep stale cache */
+        }
+      })();
+      return;
+    }
+
+    // Cold start — full sign-in flow
     void (async () => {
       setSignInLoading(true);
       setSignInError(null);
@@ -75,24 +101,30 @@ export function MiniAppColumnsClient() {
           return;
         }
 
-        const isAllowed = await fetchColumnsAccess(fid);
+        const [isAllowed, existingUser] = await Promise.all([
+          fetchColumnsAccess(fid),
+          refreshViewer(),
+        ]);
         setAllowed(isAllowed);
 
-        let user = await refreshViewer();
+        let user = existingUser;
         if (!user) {
           user = await signInMiniApp();
           setViewer(user);
         }
         if (!user) {
           setSignInError("Sign in was cancelled or failed.");
+          return;
         }
+        miniappSession.write(user, isAllowed);
       } catch {
         setSignInError("Could not sign in.");
       } finally {
         setSignInLoading(false);
       }
     })();
-  }, [refreshViewer]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data: savedColumns = [], isLoading: layoutLoading } = useQuery({
     queryKey: ["miniapp-layout", viewer?.fid],
@@ -144,6 +176,7 @@ export function MiniAppColumnsClient() {
               .then((user) => {
                 setViewer(user);
                 if (!user) setSignInError("Sign in was cancelled or failed.");
+                else miniappSession.write(user, allowed ?? false);
               })
               .finally(() => setSignInLoading(false));
           }}
@@ -205,6 +238,7 @@ export function MiniAppColumnsClient() {
 
       <MiniAppToolbar
         viewerPfp={viewer.pfpUrl}
+        viewerFid={viewer.fid}
         followColumnsUrl={columnsUrl}
         communityUrl={communityUrl}
         activePage="columns"

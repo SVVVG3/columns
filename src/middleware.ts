@@ -12,6 +12,7 @@ const BETA_PUBLIC_API = [
   "/api/columns-user",
   "/api/og/profile",
   "/api/miniapp/columns-access",
+  "/api/waitlist",
 ];
 
 /** Profile mini app APIs readable without auth (GET top8). */
