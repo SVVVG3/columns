@@ -253,7 +253,7 @@ export async function GET(req: NextRequest) {
               padding: "14px 18px 10px",
             }}
           >
-            <div style={{ ...flex({ alignItems: "center", gap: 14 }) }}>
+            <div style={{ ...flex({ alignItems: "center", gap: 16 }) }}>
               <div
                 style={{
                   ...flex(),
@@ -266,36 +266,36 @@ export async function GET(req: NextRequest) {
                   <img
                     src={profile.pfpUrl}
                     alt=""
-                    width={64}
-                    height={64}
+                    width={80}
+                    height={80}
                     style={{ objectFit: "cover" }}
                   />
                 ) : (
                   <div
                     style={{
-                      width: 64,
-                      height: 64,
+                      width: 80,
+                      height: 80,
                       background: TOP8_RETRO.photoPlaceholder,
                     }}
                   />
                 )}
               </div>
-              <div style={{ ...flex({ flexDirection: "column", gap: 4 }) }}>
+              <div style={{ ...flex({ flexDirection: "column", gap: 6 }) }}>
                 <div
                   style={{
-                    ...flex({ alignItems: "center", gap: 8 }),
-                    fontSize: 20,
+                    ...flex({ alignItems: "center", gap: 10 }),
+                    fontSize: 26,
                     color: TOP8_RETRO.link,
                   }}
                 >
                   <div style={{ ...flex() }}>@{profile.username}</div>
-                  {ownerHasBadge ? <ColumnsLogo logoUrl={logoUrl} size={18} /> : null}
+                  {ownerHasBadge ? <ColumnsLogo logoUrl={logoUrl} size={24} /> : null}
                 </div>
                 {followerLabel ? (
                   <div
                     style={{
                       ...flex({ alignItems: "center" }),
-                      fontSize: 16,
+                      fontSize: 20,
                       color: TOP8_RETRO.textMuted,
                     }}
                   >
@@ -374,9 +374,10 @@ export async function GET(req: NextRequest) {
               <div
                 style={{
                   ...flex(),
-                  fontSize: 18,
+                  fontSize: 52,
                   fontWeight: 700,
-                  color: TOP8_RETRO.accentMuted,
+                  color: "#ffffff",
+                  lineHeight: 1,
                 }}
               >
                 Columns
