@@ -220,7 +220,7 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
               parentHash ? "Write your reply…" : quoteCast ? "Add your thoughts…" : "What's on your mind?"
             }
             rows={1}
-            className="w-full bg-transparent text-[var(--foreground)] text-sm placeholder:text-[var(--muted)] resize-none outline-none leading-normal overflow-hidden"
+            className="w-full bg-transparent text-[var(--foreground)] text-base placeholder:text-[var(--muted)] resize-none outline-none leading-normal overflow-hidden"
             onKeyDown={(e) => {
               if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && canSubmit) handleSubmit();
             }}
