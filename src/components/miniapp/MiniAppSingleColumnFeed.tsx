@@ -88,20 +88,6 @@ export function MiniAppSingleColumnFeed({
     [pushMiniAppProfile, router, scrollKey]
   );
 
-  // Restore scroll after data loads (React Query serves cached data immediately
-  // so this fires on the same tick as the initial render on back-navigation).
-  useEffect(() => {
-    if (status !== "success") return;
-    const saved = sessionStorage.getItem(scrollKey);
-    if (!saved) return;
-    sessionStorage.removeItem(scrollKey);
-    const scrollTop = parseInt(saved, 10);
-    if (!isNaN(scrollTop) && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollTop;
-    }
-  // Only run once when data first becomes available for this column.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, scrollKey]);
   const isNews = isNewsFeedColumn(column);
 
   const feedQueryKey = isNews
@@ -165,6 +151,21 @@ export function MiniAppSingleColumnFeed({
     refreshIntervalMs: refreshInterval,
     enabled: autoRefresh && status === "success",
   });
+
+  // Restore scroll position after data loads on back-navigation.
+  // React Query serves cached data immediately (staleTime: 30s), so this
+  // fires on the same render cycle as mount when navigating back.
+  useEffect(() => {
+    if (status !== "success") return;
+    const saved = sessionStorage.getItem(scrollKey);
+    if (!saved) return;
+    sessionStorage.removeItem(scrollKey);
+    const scrollTop = parseInt(saved, 10);
+    if (!isNaN(scrollTop) && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollTop;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, scrollKey]);
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useCallback(
