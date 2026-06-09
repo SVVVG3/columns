@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { AddColumnModal } from "@/components/feed/AddColumnModal";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -95,6 +96,7 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
   const overlayFocus = useUiStore((s) => s.overlayFocus);
   const columns = useColumnsStore((s) => s.columns);
   const addColumn = useColumnsStore((s) => s.addColumn);
+  const [showAddColumn, setShowAddColumn] = useState(false);
 
   const { data: profile, isLoading, isError } = useQuery<ProfileDetails>({
     queryKey: ["profile", "v4", seed?.fid, seed?.username],
@@ -322,7 +324,9 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
           <ProfileAddToColumnControl
             fid={fid}
             username={username}
+            pfpUrl={pfpUrl}
             userColumns={getUserFeedColumns(columns)}
+            onCreateNew={() => setShowAddColumn(true)}
           />
           {profileUrl && (
             <a
@@ -337,18 +341,37 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
         </div>
       </div>
     </div>
+
+    {showAddColumn && fid != null && (
+      <AddColumnModal
+        onClose={() => setShowAddColumn(false)}
+        initialType="user"
+        initialUserChip={{
+          id: String(fid),
+          label: `@${username}`,
+          fid,
+          username,
+          pfpUrl,
+        }}
+      />
+    )}
   );
 }
 
 function ProfileAddToColumnControl({
   fid,
   username,
+  pfpUrl,
   userColumns,
+  onCreateNew,
 }: {
   fid?: number;
   username: string;
+  pfpUrl?: string | null;
   userColumns: FeedColumnConfig[];
+  onCreateNew?: () => void;
 }) {
+  void pfpUrl; // passed through to AddColumnModal via parent — kept here for prop-drilling clarity
   const updateColumn = useColumnsStore((s) => s.updateColumn);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -370,22 +393,40 @@ function ProfileAddToColumnControl({
     setMessage(`Removed from ${column.title}`);
   }
 
-  const disabled = fid == null || userColumns.length === 0;
-  const hint =
-    userColumns.length === 0
-      ? "Create a User column from the sidebar first"
-      : fid == null
-        ? "Loading profile…"
-        : undefined;
+  // No existing user columns — show "Create User column" if handler provided, else disabled hint.
+  if (userColumns.length === 0) {
+    if (onCreateNew) {
+      return (
+        <button
+          type="button"
+          onClick={onCreateNew}
+          className="flex-1 py-2 rounded-xl border border-[var(--border)] text-sm font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors"
+        >
+          Create User column
+        </button>
+      );
+    }
+    return (
+      <button
+        type="button"
+        disabled
+        title="Create a User column from the sidebar first"
+        className="flex-1 py-2 rounded-xl border border-[var(--border)] text-sm font-medium text-[var(--muted)] opacity-50 cursor-not-allowed"
+      >
+        Add to column
+      </button>
+    );
+  }
 
-  if (userColumns.length === 1) {
+  // Single column without "create new" option — simple toggle button.
+  if (userColumns.length === 1 && !onCreateNew) {
     const col = userColumns[0]!;
     const already = fid != null && userColumnHasFid(col, fid);
+    const disabled = fid == null;
     return (
       <button
         type="button"
         disabled={disabled}
-        title={hint}
         onClick={() => already ? removeFromColumn(col) : addToColumn(col)}
         className={`flex-1 py-2 rounded-xl border text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
           already
@@ -398,10 +439,11 @@ function ProfileAddToColumnControl({
     );
   }
 
+  // Multi-column dropdown (or single column + "New column…" option).
+  const disabled = fid == null;
   return (
     <details className="group flex-1 relative text-left">
       <summary
-        title={hint}
         className={`py-2 rounded-xl border border-[var(--border)] text-sm font-medium text-center list-none cursor-pointer transition-colors [&::-webkit-details-marker]:hidden ${
           disabled
             ? "opacity-50 cursor-not-allowed pointer-events-none text-[var(--muted)]"
@@ -410,7 +452,7 @@ function ProfileAddToColumnControl({
       >
         {message ?? "Add to column"}
       </summary>
-      <ul className="absolute bottom-full left-0 right-0 mb-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-xl overflow-hidden z-10 max-h-40 overflow-y-auto feed-scroll">
+      <ul className="absolute bottom-full left-0 right-0 mb-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-xl overflow-hidden z-10 max-h-48 overflow-y-auto feed-scroll">
         {userColumns.map((col) => {
           const already = fid != null && userColumnHasFid(col, fid);
           return (
@@ -424,9 +466,7 @@ function ProfileAddToColumnControl({
                     : "hover:bg-[var(--surface-hover)]"
                 }`}
               >
-                <span className={`font-medium ${already ? "text-[var(--foreground)]" : "text-[var(--foreground)]"}`}>
-                  {col.title}
-                </span>
+                <span className="font-medium text-[var(--foreground)]">{col.title}</span>
                 <span className={`block text-[10px] ${already ? "text-[var(--recast)] group-hover/item:text-red-400" : "text-[var(--muted)]"}`}>
                   {already ? "✓ Added — click to remove" : "Click to add"}
                 </span>
@@ -434,6 +474,17 @@ function ProfileAddToColumnControl({
             </li>
           );
         })}
+        {onCreateNew && (
+          <li className="border-t border-[var(--border)]">
+            <button
+              type="button"
+              onClick={onCreateNew}
+              className="w-full px-3 py-2.5 text-left text-sm text-[var(--accent)] hover:bg-[var(--surface-hover)] transition-colors"
+            >
+              + New column…
+            </button>
+          </li>
+        )}
       </ul>
     </details>
   );

@@ -14,10 +14,22 @@ import { MAX_COLUMNS, useColumnsStore } from "@/store/columns";
 import { rssColumnTitle } from "@/lib/newsArticle";
 import type { FeedColumnConfig, FeedColumnType } from "@/types";
 
+type InitialUserChip = {
+  id: string;
+  label: string;
+  fid: number;
+  username: string;
+  pfpUrl?: string | null;
+};
+
 interface AddColumnModalProps {
   onClose: () => void;
   /** When provided, opens modal in edit mode pre-populated from the column config */
   editColumn?: FeedColumnConfig;
+  /** Pre-select a column type on open (used when opening from profile "Create column") */
+  initialType?: FeedColumnType;
+  /** Pre-populate the user chip (only used when initialType === "user") */
+  initialUserChip?: InitialUserChip;
 }
 
 const COLUMN_TYPES: { type: FeedColumnType; label: string; description: string }[] = [
@@ -302,14 +314,19 @@ function KeywordInput({
 }
 
 // ─── Modal ───────────────────────────────────────────────────────────────────
-export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
+export function AddColumnModal({ onClose, editColumn, initialType, initialUserChip }: AddColumnModalProps) {
   const { addColumn, updateColumn, columns } = useColumnsStore();
   const isEditMode = !!editColumn;
   const atColumnLimit = !isEditMode && columns.length >= MAX_COLUMNS;
 
-  // Initialise state from editColumn if in edit mode
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  // Scroll the body to reveal the input section when a type with an input is selected.
+  // Uses requestAnimationFrame so the input section has rendered before we measure.
+
+  // Initialise state from editColumn/initialType if provided
   const [selectedType, setSelectedType] = useState<FeedColumnType | null>(
-    editColumn?.type ?? null
+    editColumn?.type ?? initialType ?? null
   );
 
   type ChannelChip = {
@@ -331,8 +348,12 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
     }))
   );
   // User multi-select — pre-fill from existing targetFids (initially show FIDs, then resolve)
+  // or from initialUserChip when opened from a profile card.
   const [userChips, setUserChips] = useState<{ id: string; label: string; fid: number; username: string; pfpUrl?: string | null }[]>(
-    () => (editColumn?.targetFids ?? []).map((fid) => ({ id: String(fid), label: `@${fid}`, fid, username: String(fid) }))
+    () => {
+      if (initialUserChip && !editColumn) return [initialUserChip];
+      return (editColumn?.targetFids ?? []).map((fid) => ({ id: String(fid), label: `@${fid}`, fid, username: String(fid) }));
+    }
   );
 
   // Resolve FIDs → usernames when opening in edit mode
@@ -365,6 +386,19 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  // Scroll the modal body to reveal the input section when a type requiring
+  // input is selected (channel, user, rss, keyword all show a field below the list).
+  useEffect(() => {
+    if (!selectedType) return;
+    const hasInputSection = ["channel", "user", "rss", "keyword"].includes(selectedType);
+    if (!hasInputSection) return;
+    requestAnimationFrame(() => {
+      if (bodyRef.current) {
+        bodyRef.current.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });
+      }
+    });
+  }, [selectedType]);
 
   function mapChannelChip(ch: {
     id: string;
@@ -525,7 +559,7 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-16 bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-[95] flex items-start justify-center pt-16 bg-black/70 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -551,7 +585,7 @@ export function AddColumnModal({ onClose, editColumn }: AddColumnModalProps) {
         )}
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1 min-h-0">
+        <div ref={bodyRef} className="overflow-y-auto flex-1 min-h-0">
           {/* Type picker */}
           <div className="p-3 space-y-1.5">
             {COLUMN_TYPES.map(({ type, label, description }) => (
