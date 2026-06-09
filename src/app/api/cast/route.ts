@@ -3,6 +3,8 @@ import type { PostCastReqBodyEmbeds } from "@neynar/nodejs-sdk/build/api";
 import { neynar } from "@/lib/neynar";
 import { getSession } from "@/lib/session";
 import { verifyCsrf } from "@/lib/csrf";
+import { canPublishFarcasterWrites } from "@/lib/profileAccess";
+import { handleRevokedSignerOnError } from "@/lib/signerWrites";
 import { deleteCached, invalidateFeedCaches } from "@/lib/feedCache";
 
 /** Hypersnap omits the 0x prefix; Neynar requires it. */
@@ -42,6 +44,9 @@ export async function POST(req: NextRequest) {
   if (!session.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (!canPublishFarcasterWrites(session.user)) {
+    return NextResponse.json({ error: "Write access required" }, { status: 403 });
+  }
 
   const { text, parentHash, channelId, embeds, threadRootHash } = await req.json();
 
@@ -74,6 +79,16 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(cast);
   } catch (err: unknown) {
+    if (await handleRevokedSignerOnError(session.user.fid, err)) {
+      return NextResponse.json(
+        {
+          error: "signer_revoked",
+          message:
+            "Farcaster permissions were revoked. Sign in on desktop to re-authorize.",
+        },
+        { status: 403 }
+      );
+    }
     const axiosData =
       err && typeof err === "object" && "response" in err
         ? (err as { response?: { data?: { message?: string } } }).response?.data
@@ -96,6 +111,9 @@ export async function DELETE(req: NextRequest) {
   if (!session.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (!canPublishFarcasterWrites(session.user)) {
+    return NextResponse.json({ error: "Write access required" }, { status: 403 });
+  }
 
   const { hash } = await req.json();
 
@@ -103,10 +121,24 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Cast hash is required" }, { status: 400 });
   }
 
-  await neynar.deleteCast({
-    signerUuid: session.user.signerUuid,
-    targetHash: withHexPrefix(hash),
-  });
+  try {
+    await neynar.deleteCast({
+      signerUuid: session.user.signerUuid,
+      targetHash: withHexPrefix(hash),
+    });
+  } catch (err) {
+    if (await handleRevokedSignerOnError(session.user.fid, err)) {
+      return NextResponse.json(
+        {
+          error: "signer_revoked",
+          message:
+            "Farcaster permissions were revoked. Sign in on desktop to re-authorize.",
+        },
+        { status: 403 }
+      );
+    }
+    throw err;
+  }
 
   return NextResponse.json({ ok: true });
 }

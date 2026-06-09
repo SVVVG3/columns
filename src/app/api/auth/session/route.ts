@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { verifyCsrf } from "@/lib/csrf";
 import { upsertColumnsUser } from "@/lib/columnsRegistry";
+import { neynar } from "@/lib/neynar";
+import { upsertUserSigner } from "@/lib/signerRegistry";
 import {
   isAllowlistEnforced,
   isBetaGateEnabled,
@@ -19,6 +21,15 @@ export async function GET() {
       username: user.username,
       displayName: user.displayName,
       grantBadge: true,
+    });
+  }
+
+  // Backfill signer UUID for users who approved before Supabase persistence existed.
+  if (user?.signerUuid?.trim() && !user.profileOnly) {
+    void upsertUserSigner({
+      fid: user.fid,
+      signerUuid: user.signerUuid.trim(),
+      status: "approved",
     });
   }
 
@@ -56,6 +67,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  let signerStatus = "approved";
+  let publicKey: string | null = null;
+  try {
+    const signer = await neynar.lookupSigner({ signerUuid: String(signerUuid) });
+    if (signer.status !== "approved" || signer.fid !== fidNum) {
+      return NextResponse.json(
+        { error: "signer_not_approved" },
+        { status: 400 }
+      );
+    }
+    signerStatus = signer.status;
+    publicKey = signer.public_key ?? null;
+  } catch (err) {
+    console.error("[auth/session] signer lookup failed:", err);
+    return NextResponse.json({ error: "signer_lookup_failed" }, { status: 502 });
+  }
+
   session.user = {
     fid: fidNum,
     signerUuid,
@@ -66,11 +94,18 @@ export async function POST(req: NextRequest) {
   };
   await session.save();
 
-  void upsertColumnsUser({
+  await upsertColumnsUser({
     fid: fidNum,
     username: username ?? undefined,
     displayName: displayName ?? undefined,
     grantBadge: true,
+  });
+
+  await upsertUserSigner({
+    fid: fidNum,
+    signerUuid: String(signerUuid),
+    status: signerStatus as "approved",
+    publicKey,
   });
 
   return NextResponse.json({ ok: true });

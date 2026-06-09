@@ -52,6 +52,16 @@ function isMiniAppColumnsReadApi(pathname: string, method: string): boolean {
   );
 }
 
+/** Write APIs allowed for mini app users with a stored managed signer. */
+function isMiniAppWriteApi(pathname: string, method: string): boolean {
+  if (method !== "POST" && method !== "DELETE") return false;
+  return (
+    pathname === "/api/reaction" ||
+    pathname === "/api/cast" ||
+    pathname === "/api/upload/cast-image"
+  );
+}
+
 export async function middleware(request: NextRequest) {
   if (!isBetaGateEnabled()) {
     return NextResponse.next();
@@ -83,6 +93,13 @@ export async function middleware(request: NextRequest) {
     if (
       canUseMiniAppColumns(session.user.fid) &&
       isMiniAppColumnsReadApi(pathname, request.method)
+    ) {
+      return response;
+    }
+    if (
+      canUseMiniAppColumns(session.user.fid) &&
+      session.user.signerUuid?.trim() &&
+      isMiniAppWriteApi(pathname, request.method)
     ) {
       return response;
     }

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { neynar } from "@/lib/neynar";
 import { getSession } from "@/lib/session";
 import { verifyCsrf } from "@/lib/csrf";
+import { canPublishFarcasterWrites } from "@/lib/profileAccess";
+import { handleRevokedSignerOnError } from "@/lib/signerWrites";
 import { ReactionType } from "@neynar/nodejs-sdk/build/api";
 import { deleteCached, invalidateFeedCaches } from "@/lib/feedCache";
 
@@ -20,6 +22,9 @@ export async function POST(req: NextRequest) {
   if (!session.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (!canPublishFarcasterWrites(session.user)) {
+    return NextResponse.json({ error: "Write access required" }, { status: 403 });
+  }
 
   const { type, castHash, castAuthorFid } = await req.json();
 
@@ -27,12 +32,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "type, castHash, castAuthorFid required" }, { status: 400 });
   }
 
-  await neynar.publishReaction({
-    signerUuid: session.user.signerUuid,
-    reactionType: type as ReactionType,
-    target: withHexPrefix(castHash),
-    targetAuthorFid: castAuthorFid,
-  });
+  try {
+    await neynar.publishReaction({
+      signerUuid: session.user.signerUuid,
+      reactionType: type as ReactionType,
+      target: withHexPrefix(castHash),
+      targetAuthorFid: castAuthorFid,
+    });
+  } catch (err) {
+    if (await handleRevokedSignerOnError(session.user.fid, err)) {
+      return NextResponse.json(
+        { error: "signer_revoked", message: "Farcaster permissions were revoked. Sign in on desktop to re-authorize." },
+        { status: 403 }
+      );
+    }
+    throw err;
+  }
 
   // Bust viewer-context and feed list caches so columns pick up reaction state.
   deleteCached(`viewer:${session.user.fid}:likes`);
@@ -52,6 +67,9 @@ export async function DELETE(req: NextRequest) {
   if (!session.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (!canPublishFarcasterWrites(session.user)) {
+    return NextResponse.json({ error: "Write access required" }, { status: 403 });
+  }
 
   const { type, castHash, castAuthorFid } = await req.json();
 
@@ -59,12 +77,22 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "type, castHash, castAuthorFid required" }, { status: 400 });
   }
 
-  await neynar.deleteReaction({
-    signerUuid: session.user.signerUuid,
-    reactionType: type as ReactionType,
-    target: withHexPrefix(castHash),
-    targetAuthorFid: castAuthorFid,
-  });
+  try {
+    await neynar.deleteReaction({
+      signerUuid: session.user.signerUuid,
+      reactionType: type as ReactionType,
+      target: withHexPrefix(castHash),
+      targetAuthorFid: castAuthorFid,
+    });
+  } catch (err) {
+    if (await handleRevokedSignerOnError(session.user.fid, err)) {
+      return NextResponse.json(
+        { error: "signer_revoked", message: "Farcaster permissions were revoked. Sign in on desktop to re-authorize." },
+        { status: 403 }
+      );
+    }
+    throw err;
+  }
 
   deleteCached(`viewer:${session.user.fid}:likes`);
   deleteCached(`viewer:${session.user.fid}:recasts`);

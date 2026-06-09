@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { upsertColumnsUser } from "@/lib/columnsRegistry";
 import { canUseMiniAppColumns } from "@/lib/betaGate";
+import { canPublishFarcasterWrites } from "@/lib/profileAccess";
 import { verifyQuickAuthToken } from "@/lib/miniappAuth";
+import { resolveSignerUuidForFid } from "@/lib/resolveSessionSigner";
 import { getSession } from "@/lib/session";
 import { lookupUserByFid } from "@/lib/userSearch";
 
@@ -21,9 +23,14 @@ export async function POST(req: NextRequest) {
   }
 
   const session = await getSession();
+  const priorSignerUuid =
+    session.user?.fid === user.fid ? session.user.signerUuid : undefined;
+
+  const signerUuid = await resolveSignerUuidForFid(user.fid, priorSignerUuid);
+
   session.user = {
     fid: user.fid,
-    signerUuid: "",
+    signerUuid,
     username: user.username ?? String(fid),
     displayName: user.display_name ?? user.username ?? String(fid),
     pfpUrl: user.pfp_url ?? "",
@@ -37,6 +44,8 @@ export async function POST(req: NextRequest) {
     displayName: session.user.displayName,
   });
 
+  const canWrite = canPublishFarcasterWrites(session.user);
+
   return NextResponse.json({
     ok: true,
     user: {
@@ -46,6 +55,7 @@ export async function POST(req: NextRequest) {
       pfpUrl: session.user.pfpUrl,
       profileOnly: true,
       columnsAccess: canUseMiniAppColumns(session.user.fid),
+      canWrite,
     },
   });
 }
@@ -56,7 +66,11 @@ export async function GET() {
   const user = session.user?.profileOnly ? session.user : null;
   return NextResponse.json({
     user: user
-      ? { ...user, columnsAccess: canUseMiniAppColumns(user.fid) }
+      ? {
+          ...user,
+          columnsAccess: canUseMiniAppColumns(user.fid),
+          canWrite: canPublishFarcasterWrites(user),
+        }
       : null,
   });
 }
