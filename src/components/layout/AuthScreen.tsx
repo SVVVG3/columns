@@ -282,17 +282,33 @@ export function AuthScreen({
                 <p className="text-sm text-white text-center">
                   Approve Columns in Farcaster to finish signing in.
                 </p>
-                <div className="rounded-xl bg-white p-3">
-                  <QRCodeSVG value={pendingSigner.signer_approval_url} size={180} />
+
+                {/* Desktop: show QR code to scan with phone */}
+                <div className="hidden sm:flex flex-col items-center gap-3">
+                  <div className="rounded-xl bg-white p-3">
+                    <QRCodeSVG value={pendingSigner.signer_approval_url} size={180} />
+                  </div>
+                  <p className="text-xs text-[var(--muted)] text-center">
+                    Scan with your phone's camera or Farcaster app
+                  </p>
                 </div>
+
+                {/* Mobile: tap-to-open button (QR isn't useful on the same device) */}
                 <a
                   href={pendingSigner.signer_approval_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-[var(--accent)] hover:underline text-center"
+                  className="sm:hidden w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[var(--accent)] text-white text-sm font-semibold text-center"
                 >
-                  Open approval link in Farcaster
+                  <Image
+                    src={farcasterLogoWhite}
+                    alt=""
+                    width={18}
+                    height={18}
+                    className="object-contain shrink-0"
+                    aria-hidden
+                  />
+                  Open in Farcaster to approve
                 </a>
+
                 <p className="text-xs text-[var(--muted)] text-center">
                   Waiting for approval…
                 </p>
