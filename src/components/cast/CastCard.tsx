@@ -28,6 +28,7 @@ import { SpaceCard } from "@/components/cast/SpaceCard";
 import { MiniAppFrameCard } from "@/components/cast/MiniAppFrameCard";
 import { TokenCard } from "@/components/cast/TokenCard";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { miniappFetch } from "@/lib/miniappFetch";
 import { formatEmbedTime } from "@/lib/formatEmbedTime";
 import { channelColumnFromSlug, columnHasChannel } from "@/lib/channelColumn";
 import { formatChannelLabel } from "@/lib/channelDisplay";
@@ -54,6 +55,8 @@ interface CastCardProps {
    * instead of opening the desktop profile preview modal.
    */
   onAuthorClick?: (username: string) => void;
+  /** Larger reply/recast/like targets for mini app touch (2× icon + padding). */
+  touchFriendly?: boolean;
 }
 
 // ─── Embed classification ─────────────────────────────────────────────────────
@@ -250,7 +253,14 @@ function isFrameLikeEmbed(e: Embed, castFrameUrls: Set<string>): boolean {
 
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed", onAuthorClick }: CastCardProps) {
+export function CastCard({
+  cast,
+  viewerFid,
+  threadRootHash,
+  variant = "feed",
+  onAuthorClick,
+  touchFriendly = false,
+}: CastCardProps) {
   const embedded = variant === "embedded";
   const queryClient = useQueryClient();
   const { openConversation, openProfilePreview, openReactionActors } = useUiStore();
@@ -339,44 +349,65 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed", on
   const [recasted, setRecasted] = useState(serverRecasted);
   const [recastCount, setRecastCount] = useState(serverRecastCount);
 
-  // Sync from server after refetch
-  useEffect(() => { setLiked(serverLiked); }, [serverLiked]);
-  useEffect(() => { setLikeCount(serverLikeCount); }, [serverLikeCount]);
-  useEffect(() => { setRecasted(serverRecasted); }, [serverRecasted]);
-  useEffect(() => { setRecastCount(serverRecastCount); }, [serverRecastCount]);
+  const invalidateFeedQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ["feed"] });
+    queryClient.invalidateQueries({ queryKey: ["miniapp-feed"] });
+  };
 
   const likeMutation = useMutation({
     mutationFn: async (currentlyLiked: boolean) => {
-      const res = await fetch("/api/reaction", {
+      const res = await miniappFetch("/api/reaction", {
         method: currentlyLiked ? "DELETE" : "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ type: "like", castHash: cast.hash, castAuthorFid: author.fid }),
       });
       if (!res.ok) throw new Error("Reaction failed");
     },
+    onSuccess: () => {
+      invalidateFeedQueries();
+    },
     onError: () => {
-      // Revert on failure
       setLiked(serverLiked);
       setLikeCount(serverLikeCount);
-      queryClient.invalidateQueries({ queryKey: ["feed"] });
+      invalidateFeedQueries();
     },
   });
 
   const recastMutation = useMutation({
     mutationFn: async (currentlyRecasted: boolean) => {
-      const res = await fetch("/api/reaction", {
+      const res = await miniappFetch("/api/reaction", {
         method: currentlyRecasted ? "DELETE" : "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ type: "recast", castHash: cast.hash, castAuthorFid: author.fid }),
       });
       if (!res.ok) throw new Error("Reaction failed");
     },
+    onSuccess: () => {
+      invalidateFeedQueries();
+    },
     onError: () => {
       setRecasted(serverRecasted);
       setRecastCount(serverRecastCount);
-      queryClient.invalidateQueries({ queryKey: ["feed"] });
+      invalidateFeedQueries();
     },
   });
+
+  // Sync from server after refetch — skip while a mutation is in flight so
+  // optimistic UI is not immediately overwritten by stale viewer_context.
+  useEffect(() => {
+    if (!likeMutation.isPending) setLiked(serverLiked);
+  }, [serverLiked, likeMutation.isPending]);
+  useEffect(() => {
+    if (!likeMutation.isPending) setLikeCount(serverLikeCount);
+  }, [serverLikeCount, likeMutation.isPending]);
+  useEffect(() => {
+    if (!recastMutation.isPending) setRecasted(serverRecasted);
+  }, [serverRecasted, recastMutation.isPending]);
+  useEffect(() => {
+    if (!recastMutation.isPending) setRecastCount(serverRecastCount);
+  }, [serverRecastCount, recastMutation.isPending]);
 
   function handleLike() {
     if (likeMutation.isPending) return;
@@ -648,28 +679,33 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed", on
 
             {/* Action bar — stop propagation so clicks don't open the conversation panel */}
             {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
-            <div className="flex items-center gap-4 mt-2.5 -ml-1 relative" onClick={(e) => e.stopPropagation()}>
+            <div
+              className={`flex items-center mt-2.5 relative ${touchFriendly ? "gap-5 -ml-2" : "gap-4 -ml-1"}`}
+              onClick={(e) => e.stopPropagation()}
+            >
               {/* Reply */}
               <button
                 onClick={(e) => { e.stopPropagation(); setReplyOpen(true); }}
-                className="flex items-center gap-1 text-[var(--muted)] hover:text-[var(--accent)] transition-colors"
+                className={`flex items-center gap-1.5 text-[var(--muted)] hover:text-[var(--accent)] transition-colors ${touchFriendly ? "p-2 -m-1" : ""}`}
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className={touchFriendly ? "w-7 h-7" : "w-3.5 h-3.5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
-                {replyCount > 0 && <span className="text-xs">{formatCount(replyCount)}</span>}
+                {replyCount > 0 && (
+                  <span className={touchFriendly ? "text-sm" : "text-xs"}>{formatCount(replyCount)}</span>
+                )}
               </button>
 
               {/* Recast — menu: recast / remove recast or quote cast */}
-              <div ref={recastMenuRef} className="relative flex items-center gap-1">
+              <div ref={recastMenuRef} className="relative flex items-center gap-1.5">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setRecastMenuOpen((o) => !o);
                   }}
-                  className={`flex items-center gap-1 transition-colors ${recasted ? "text-[var(--recast)]" : "text-[var(--muted)] hover:text-[var(--recast)]"}`}
+                  className={`flex items-center gap-1.5 transition-colors ${touchFriendly ? "p-2 -m-1" : ""} ${recasted ? "text-[var(--recast)]" : "text-[var(--muted)] hover:text-[var(--recast)]"}`}
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className={touchFriendly ? "w-7 h-7" : "w-3.5 h-3.5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                 </button>
@@ -680,7 +716,7 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed", on
                       e.stopPropagation();
                       showReactionActors("recasts");
                     }}
-                    className={`text-xs hover:underline focus:outline-none ${recasted ? "text-[var(--recast)]" : "text-[var(--muted)]"}`}
+                    className={`hover:underline focus:outline-none ${touchFriendly ? "text-sm py-2" : "text-xs"} ${recasted ? "text-[var(--recast)]" : "text-[var(--muted)]"}`}
                   >
                     {formatCount(recastCount)}
                   </button>
@@ -720,12 +756,12 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed", on
               </div>
 
               {/* Like */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={handleLike}
-                  className={`flex items-center transition-colors ${liked ? "text-[var(--like)]" : "text-[var(--muted)] hover:text-[var(--like)]"}`}
+                  className={`flex items-center transition-colors ${touchFriendly ? "p-2 -m-1" : ""} ${liked ? "text-[var(--like)]" : "text-[var(--muted)] hover:text-[var(--like)]"}`}
                 >
-                  <svg className="w-3.5 h-3.5" fill={liked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className={touchFriendly ? "w-7 h-7" : "w-3.5 h-3.5"} fill={liked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                   </svg>
                 </button>
@@ -736,7 +772,7 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed", on
                       e.stopPropagation();
                       showReactionActors("likes");
                     }}
-                    className={`text-xs hover:underline focus:outline-none ${liked ? "text-[var(--like)]" : "text-[var(--muted)]"}`}
+                    className={`hover:underline focus:outline-none ${touchFriendly ? "text-sm py-2" : "text-xs"} ${liked ? "text-[var(--like)]" : "text-[var(--muted)]"}`}
                   >
                     {formatCount(likeCount)}
                   </button>

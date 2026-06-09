@@ -6,6 +6,17 @@ import { canPublishFarcasterWrites } from "@/lib/profileAccess";
 import { handleRevokedSignerOnError } from "@/lib/signerWrites";
 import { ReactionType } from "@neynar/nodejs-sdk/build/api";
 import { deleteCached, invalidateFeedCaches } from "@/lib/feedCache";
+import { normalizeCastHash } from "@/lib/viewerContext";
+
+function bustReactionViewerCaches(viewerFid: number, castHash: string) {
+  const bare = normalizeCastHash(castHash);
+  deleteCached(`viewer:${viewerFid}:likes`);
+  deleteCached(`viewer:${viewerFid}:recasts`);
+  deleteCached(`batch-interactions:${viewerFid}`);
+  deleteCached(`cast:likes:${bare}`);
+  deleteCached(`cast:recasts:${bare}`);
+  invalidateFeedCaches(viewerFid);
+}
 
 /** Hypersnap omits the 0x prefix; Neynar requires it. */
 function withHexPrefix(hash: string): string {
@@ -49,10 +60,7 @@ export async function POST(req: NextRequest) {
     throw err;
   }
 
-  // Bust viewer-context and feed list caches so columns pick up reaction state.
-  deleteCached(`viewer:${session.user.fid}:likes`);
-  deleteCached(`viewer:${session.user.fid}:recasts`);
-  invalidateFeedCaches(session.user.fid);
+  bustReactionViewerCaches(session.user.fid, castHash);
 
   return NextResponse.json({ ok: true });
 }
@@ -94,9 +102,7 @@ export async function DELETE(req: NextRequest) {
     throw err;
   }
 
-  deleteCached(`viewer:${session.user.fid}:likes`);
-  deleteCached(`viewer:${session.user.fid}:recasts`);
-  invalidateFeedCaches(session.user.fid);
+  bustReactionViewerCaches(session.user.fid, castHash);
 
   return NextResponse.json({ ok: true });
 }

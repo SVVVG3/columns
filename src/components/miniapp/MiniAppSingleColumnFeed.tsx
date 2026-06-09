@@ -244,6 +244,7 @@ export function MiniAppSingleColumnFeed({
               cast={cast}
               viewerFid={viewerFid}
               onAuthorClick={handleAuthorClick}
+              touchFriendly
             />
           ))}
 
