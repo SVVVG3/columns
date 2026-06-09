@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useUiStore } from "@/store/ui";
 import { CastCard } from "@/components/cast/CastCard";
@@ -72,16 +72,36 @@ export function MiniAppSingleColumnFeed({
   const pushMiniAppProfile = useUiStore((s) => s.pushMiniAppProfile);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Persist scroll position so it can be restored when the user navigates back.
+  const scrollKey = `col_scroll_${column.id}`;
+
   // Tapping a cast author navigates to their profile within the mini app.
-  // Push "" as a sentinel so the back button is shown — handleBack treats
-  // a falsy pop as "use router.back()" which returns to /columns.
+  // Save the current scroll position before leaving so we can restore it.
   const handleAuthorClick = useCallback(
     (username: string) => {
+      if (scrollRef.current) {
+        sessionStorage.setItem(scrollKey, String(scrollRef.current.scrollTop));
+      }
       pushMiniAppProfile("");
       router.push(`/profile/${encodeURIComponent(username)}`);
     },
-    [pushMiniAppProfile, router]
+    [pushMiniAppProfile, router, scrollKey]
   );
+
+  // Restore scroll after data loads (React Query serves cached data immediately
+  // so this fires on the same tick as the initial render on back-navigation).
+  useEffect(() => {
+    if (status !== "success") return;
+    const saved = sessionStorage.getItem(scrollKey);
+    if (!saved) return;
+    sessionStorage.removeItem(scrollKey);
+    const scrollTop = parseInt(saved, 10);
+    if (!isNaN(scrollTop) && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollTop;
+    }
+  // Only run once when data first becomes available for this column.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, scrollKey]);
   const isNews = isNewsFeedColumn(column);
 
   const feedQueryKey = isNews

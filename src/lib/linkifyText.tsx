@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
-/** @user, /channel, https://…, or bare domains like diviswap.com */
+/** @user, @fid:XXXXX, /channel, https://…, or bare domains like diviswap.com */
 const TOKEN_RE =
-  /@([\w.]+)|(?<![^\s/])\/([a-z][a-z0-9-]*)|(https?:\/\/[^\s]+)|(?<![/@\w])((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s]*)?)/gi;
+  /@([\w.]+(?::\d+)?)|(?<![^\s/])\/([a-z][a-z0-9-]*)|(https?:\/\/[^\s]+)|(?<![/@\w])((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s]*)?)/gi;
 
 function splitTrailingPunctuation(value: string): { core: string; trailing: string } {
   const core = value.replace(/[.,!?)\]|;:]+$/, "");
