@@ -19,7 +19,7 @@ export async function GET() {
     splashBackgroundColor: MINIAPP_SPLASH_BACKGROUND,
     subtitle: "Multi-Column Farcaster Client",
     description:
-      "Build, view, & share custom Columns using the Farcaster social graph and RSS",
+      "Build, view, and share custom Columns using the Farcaster social graph and more",
     primaryCategory: "social" as const,
     tags: ["farcaster", "profiles", "social"],
   };
