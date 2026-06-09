@@ -86,15 +86,15 @@ function FarcasterActionsPopover({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="p-1.5 rounded-full hover:bg-[var(--surface-hover)] transition-colors"
+        className="p-0.5 rounded-full hover:bg-[var(--surface-hover)] transition-colors inline-flex items-center"
         aria-label="Farcaster actions"
         aria-expanded={open}
       >
         <Image
           src={farcasterLogoWhite}
           alt=""
-          width={22}
-          height={22}
+          width={16}
+          height={16}
           className="object-contain"
         />
       </button>
@@ -344,13 +344,6 @@ export function MiniAppProfileClient({
               <div className="flex items-center gap-2 min-w-0">
                 <p className="text-lg font-semibold truncate">{profile.displayName}</p>
                 {columnsBadge?.showBadge && <ColumnsBadge />}
-                <div className="ml-auto shrink-0">
-                  <FarcasterActionsPopover
-                    fcUrl={fcUrl}
-                    ownsProfile={ownsProfile}
-                    onShare={() => void handleShare()}
-                  />
-                </div>
               </div>
               <p className="text-sm text-[var(--muted)] truncate">@{profile.username}</p>
               <ProfileWalletsDropdown wallets={wallets} fid={profile.fid} />
@@ -366,11 +359,21 @@ export function MiniAppProfileClient({
           ) : null}
 
           {(followers != null || following != null) && (
-            <p className="mt-3 text-xs text-[var(--muted)]">
+            <div className="mt-3 flex items-center gap-1 text-xs text-[var(--muted)]">
               {followers != null && <span>{followers} followers</span>}
               {followers != null && following != null && <span> · </span>}
               {following != null && <span>{following} following</span>}
-            </p>
+              {(fcUrl || ownsProfile) && (
+                <>
+                  <span> · View on</span>
+                  <FarcasterActionsPopover
+                    fcUrl={fcUrl}
+                    ownsProfile={ownsProfile}
+                    onShare={() => void handleShare()}
+                  />
+                </>
+              )}
+            </div>
           )}
 
           <ProfileMetaLinksRow links={profileLinks} joined={joined} align="left" />

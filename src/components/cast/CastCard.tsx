@@ -48,6 +48,12 @@ interface CastCardProps {
   threadRootHash?: string;
   /** Compact card for profile top-casts, etc. — full embeds, rounded border instead of feed divider. */
   variant?: "feed" | "embedded";
+  /**
+   * Optional override for author avatar/name/username click.
+   * When provided (e.g. in the mini app), called with the author's username
+   * instead of opening the desktop profile preview modal.
+   */
+  onAuthorClick?: (username: string) => void;
 }
 
 // ─── Embed classification ─────────────────────────────────────────────────────
@@ -244,7 +250,7 @@ function isFrameLikeEmbed(e: Embed, castFrameUrls: Set<string>): boolean {
 
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: CastCardProps) {
+export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed", onAuthorClick }: CastCardProps) {
   const embedded = variant === "embedded";
   const queryClient = useQueryClient();
   const { openConversation, openProfilePreview, openReactionActors } = useUiStore();
@@ -280,6 +286,10 @@ export function CastCard({ cast, viewerFid, threadRootHash, variant = "feed" }: 
   }, [recastMenuOpen]);
 
   function openProfile() {
+    if (onAuthorClick && author?.username) {
+      onAuthorClick(author.username as string);
+      return;
+    }
     const seed = profileSeedFromUnknown(author);
     if (seed) openProfilePreview(seed);
   }

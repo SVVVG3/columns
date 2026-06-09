@@ -3,6 +3,8 @@
 import type React from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { useUiStore } from "@/store/ui";
 import { CastCard } from "@/components/cast/CastCard";
 import { NewsArticleCard } from "@/components/news/NewsArticleCard";
 import { useFeedHeadRefresh } from "@/hooks/useFeedHeadRefresh";
@@ -66,7 +68,20 @@ export function MiniAppSingleColumnFeed({
    */
   renderHeader?: (isFetching: boolean, refetch: () => void) => React.ReactNode;
 }) {
+  const router = useRouter();
+  const pushMiniAppProfile = useUiStore((s) => s.pushMiniAppProfile);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Tapping a cast author navigates to their profile within the mini app.
+  // Push "" as a sentinel so the back button is shown — handleBack treats
+  // a falsy pop as "use router.back()" which returns to /columns.
+  const handleAuthorClick = useCallback(
+    (username: string) => {
+      pushMiniAppProfile("");
+      router.push(`/profile/${encodeURIComponent(username)}`);
+    },
+    [pushMiniAppProfile, router]
+  );
   const isNews = isNewsFeedColumn(column);
 
   const feedQueryKey = isNews
@@ -203,7 +218,12 @@ export function MiniAppSingleColumnFeed({
         {!isNews &&
           status === "success" &&
           castItems.map((cast: Record<string, unknown>) => (
-            <CastCard key={cast.hash as string} cast={cast} viewerFid={viewerFid} />
+            <CastCard
+              key={cast.hash as string}
+              cast={cast}
+              viewerFid={viewerFid}
+              onAuthorClick={handleAuthorClick}
+            />
           ))}
 
         {isNews &&

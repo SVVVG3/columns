@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,6 +9,7 @@ import { Top8RetroCell } from "@/components/profile/Top8RetroCell";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { TOP8_RETRO } from "@/lib/top8RetroTheme";
 import { useUiStore } from "@/store/ui";
+import columnsLogo from "../../../public/columns-logo.png";
 import type { Top8Slot } from "@/types";
 
 interface Top8DraftSlot {
@@ -80,7 +82,7 @@ export function Top8Section({
       );
       return new Map(entries);
     },
-    enabled: linkMode && resolvedSlots.length > 0,
+    enabled: resolvedSlots.length > 0,
     staleTime: 300_000,
   });
 
@@ -267,7 +269,14 @@ export function Top8Section({
                   }`}
                   disabled={editing}
                 >
-                  <UserAvatar src={slot.pfpUrl} alt={slot.displayName} size="md" />
+                  <div className="relative">
+                    <UserAvatar src={slot.pfpUrl} alt={slot.displayName} size="md" />
+                    {(badgeMap.get(slot.fid) ?? false) && (
+                      <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-sm bg-[var(--surface)] flex items-center justify-center ring-1 ring-[var(--border)]">
+                        <Image src={columnsLogo} alt="" width={10} height={10} className="rounded-[2px] object-cover" />
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[10px] text-[var(--foreground)] truncate w-full text-center">
                     @{slot.username}
                   </span>
