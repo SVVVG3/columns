@@ -177,6 +177,7 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
   const profileOnTop = !bothOpen || overlayFocus === "profile";
 
   return (
+    <>
     <div
       className={`fixed inset-0 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-[filter,opacity] duration-200 ${
         profileOnTop ? "z-[90]" : "z-[80]"
@@ -355,6 +356,7 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
         }}
       />
     )}
+    </>
   );
 }
 
