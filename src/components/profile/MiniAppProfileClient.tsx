@@ -31,9 +31,13 @@ import type { SessionUser } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 
 async function fetchPublicProfile(username: string): Promise<ProfileDetails> {
-  const res = await fetch(
-    `/api/profile/public?username=${encodeURIComponent(username)}`
-  );
+  // Farcaster sometimes uses "fid:XXXXX" as a fallback username when the actual
+  // username isn't resolved. Extract the FID and use the fid= param instead.
+  const fidMatch = /^fid:(\d+)$/.exec(username);
+  const url = fidMatch
+    ? `/api/profile/public?fid=${fidMatch[1]}`
+    : `/api/profile/public?username=${encodeURIComponent(username)}`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error("Profile not found");
   const data = (await res.json()) as { user: ProfileDetails };
   return data.user;
@@ -80,6 +84,27 @@ function FarcasterActionsPopover({
   }, [open]);
 
   if (!fcUrl && !ownsProfile) return null;
+
+  // For non-own profiles there is only one action — open directly, no dropdown.
+  if (!ownsProfile && fcUrl) {
+    return (
+      <a
+        href={fcUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="p-0.5 rounded-full hover:bg-[var(--surface-hover)] transition-colors inline-flex items-center"
+        aria-label="View on Farcaster"
+      >
+        <Image
+          src={farcasterLogoWhite}
+          alt=""
+          width={16}
+          height={16}
+          className="object-contain"
+        />
+      </a>
+    );
+  }
 
   return (
     <div ref={ref} className="relative">
@@ -240,6 +265,8 @@ export function MiniAppProfileClient({
     const prev = popMiniAppProfile();
     if (prev) {
       router.push(`/profile/${encodeURIComponent(prev)}`);
+    } else {
+      router.push("/columns");
     }
   }
 

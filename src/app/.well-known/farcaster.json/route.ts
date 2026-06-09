@@ -17,9 +17,9 @@ export async function GET() {
     buttonTitle: "My Columns",
     splashImageUrl: `${appUrl}/columns-logo.png`,
     splashBackgroundColor: MINIAPP_SPLASH_BACKGROUND,
-    subtitle: "Your Farcaster feed on mobile",
+    subtitle: "Multi-Column Farcaster Client",
     description:
-      "Read your Farcaster feed, curate your Top 8 friends, and share embeddable profile cards — all in Columns.",
+      "Build, view, & share custom Columns using the Farcaster social graph and RSS",
     primaryCategory: "social" as const,
     tags: ["farcaster", "profiles", "social"],
   };
