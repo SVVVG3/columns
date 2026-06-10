@@ -136,23 +136,23 @@ function renderCastText(
 
     if (full.startsWith("@")) {
       const username = full.slice(1);
-      if (knownUsernames.has(username)) {
-        nodes.push(
-          <button
-            key={match.index}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onProfileMentionClick?.(username);
-            }}
-            className="text-[var(--accent)] hover:underline focus:outline-none"
-          >
-            {full}
-          </button>
-        );
-      } else {
-        nodes.push(full);
-      }
+      nodes.push(
+        <button
+          key={match.index}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onProfileMentionClick?.(username);
+          }}
+          className={`hover:underline focus:outline-none ${
+            knownUsernames.has(username)
+              ? "text-[var(--accent)]"
+              : "text-[var(--accent)]/90"
+          }`}
+        >
+          {full}
+        </button>
+      );
     } else if (full.startsWith("/")) {
       const slug = full.slice(1);
       if (knownChannelIds.has(slug)) {

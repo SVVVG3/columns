@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { PostCastReqBodyEmbeds } from "@neynar/nodejs-sdk/build/api";
+import { buildCastPublishEmbeds, type CastPublishEmbed } from "@/lib/composeEmbeds";
 import { neynar } from "@/lib/neynar";
 import { getSession } from "@/lib/session";
 import { verifyCsrf } from "@/lib/csrf";
@@ -51,7 +52,9 @@ export async function POST(req: NextRequest) {
   const { text, parentHash, channelId, embeds, threadRootHash } = await req.json();
 
   const trimmedText = typeof text === "string" ? text.trim() : "";
-  const embedList = parsePublishEmbeds(embeds);
+  const explicitEmbeds = parsePublishEmbeds(embeds) as CastPublishEmbed[];
+  const mergedEmbeds = buildCastPublishEmbeds(trimmedText, explicitEmbeds);
+  const embedList = parsePublishEmbeds(mergedEmbeds);
 
   if (!trimmedText && embedList.length === 0) {
     return NextResponse.json({ error: "Text, image, or quoted cast is required" }, { status: 400 });

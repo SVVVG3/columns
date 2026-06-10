@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { MAX_CAST_IMAGES, isHeicImage } from "@/lib/castImageConstants";
+import { buildCastPublishEmbeds } from "@/lib/composeEmbeds";
 import { compressCastImageForUpload } from "@/lib/compressCastImage";
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 
@@ -56,7 +57,7 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    const maxPx = images.length > 0 ? 88 : 160;
+    const maxPx = images.length > 0 ? 140 : 280;
     el.style.height = `${Math.min(el.scrollHeight, maxPx)}px`;
   }
 
@@ -145,6 +146,10 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
               },
             ]
           : [];
+      const embeds = buildCastPublishEmbeds(trimmed, [
+        ...quoteEmbed,
+        ...imageUrls.map((url) => ({ url })),
+      ]);
       const res = await fetchWithTimeout("/api/cast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -152,7 +157,7 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
           text: trimmed,
           parentHash,
           threadRootHash,
-          embeds: [...quoteEmbed, ...imageUrls.map((url) => ({ url }))],
+          embeds,
         }),
       });
       if (!res.ok) {
@@ -184,7 +189,7 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl"
+        className="w-full max-w-lg max-h-[min(85vh,640px)] flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
@@ -211,7 +216,7 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
           </div>
         )}
 
-        <div className="px-4 pb-3">
+        <div className="px-4 pb-3 min-h-0 overflow-y-auto flex-1">
           <textarea
             ref={textareaRef}
             value={text}
@@ -219,8 +224,8 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
             placeholder={
               parentHash ? "Write your reply…" : quoteCast ? "Add your thoughts…" : "What's on your mind?"
             }
-            rows={1}
-            className="w-full bg-transparent text-[var(--foreground)] text-base placeholder:text-[var(--muted)] resize-none outline-none leading-normal overflow-hidden"
+            rows={3}
+            className="w-full bg-transparent text-[var(--foreground)] text-base placeholder:text-[var(--muted)] resize-none outline-none leading-normal overflow-y-auto max-h-[min(40vh,280px)]"
             onKeyDown={(e) => {
               if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && canSubmit) handleSubmit();
             }}
