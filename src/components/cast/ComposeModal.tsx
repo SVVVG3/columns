@@ -57,8 +57,7 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    const maxPx = images.length > 0 ? 140 : 280;
-    el.style.height = `${Math.min(el.scrollHeight, maxPx)}px`;
+    el.style.height = `${el.scrollHeight}px`;
   }
 
   useEffect(() => {
@@ -189,10 +188,10 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg max-h-[min(85vh,640px)] flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl"
+        className="w-full max-w-lg max-h-[min(85vh,640px)] flex flex-col overflow-hidden bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <div className="shrink-0 flex items-center justify-between px-4 pt-4 pb-2">
           <h2 className="text-sm font-semibold text-[var(--foreground)]">
             {parentHash ? "Reply" : quoteCast ? "Quote cast" : "New Cast"}
           </h2>
@@ -207,7 +206,7 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
         </div>
 
         {(parentCast || quoteCast) && (
-          <div className="mx-4 mb-2 px-3 py-2 rounded-lg bg-[var(--surface-hover)] border border-[var(--border)] text-xs text-[var(--muted)]">
+          <div className="shrink-0 mx-4 mb-2 px-3 py-2 rounded-lg bg-[var(--surface-hover)] border border-[var(--border)] text-xs text-[var(--muted)]">
             <span className="font-medium text-[var(--foreground)]">
               @{((parentCast ?? quoteCast)!.author as { username: string })?.username}
             </span>{" "}
@@ -216,7 +215,10 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
           </div>
         )}
 
-        <div className="px-4 pb-3 min-h-0 overflow-y-auto flex-1">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain feed-scroll px-4 pb-3"
+          onTouchMove={(e) => e.stopPropagation()}
+        >
           <textarea
             ref={textareaRef}
             value={text}
@@ -224,8 +226,8 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
             placeholder={
               parentHash ? "Write your reply…" : quoteCast ? "Add your thoughts…" : "What's on your mind?"
             }
-            rows={3}
-            className="w-full bg-transparent text-[var(--foreground)] text-base placeholder:text-[var(--muted)] resize-none outline-none leading-normal overflow-y-auto max-h-[min(40vh,280px)]"
+            rows={4}
+            className="w-full min-h-[120px] bg-transparent text-[var(--foreground)] text-base placeholder:text-[var(--muted)] resize-none outline-none leading-relaxed overflow-hidden"
             onKeyDown={(e) => {
               if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && canSubmit) handleSubmit();
             }}
@@ -233,7 +235,7 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
 
           {images.length > 0 && (
             <div
-              className={`mt-1.5 gap-2 ${
+              className={`mt-2 gap-2 ${
                 images.length === 1 ? "" : "grid grid-cols-2"
               }`}
             >
@@ -262,7 +264,7 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
           )}
         </div>
 
-        <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border)]">
+        <div className="shrink-0 flex items-center justify-between px-4 py-3 border-t border-[var(--border)]">
           <div className="flex items-center gap-3 min-w-0">
             <input
               ref={fileInputRef}

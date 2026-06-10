@@ -8,7 +8,6 @@ import { MAX_CAST_IMAGES } from "@/lib/castImageConstants";
 export const MAX_CAST_EMBEDS = MAX_CAST_IMAGES;
 
 const URL_RE = /https?:\/\/[^\s<>"']+/gi;
-const MENTION_RE = /@([\w.]+)/g;
 
 export type CastPublishEmbed =
   | { url: string }
@@ -46,34 +45,15 @@ export function extractUrlsFromCastText(text: string): string[] {
   return out;
 }
 
-/** Profile page URLs for @mentions — renders profile cards in Farcaster clients. */
-export function extractMentionProfileUrls(text: string): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  const re = new RegExp(MENTION_RE.source, MENTION_RE.flags);
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(text)) !== null) {
-    const username = match[1]?.trim();
-    if (!username) continue;
-    const url = `https://farcaster.xyz/${encodeURIComponent(username)}`;
-    const key = normalizeUrlKey(url);
-    if (!seen.has(key)) {
-      seen.add(key);
-      out.push(url);
-    }
-  }
-  return out;
-}
-
 function isUrlEmbed(e: CastPublishEmbed): e is { url: string } {
   return "url" in e && typeof e.url === "string" && e.url.startsWith("http");
 }
 
 /**
- * Merge explicit embeds (quote, uploaded images) with URLs and @mention profile
- * links from text, respecting the embed limit.
+ * Merge explicit embeds (quote, uploaded images) with http(s) URLs from text.
+ * @mentions stay in cast text only — Farcaster links them without embed cards.
  *
- * Priority: explicit embeds first, then text URLs, then @mention profile URLs.
+ * Priority: explicit embeds first, then text URLs.
  */
 export function buildCastPublishEmbeds(
   text: string,
@@ -93,7 +73,6 @@ export function buildCastPublishEmbeds(
   };
 
   for (const url of extractUrlsFromCastText(text)) addUrl(url);
-  for (const url of extractMentionProfileUrls(text)) addUrl(url);
 
   return out.slice(0, MAX_CAST_EMBEDS);
 }
