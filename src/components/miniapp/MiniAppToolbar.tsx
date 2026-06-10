@@ -82,7 +82,7 @@ export function MiniAppToolbar({
     <>
       <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] py-3 max-w-lg mx-auto w-full">
         {/* Single centered row — avoids 1fr grid gaps that balloon on iPad */}
-        <div className="flex items-center justify-center gap-[1.875rem] sm:gap-9 px-4">
+        <div className="flex items-center justify-center gap-[1.875rem] sm:gap-9 px-6">
           <Link
             href="/settings"
             className={`${iconBtn} ${
