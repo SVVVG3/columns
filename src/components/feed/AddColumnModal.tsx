@@ -10,6 +10,7 @@ import {
   migrateChannelColumnTitle,
 } from "@/lib/channelDisplay";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { miniappSearchInputProps } from "@/lib/miniappInput";
 import { MAX_COLUMNS, useColumnsStore } from "@/store/columns";
 import { rssColumnTitle } from "@/lib/newsArticle";
 import type { FeedColumnConfig, FeedColumnType } from "@/types";
@@ -64,6 +65,8 @@ interface MultiSelectProps<T extends { id: string; label: string }> {
   /** Press Enter with no dropdown match — resolve exact handle (e.g. @user.eth). */
   onEnterResolve?: (q: string) => Promise<T | null>;
   emptyHint?: string;
+  /** Mini app: disable iOS auto-capitalize on search fields. */
+  lowercaseInput?: boolean;
 }
 
 function MultiSelect<T extends { id: string; label: string }>({
@@ -76,6 +79,7 @@ function MultiSelect<T extends { id: string; label: string }>({
   minSearchLength = 2,
   onEnterResolve,
   emptyHint,
+  lowercaseInput = false,
 }: MultiSelectProps<T>) {
   const [input, setInput] = useState("");
   const [suggestions, setSuggestions] = useState<T[]>([]);
@@ -258,6 +262,7 @@ function MultiSelect<T extends { id: string; label: string }>({
           onKeyDown={handleKeyDown}
           placeholder={chips.length === 0 ? placeholder : ""}
           className="flex-1 min-w-[80px] bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] outline-none"
+          {...(lowercaseInput ? miniappSearchInputProps : {})}
         />
         {loading && (
           <span className="text-[var(--muted)] text-xs self-center">…</span>
@@ -274,10 +279,12 @@ function KeywordInput({
   tags,
   onAdd,
   onRemove,
+  lowercaseInput = false,
 }: {
   tags: string[];
   onAdd: (tag: string) => void;
   onRemove: (tag: string) => void;
+  lowercaseInput?: boolean;
 }) {
   const [input, setInput] = useState("");
 
@@ -317,6 +324,7 @@ function KeywordInput({
         onBlur={commit}
         placeholder={tags.length === 0 ? "Type a keyword, press Enter or comma to add" : ""}
         className="flex-1 min-w-[120px] bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] outline-none"
+        {...(lowercaseInput ? miniappSearchInputProps : {})}
       />
     </div>
   );
@@ -650,6 +658,7 @@ export function AddColumnModal({
                 onRemove={(id) => setChannelChips((prev) => prev.filter((c) => c.id !== id))}
                 fetchSuggestions={fetchChannels}
                 onEnterResolve={resolveChannelOnEnter}
+                lowercaseInput={!!miniAppMode}
                 placeholder="Search channels…"
                 emptyHint="No matches yet. Press Enter to look up an exact channel slug (e.g. basepaint)."
                 renderSuggestion={(item) => {
@@ -688,6 +697,7 @@ export function AddColumnModal({
                 onRemove={(id) => setUserChips((prev) => prev.filter((u) => u.id !== id))}
                 fetchSuggestions={fetchUsers}
                 onEnterResolve={resolveUserOnEnter}
+                lowercaseInput={!!miniAppMode}
                 placeholder="Search @username or name.eth…"
                 emptyHint="No matches yet. Press Enter to look up an exact @username or name.eth."
                 renderSuggestion={(item) => {
@@ -719,7 +729,7 @@ export function AddColumnModal({
                 onChange={(e) => setRssUrl(e.target.value)}
                 placeholder="https://example.com/feed.xml"
                 className="w-full px-3 py-2 rounded-xl border border-[var(--border)] bg-[var(--background)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] outline-none focus:border-[var(--accent)]"
-                spellCheck={false}
+                {...(miniAppMode ? miniappSearchInputProps : { spellCheck: false })}
               />
               {rssUrl.trim() && !isValidRssUrl(rssUrl.trim()) && (
                 <p className="text-[11px] text-red-400">Enter a valid http(s) feed URL.</p>
@@ -738,6 +748,7 @@ export function AddColumnModal({
                 tags={keywordTags}
                 onAdd={(t) => setKeywordTags((prev) => [...prev, t])}
                 onRemove={(t) => setKeywordTags((prev) => prev.filter((k) => k !== t))}
+                lowercaseInput={!!miniAppMode}
               />
             </div>
           )}

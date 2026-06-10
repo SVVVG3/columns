@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { Top8RetroCell } from "@/components/profile/Top8RetroCell";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { miniappSearchInputProps } from "@/lib/miniappInput";
 import { TOP8_RETRO } from "@/lib/top8RetroTheme";
 import { useUiStore } from "@/store/ui";
 import columnsLogo from "../../../public/columns-logo.png";
@@ -343,6 +344,7 @@ export function Top8Section({
                     borderColor: TOP8_RETRO.panelBorder,
                     background: TOP8_RETRO.outerBg,
                   }}
+                  {...(linkMode ? miniappSearchInputProps : {})}
                 />
                 {searching && (
                   <p className="text-[10px] text-[var(--muted)] mt-1">Searching…</p>
@@ -428,6 +430,7 @@ export function Top8Section({
                 placeholder="Search @username to add…"
                 autoFocus
                 className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted)]"
+                {...(linkMode ? miniappSearchInputProps : {})}
               />
               {searching && (
                 <p className="text-[10px] text-[var(--muted)] mt-1">Searching…</p>

@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { profileSeedFromUnknown } from "@/lib/profilePreview";
 import { miniappFetch } from "@/lib/miniappFetch";
+import { miniappSearchInputProps } from "@/lib/miniappInput";
 import { useUiStore } from "@/store/ui";
 
 interface SearchUser {
@@ -207,7 +208,7 @@ export function ProfileSearchModal({
             placeholder="Profiles, casts, FID, wallet, or X handle…"
             className="flex-1 bg-transparent text-base text-[var(--foreground)] placeholder:text-[var(--muted)] outline-none"
             autoComplete="off"
-            spellCheck={false}
+            {...(miniAppMode ? miniappSearchInputProps : { spellCheck: false })}
           />
           <kbd className="hidden sm:inline text-[10px] text-[var(--muted)] border border-[var(--border)] rounded px-1.5 py-0.5 font-mono">
             esc
