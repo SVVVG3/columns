@@ -143,11 +143,7 @@ export function MiniAppToolbar({
 
           <Link
             href="/profile/me"
-            className={`w-[52px] h-[52px] flex items-center justify-center rounded-full transition-colors shrink-0 overflow-visible ${
-              activePage === "profile"
-                ? "ring-2 ring-[var(--brand)] ring-offset-1 ring-offset-[var(--background)]"
-                : "hover:opacity-80"
-            }`}
+            className="w-[52px] h-[52px] flex items-center justify-center rounded-full transition-colors shrink-0 overflow-visible hover:opacity-80"
             aria-label="My Profile"
           >
             {viewerPfp ? (
@@ -157,10 +153,16 @@ export function MiniAppToolbar({
                 alt=""
                 width={44}
                 height={44}
-                className="w-11 h-11 rounded-full object-cover"
+                className={`w-11 h-11 rounded-full object-cover ${
+                  activePage === "profile" ? "ring-2 ring-[var(--brand)]" : ""
+                }`}
               />
             ) : (
-              <div className="w-11 h-11 rounded-full bg-[var(--surface-hover)]" />
+              <div
+                className={`w-11 h-11 rounded-full bg-[var(--surface-hover)] ${
+                  activePage === "profile" ? "ring-2 ring-[var(--brand)]" : ""
+                }`}
+              />
             )}
           </Link>
         </div>
