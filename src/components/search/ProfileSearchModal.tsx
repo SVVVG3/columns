@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { profileSeedFromUnknown } from "@/lib/profilePreview";
+import { miniappFetch } from "@/lib/miniappFetch";
 import { useUiStore } from "@/store/ui";
 
 interface SearchUser {
@@ -27,28 +28,39 @@ interface SearchCast {
 interface ProfileSearchModalProps {
   open: boolean;
   onClose: () => void;
+  /** Mini app: navigate to profile instead of desktop preview modal. */
+  onSelectUser?: (username: string) => void;
+  /** Mini app: open cast in host client instead of conversation panel. */
+  onSelectCast?: (hash: string) => void;
 }
 
 type SearchHit =
   | { kind: "user"; user: SearchUser }
   | { kind: "cast"; cast: SearchCast };
 
-async function fetchUserSearch(q: string): Promise<SearchUser[]> {
-  const res = await fetch(`/api/user/search?q=${encodeURIComponent(q)}`);
+async function fetchUserSearch(q: string, useMiniAppFetch: boolean): Promise<SearchUser[]> {
+  const request = useMiniAppFetch ? miniappFetch : fetch;
+  const res = await request(`/api/user/search?q=${encodeURIComponent(q)}`);
   const data = (await res.json()) as { users?: SearchUser[]; error?: string };
   if (!res.ok) throw new Error(data.error ?? "Search failed");
   return data.users ?? [];
 }
 
-async function fetchCastSearch(q: string): Promise<SearchCast[]> {
-  const res = await fetch(`/api/cast/search?q=${encodeURIComponent(q)}&limit=20`);
+async function fetchCastSearch(q: string, useMiniAppFetch: boolean): Promise<SearchCast[]> {
+  const request = useMiniAppFetch ? miniappFetch : fetch;
+  const res = await request(`/api/cast/search?q=${encodeURIComponent(q)}&limit=20`);
   const data = (await res.json()) as { casts?: SearchCast[]; error?: string };
   if (!res.ok) throw new Error(data.error ?? "Cast search failed");
   return data.casts ?? [];
 }
 
 /** Spotlight search: profiles (username, FID, ETH, X) and casts by keyword. */
-export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
+export function ProfileSearchModal({
+  open,
+  onClose,
+  onSelectUser,
+  onSelectCast,
+}: ProfileSearchModalProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -74,16 +86,18 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
     return () => window.clearTimeout(t);
   }, [query, open]);
 
+  const miniAppMode = !!(onSelectUser || onSelectCast);
+
   const usersQuery = useQuery({
-    queryKey: ["profileSearch", debouncedQuery],
-    queryFn: () => fetchUserSearch(debouncedQuery),
+    queryKey: ["profileSearch", debouncedQuery, miniAppMode],
+    queryFn: () => fetchUserSearch(debouncedQuery, miniAppMode),
     enabled: open && debouncedQuery.length > 0,
     staleTime: 30_000,
   });
 
   const castsQuery = useQuery({
-    queryKey: ["castSearch", debouncedQuery],
-    queryFn: () => fetchCastSearch(debouncedQuery),
+    queryKey: ["castSearch", debouncedQuery, miniAppMode],
+    queryFn: () => fetchCastSearch(debouncedQuery, miniAppMode),
     enabled: open && debouncedQuery.length > 0,
     staleTime: 30_000,
   });
@@ -141,9 +155,19 @@ export function ProfileSearchModal({ open, onClose }: ProfileSearchModalProps) {
   function selectHit(hit: SearchHit | undefined) {
     if (!hit) return;
     if (hit.kind === "user") {
+      if (onSelectUser) {
+        onSelectUser(hit.user.username);
+        onClose();
+        return;
+      }
       const seed = profileSeedFromUnknown(hit.user);
       if (seed) openProfilePreview(seed);
     } else if (hit.cast.hash) {
+      if (onSelectCast) {
+        onSelectCast(hit.cast.hash);
+        onClose();
+        return;
+      }
       openConversation(hit.cast.hash);
     }
   }

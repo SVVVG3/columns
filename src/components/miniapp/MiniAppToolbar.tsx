@@ -2,241 +2,199 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { sdk } from "@farcaster/miniapp-sdk";
+import { MiniAppColumnsManagerModal } from "@/components/miniapp/MiniAppColumnsManagerModal";
+import { MiniAppProUpsellModal } from "@/components/miniapp/MiniAppProUpsellModal";
+import { ProfileSearchModal } from "@/components/search/ProfileSearchModal";
+import { miniappFetch } from "@/lib/miniappFetch";
+import type { FeedColumnConfig } from "@/types";
 import columnsLogo from "../../../public/columns-logo.png";
-import farcasterLogoWhite from "../../../public/farcaster-logo-white.png";
 
 interface MiniAppToolbarProps {
-  /** Viewer's profile picture URL — shown as the right-most avatar button. */
   viewerPfp?: string | null;
-  /** Viewer's FID — required to enable the waitlist flow. */
   viewerFid?: number;
-  /** Where Follow Columns links to (external Farcaster URL). */
+  isPro?: boolean;
   followColumnsUrl: string;
-  /** Where Join Community links to (external Farcaster URL). */
   communityUrl: string;
-  /** Highlight the center logo when on the Columns feed page. */
-  activePage?: "columns" | "profile";
+  activePage?: "columns" | "profile" | "settings";
+  /** Pre-loaded layout from the columns page; fetched on demand when omitted. */
+  savedColumns?: FeedColumnConfig[];
 }
 
-type WaitlistState =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "joined" }
-  | { status: "needs_follow"; followsProfile: boolean; followsChannel: boolean }
-  | { status: "error" };
+async function fetchLayout(): Promise<FeedColumnConfig[]> {
+  const res = await miniappFetch("/api/layout", { cache: "no-store" });
+  if (!res.ok) return [];
+  const data = (await res.json()) as { layout?: { columns?: FeedColumnConfig[] } | null };
+  return data.layout?.columns ?? [];
+}
 
 export function MiniAppToolbar({
   viewerPfp,
   viewerFid,
+  isPro = false,
   followColumnsUrl,
   communityUrl,
   activePage,
+  savedColumns: savedColumnsProp,
 }: MiniAppToolbarProps) {
   const router = useRouter();
-  const [infoOpen, setInfoOpen] = useState(false);
-  const [waitlist, setWaitlist] = useState<WaitlistState>({ status: "idle" });
-  const infoRef = useRef<HTMLDivElement>(null);
-  // Tracks whether we've already done the initial waitlist status fetch so we
-  // don't re-run the check every time the popover state changes.
-  const hasFetchedWaitlist = useRef(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchUpsellOpen, setSearchUpsellOpen] = useState(false);
+  const [managerOpen, setManagerOpen] = useState(false);
 
-  // Pre-load both pages for instant tab switching
+  const { data: fetchedColumns = [] } = useQuery({
+    queryKey: ["miniapp-layout", viewerFid],
+    queryFn: fetchLayout,
+    enabled: managerOpen && savedColumnsProp === undefined && viewerFid != null,
+    staleTime: 30_000,
+  });
+
+  const savedColumns = savedColumnsProp ?? fetchedColumns;
+
   useEffect(() => {
     router.prefetch("/columns");
     router.prefetch("/profile/me");
+    router.prefetch("/settings");
   }, [router]);
 
-  // Check waitlist status once when the popover first opens.
-  // Intentionally NOT including waitlist.status — changing it must not retrigger
-  // the initial fetch (that caused an infinite "Checking…" loop).
-  const checkWaitlistStatus = useCallback(() => {
-    if (!viewerFid || hasFetchedWaitlist.current) return;
-    hasFetchedWaitlist.current = true;
-    setWaitlist({ status: "loading" });
-    void fetch(`/api/waitlist?fid=${viewerFid}`)
-      .then((r) => r.json() as Promise<{ onWaitlist?: boolean }>)
-      .then((data) => {
-        setWaitlist(data.onWaitlist ? { status: "joined" } : { status: "idle" });
-      })
-      .catch(() => setWaitlist({ status: "idle" }));
-  }, [viewerFid]);
-
-  useEffect(() => {
-    if (infoOpen) checkWaitlistStatus();
-  }, [infoOpen, checkWaitlistStatus]);
-
-  useEffect(() => {
-    if (!infoOpen) return;
-    function onPointerDown(e: MouseEvent) {
-      if (infoRef.current && !infoRef.current.contains(e.target as Node)) {
-        setInfoOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [infoOpen]);
-
-  async function handleJoinWaitlist() {
-    if (!viewerFid) return;
-    setWaitlist({ status: "loading" });
-    try {
-      const res = await fetch("/api/waitlist", { method: "POST" });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        needsFollow?: boolean;
-        followsProfile?: boolean;
-        followsChannel?: boolean;
-      };
-      if (data.ok) {
-        setWaitlist({ status: "joined" });
-      } else if (data.needsFollow) {
-        setWaitlist({
-          status: "needs_follow",
-          followsProfile: data.followsProfile ?? false,
-          followsChannel: data.followsChannel ?? false,
-        });
-      } else {
-        setWaitlist({ status: "error" });
-      }
-    } catch {
-      setWaitlist({ status: "error" });
-    }
+  function handleSearchClick() {
+    if (isPro) setSearchOpen(true);
+    else setSearchUpsellOpen(true);
   }
 
+  function handleSelectUser(username: string) {
+    router.push(`/profile/${encodeURIComponent(username)}`);
+  }
+
+  function handleSelectCast(hash: string) {
+    const normalized = hash.startsWith("0x") ? hash : `0x${hash}`;
+    void sdk.actions.viewCast({ hash: normalized }).catch(() => {});
+  }
+
+  const iconBtn =
+    "w-11 h-11 flex items-center justify-center rounded-full hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors";
+
   return (
-    <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] px-6 py-3 max-w-lg mx-auto w-full">
-      <div className="flex items-center justify-between">
-        {/* Left: Info button → popover */}
-        <div ref={infoRef} className="relative">
-          <button
-            type="button"
-            onClick={() => setInfoOpen((o) => !o)}
-            className="w-14 h-14 flex items-center justify-center rounded-full hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-            aria-label="Info"
-            aria-expanded={infoOpen}
+    <>
+      <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] px-4 py-3 max-w-lg mx-auto w-full">
+        <div className="flex items-center justify-between gap-1">
+          {/* Left: Settings + Search */}
+          <div className="flex items-center gap-0.5">
+            <Link
+              href="/settings"
+              className={`${iconBtn} ${
+                activePage === "settings"
+                  ? "bg-[var(--surface-hover)] text-[var(--foreground)]"
+                  : ""
+              }`}
+              aria-label="Settings"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.75}
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </Link>
+            <button
+              type="button"
+              onClick={handleSearchClick}
+              className={iconBtn}
+              aria-label="Search"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Center: Columns logo */}
+          <Link
+            href="/columns"
+            className={`w-14 h-14 flex items-center justify-center transition-all ${
+              activePage === "columns" ? "scale-105" : "hover:scale-105"
+            }`}
+            aria-label="My Columns"
           >
-            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
-
-          {infoOpen && (
-            <div className="absolute bottom-full left-0 mb-2 w-64 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-lg overflow-hidden z-20">
-              {/* Follow Columns */}
-              <a
-                href={followColumnsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
-                onClick={() => setInfoOpen(false)}
-              >
-                <Image src={columnsLogo} alt="" width={18} height={18} className="rounded-sm object-cover shrink-0" />
-                Follow Columns
-              </a>
-
-              {/* Join Community */}
-              <a
-                href={communityUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)] border-t border-[var(--border)]"
-                onClick={() => setInfoOpen(false)}
-              >
-                <Image src={farcasterLogoWhite} alt="" width={18} height={18} className="rounded-sm object-cover shrink-0" />
-                Join Community
-              </a>
-
-              {/* Join Waitlist */}
-              <div className="border-t border-[var(--border)]">
-                {waitlist.status === "joined" ? (
-                  <div className="flex items-center gap-3 px-4 py-3">
-                    <span className="text-[var(--recast)] text-lg leading-none">✓</span>
-                    <span className="text-sm font-medium text-[var(--recast)]">You're on the waitlist!</span>
-                  </div>
-                ) : waitlist.status === "needs_follow" ? (
-                  <div className="px-4 py-3 space-y-1">
-                    <p className="text-xs font-semibold text-[var(--foreground)]">To join the waitlist:</p>
-                    <p className={`text-xs ${waitlist.followsProfile ? "text-[var(--recast)]" : "text-[var(--muted)]"}`}>
-                      {waitlist.followsProfile ? "✓" : "○"} Follow <a href={followColumnsUrl} target="_blank" rel="noopener noreferrer" className="underline">@columns</a>
-                    </p>
-                    <p className={`text-xs ${waitlist.followsChannel ? "text-[var(--recast)]" : "text-[var(--muted)]"}`}>
-                      {waitlist.followsChannel ? "✓" : "○"} Follow the <a href="https://farcaster.xyz/~/channel/columns" target="_blank" rel="noopener noreferrer" className="underline">/columns</a> channel
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => void handleJoinWaitlist()}
-                      className="mt-1 text-xs font-medium text-[var(--accent)] hover:underline"
-                    >
-                      Check again →
-                    </button>
-                  </div>
-                ) : waitlist.status === "error" ? (
-                  <button
-                    type="button"
-                    onClick={() => void handleJoinWaitlist()}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-400 hover:bg-[var(--surface-hover)]"
-                  >
-                    Something went wrong — try again
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => viewerFid ? void handleJoinWaitlist() : undefined}
-                    disabled={waitlist.status === "loading" || !viewerFid}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="text-base leading-none">🎟</span>
-                    {waitlist.status === "loading" ? "Checking…" : "Join Waitlist"}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Center: Columns logo → /columns — largest, most prominent */}
-        <Link
-          href="/columns"
-          className={`w-16 h-16 flex items-center justify-center transition-all ${
-            activePage === "columns" ? "scale-105" : "hover:scale-105"
-          }`}
-          aria-label="My Columns"
-        >
-          <Image
-            src={columnsLogo}
-            alt="Columns"
-            width={56}
-            height={56}
-            className="rounded-xl object-cover"
-          />
-        </Link>
-
-        {/* Right: Profile avatar → /profile/me */}
-        <Link
-          href="/profile/me"
-          className={`w-14 h-14 flex items-center justify-center rounded-full transition-colors ${
-            activePage === "profile"
-              ? "ring-2 ring-[var(--brand)] ring-offset-2 ring-offset-[var(--background)]"
-              : "hover:opacity-80"
-          }`}
-          aria-label="My Profile"
-        >
-          {viewerPfp ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={viewerPfp}
-              alt=""
-              width={44}
-              height={44}
-              className="w-11 h-11 rounded-full object-cover"
+            <Image
+              src={columnsLogo}
+              alt="Columns"
+              width={48}
+              height={48}
+              className="rounded-xl object-cover"
             />
-          ) : (
-            <div className="w-11 h-11 rounded-full bg-[var(--surface-hover)]" />
-          )}
-        </Link>
+          </Link>
+
+          {/* Right: Add columns + Profile */}
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => setManagerOpen(true)}
+              className={iconBtn}
+              aria-label="Manage columns"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+            <Link
+              href="/profile/me"
+              className={`w-11 h-11 flex items-center justify-center rounded-full transition-colors ${
+                activePage === "profile"
+                  ? "ring-2 ring-[var(--brand)] ring-offset-2 ring-offset-[var(--background)]"
+                  : "hover:opacity-80"
+              }`}
+              aria-label="My Profile"
+            >
+              {viewerPfp ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={viewerPfp}
+                  alt=""
+                  width={40}
+                  height={40}
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-[var(--surface-hover)]" />
+              )}
+            </Link>
+          </div>
+        </div>
       </div>
-    </div>
+
+      <ProfileSearchModal
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onSelectUser={handleSelectUser}
+        onSelectCast={handleSelectCast}
+      />
+
+      <MiniAppProUpsellModal
+        open={searchUpsellOpen}
+        onClose={() => setSearchUpsellOpen(false)}
+        viewerFid={viewerFid}
+        followColumnsUrl={followColumnsUrl}
+        communityUrl={communityUrl}
+        featureTitle="Search is a Columns Pro feature"
+        featureDescription="Search profiles, casts, FIDs, wallets, and X handles across Farcaster. Join the waitlist to get early access."
+      />
+
+      <MiniAppColumnsManagerModal
+        open={managerOpen}
+        onClose={() => setManagerOpen(false)}
+        isPro={isPro}
+        viewerFid={viewerFid}
+        savedColumns={savedColumns}
+        followColumnsUrl={followColumnsUrl}
+        communityUrl={communityUrl}
+      />
+    </>
   );
 }

@@ -424,6 +424,7 @@ export function MiniAppProfileClient({
       <MiniAppToolbar
         viewerPfp={viewer?.pfpUrl}
         viewerFid={viewer?.fid}
+        isPro={miniappSession.read()?.allowed ?? false}
         followColumnsUrl={columnsUrl}
         communityUrl={communityUrl}
         activePage="profile"

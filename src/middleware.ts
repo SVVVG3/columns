@@ -31,6 +31,7 @@ const PROFILE_ONLY_ALLOWED_API = [
   "/api/user/search",
   "/api/og/profile",
   "/api/feed/home",
+  "/api/layout",
 ];
 
 function isProfileOnlyAllowedApi(pathname: string): boolean {
@@ -90,9 +91,13 @@ export async function middleware(request: NextRequest) {
     if (isProfileOnlyAllowedApi(pathname)) {
       return response;
     }
+    if (isMiniAppColumnsReadApi(pathname, request.method)) {
+      return response;
+    }
     if (
-      canUseMiniAppColumns(session.user.fid) &&
-      isMiniAppColumnsReadApi(pathname, request.method)
+      pathname === "/api/cast/search" &&
+      request.method === "GET" &&
+      canUseMiniAppColumns(session.user.fid)
     ) {
       return response;
     }

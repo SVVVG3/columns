@@ -12,17 +12,11 @@ import {
   columnsCommunityChannelUrl,
   columnsFarcasterProfileUrl,
 } from "@/lib/appUrl";
+import { buildMiniAppColumnList } from "@/lib/miniappColumns";
 import { miniappFetch } from "@/lib/miniappFetch";
 import { miniappSession } from "@/lib/miniappSession";
 import { useUiStore } from "@/store/ui";
 import type { FeedColumnConfig, SessionUser } from "@/types";
-
-/** Home feed column shown to all non-allowlisted mini app users. */
-const HOME_COLUMN: FeedColumnConfig = {
-  id: "home",
-  type: "home",
-  title: "Home Feed",
-};
 
 const SELECTED_COL_KEY = "miniapp_selected_col";
 
@@ -49,20 +43,17 @@ async function signInMiniApp(): Promise<SessionUser | null> {
 
 async function fetchLayout(): Promise<FeedColumnConfig[]> {
   const res = await miniappFetch("/api/layout", { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to load columns");
+  if (!res.ok) return [];
   const data = (await res.json()) as { layout?: { columns?: FeedColumnConfig[] } | null };
   return data.layout?.columns ?? [];
 }
 
 export function MiniAppColumnsClient() {
-  // Seed from cache so we skip the loading spinner on re-visits
   const cached = miniappSession.read();
   const [viewer, setViewer] = useState<SessionUser | null>(cached?.viewer ?? null);
-  const [allowed, setAllowed] = useState<boolean | null>(cached?.allowed ?? null);
+  const [isPro, setIsPro] = useState<boolean | null>(cached?.allowed ?? null);
   const [signInLoading, setSignInLoading] = useState(cached === null);
   const [signInError, setSignInError] = useState<string | null>(null);
-  // Seed from sessionStorage so the previously-selected column is restored
-  // when navigating away and back within the same session.
   const [selectedId, setSelectedId] = useState<string | null>(readSavedColumnId);
 
   const refreshViewer = useCallback(async () => {
@@ -80,20 +71,19 @@ export function MiniAppColumnsClient() {
   useEffect(() => {
     void sdk.actions.ready().catch(() => {});
 
-    // If we have a cached session, revalidate silently in the background
     if (cached) {
       void (async () => {
         try {
           const ctx = await sdk.context;
           const fid = ctx?.user?.fid ?? cached.viewer.fid;
-          const [isAllowed, user] = await Promise.all([
+          const [allowed, user] = await Promise.all([
             fetchColumnsAccess(fid),
             refreshViewer(),
           ]);
           const resolvedUser = user ?? cached.viewer;
-          setAllowed(isAllowed);
+          setIsPro(allowed);
           setViewer(resolvedUser);
-          miniappSession.write(resolvedUser, isAllowed);
+          miniappSession.write(resolvedUser, allowed);
         } catch {
           /* keep stale cache */
         }
@@ -101,7 +91,6 @@ export function MiniAppColumnsClient() {
       return;
     }
 
-    // Cold start — full sign-in flow
     void (async () => {
       setSignInLoading(true);
       setSignInError(null);
@@ -113,11 +102,11 @@ export function MiniAppColumnsClient() {
           return;
         }
 
-        const [isAllowed, existingUser] = await Promise.all([
+        const [allowed, existingUser] = await Promise.all([
           fetchColumnsAccess(fid),
           refreshViewer(),
         ]);
-        setAllowed(isAllowed);
+        setIsPro(allowed);
 
         let user = existingUser;
         if (!user) {
@@ -128,7 +117,7 @@ export function MiniAppColumnsClient() {
           setSignInError("Sign in was cancelled or failed.");
           return;
         }
-        miniappSession.write(user, isAllowed);
+        miniappSession.write(user, allowed);
       } catch {
         setSignInError("Could not sign in.");
       } finally {
@@ -138,7 +127,6 @@ export function MiniAppColumnsClient() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When a cast is tapped, open it in Farcaster and close the mini app.
   const selectedCastHash = useUiStore((s) => s.selectedCastHash);
   const closeConversation = useUiStore((s) => s.closeConversation);
   useEffect(() => {
@@ -153,14 +141,15 @@ export function MiniAppColumnsClient() {
   const { data: savedColumns = [], isLoading: layoutLoading } = useQuery({
     queryKey: ["miniapp-layout", viewer?.fid],
     queryFn: fetchLayout,
-    enabled: viewer?.fid != null && allowed === true,
+    enabled: viewer?.fid != null,
     staleTime: 60_000,
   });
 
-  // Allowlisted users pick from their saved columns; others always see home feed.
-  const columns: FeedColumnConfig[] = allowed ? savedColumns : [HOME_COLUMN];
+  const columns: FeedColumnConfig[] = useMemo(
+    () => buildMiniAppColumnList(savedColumns, isPro === true),
+    [savedColumns, isPro]
+  );
 
-  // Persist selected column so it survives navigation to profile and back.
   useEffect(() => {
     if (selectedId) saveColumnId(selectedId);
   }, [selectedId]);
@@ -170,7 +159,6 @@ export function MiniAppColumnsClient() {
       setSelectedId(null);
       return;
     }
-    // Prefer the previously-saved column if it still exists in the list.
     const saved = readSavedColumnId();
     if (saved && columns.some((c) => c.id === saved)) {
       setSelectedId(saved);
@@ -181,7 +169,7 @@ export function MiniAppColumnsClient() {
   }, [columns]);
 
   const selectedColumn = useMemo(
-    () => columns.find((c) => c.id === selectedId) ?? null,
+    () => columns.find((c) => c.id === selectedId) ?? columns[0] ?? null,
     [columns, selectedId]
   );
 
@@ -210,7 +198,7 @@ export function MiniAppColumnsClient() {
               .then((user) => {
                 setViewer(user);
                 if (!user) setSignInError("Sign in was cancelled or failed.");
-                else miniappSession.write(user, allowed ?? false);
+                else miniappSession.write(user, isPro ?? false);
               })
               .finally(() => setSignInLoading(false));
           }}
@@ -229,43 +217,34 @@ export function MiniAppColumnsClient() {
           <MiniAppSingleColumnFeed
             column={selectedColumn}
             viewerFid={viewer.fid}
-            autoRefresh={allowed === true}
-            renderHeader={(isFetching, refetch) =>
-              allowed ? (
-                /* Allowlisted: dropdown + refresh in one row */
-                <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-[var(--border)] bg-[var(--background)]">
-                  {layoutLoading ? (
-                    <p className="flex-1 text-sm text-[var(--muted)]">Loading…</p>
-                  ) : savedColumns.length === 0 ? (
-                    <p className="flex-1 text-sm text-[var(--muted)]">No columns saved yet.</p>
-                  ) : (
-                    <select
-                      value={selectedId ?? savedColumns[0].id}
-                      onChange={(e) => { setSelectedId(e.target.value); saveColumnId(e.target.value); }}
-                      className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm font-medium text-[var(--foreground)]"
-                    >
-                      {savedColumns.map((col) => (
-                        <option key={col.id} value={col.id}>
-                          {col.title}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  <RefreshButton isFetching={isFetching} onRefresh={refetch} />
-                </div>
-              ) : (
-                /* Non-allowlisted: just refresh button */
-                <div className="shrink-0 flex items-center justify-end px-3 py-2 border-b border-[var(--border)] bg-[var(--background)]">
-                  <RefreshButton isFetching={isFetching} onRefresh={refetch} />
-                </div>
-              )
-            }
+            autoRefresh
+            renderHeader={(isFetching, refetch) => (
+              <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-[var(--border)] bg-[var(--background)]">
+                {layoutLoading ? (
+                  <p className="flex-1 text-sm text-[var(--muted)]">Loading…</p>
+                ) : (
+                  <select
+                    value={selectedId ?? columns[0]?.id}
+                    onChange={(e) => {
+                      setSelectedId(e.target.value);
+                      saveColumnId(e.target.value);
+                    }}
+                    className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm font-medium text-[var(--foreground)]"
+                  >
+                    {columns.map((col) => (
+                      <option key={col.id} value={col.id}>
+                        {col.title}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <RefreshButton isFetching={isFetching} onRefresh={refetch} />
+              </div>
+            )}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-sm text-[var(--muted)] px-6 text-center">
-            {allowed
-              ? "Your saved columns will appear here once you configure them on desktop."
-              : "Loading your feed…"}
+            Loading your feed…
           </div>
         )}
       </div>
@@ -273,6 +252,8 @@ export function MiniAppColumnsClient() {
       <MiniAppToolbar
         viewerPfp={viewer.pfpUrl}
         viewerFid={viewer.fid}
+        isPro={isPro === true}
+        savedColumns={savedColumns}
         followColumnsUrl={columnsUrl}
         communityUrl={communityUrl}
         activePage="columns"

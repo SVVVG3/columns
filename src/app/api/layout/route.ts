@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canUseMiniAppColumns } from "@/lib/betaGate";
 import { verifyCsrf } from "@/lib/csrf";
+import { MAX_COLUMNS, MINIAPP_FREE_CUSTOM_COLUMNS } from "@/lib/columnLimits";
+import { extractCustomColumns } from "@/lib/miniappColumns";
 import { upsertColumnsUser } from "@/lib/columnsRegistry";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSession } from "@/lib/session";
@@ -90,11 +93,42 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Invalid layout" }, { status: 400 });
   }
 
+  const isPro = canUseMiniAppColumns(session.user.fid);
+  const maxCustom = session.user.profileOnly
+    ? isPro
+      ? MAX_COLUMNS
+      : MINIAPP_FREE_CUSTOM_COLUMNS
+    : MAX_COLUMNS;
+
+  let columnsToSave = layout.columns;
+
+  if (session.user.profileOnly) {
+    const incomingCustom = extractCustomColumns(layout.columns);
+    if (incomingCustom.length > maxCustom) {
+      return NextResponse.json(
+        { error: `Maximum of ${maxCustom} custom column${maxCustom === 1 ? "" : "s"} allowed` },
+        { status: 400 }
+      );
+    }
+
+    const { data: existing } = await sb
+      .from("user_column_layouts")
+      .select("columns")
+      .eq("fid", session.user.fid)
+      .maybeSingle();
+
+    const existingColumns = (existing?.columns ?? []) as FeedColumnConfig[];
+    const existingHome = existingColumns.filter((c) => c.type === "home");
+    columnsToSave = [...existingHome, ...incomingCustom];
+  } else if (layout.columns.length > MAX_COLUMNS) {
+    return NextResponse.json({ error: "Too many columns" }, { status: 400 });
+  }
+
   await upsertColumnsUser({
     fid: session.user.fid,
     username: session.user.username,
     displayName: session.user.displayName,
-    grantBadge: true,
+    grantBadge: !session.user.profileOnly,
   });
 
   const now = new Date().toISOString();
@@ -102,7 +136,7 @@ export async function PUT(req: NextRequest) {
     {
       fid: session.user.fid,
       schema_version: layout.schemaVersion,
-      columns: layout.columns,
+      columns: columnsToSave,
       updated_at: now,
     },
     { onConflict: "fid" }

@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { AddColumnModal } from "@/components/feed/AddColumnModal";
 import { UserAvatar } from "@/components/ui/UserAvatar";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   channelColumnFromSlug,
   columnHasChannel,
@@ -31,6 +31,7 @@ import {
   ProfileWalletsDropdown,
 } from "@/components/profile/profileMeta";
 import { Top8Section } from "@/components/profile/Top8Section";
+import { MAX_FEED_CURSOR_BYTES } from "@/lib/feedPagination";
 import { useColumnsStore } from "@/store/columns";
 import { useUiStore } from "@/store/ui";
 import type { FeedColumnConfig } from "@/types";
@@ -51,11 +52,9 @@ async function fetchProfile(seed: ProfilePreviewSeed): Promise<ProfileDetails> {
   return data.user;
 }
 
-async function fetchPopularCasts(fid: number): Promise<Record<string, unknown>[]> {
-  const res = await fetch(`/api/user/popular-casts?fid=${fid}&limit=3`);
-  if (!res.ok) throw new Error("Failed to load popular casts");
-  const data = (await res.json()) as { casts?: Record<string, unknown>[] };
-  return data.casts ?? [];
+interface UserCastsPage {
+  casts?: Record<string, unknown>[];
+  next?: { cursor?: string | null };
 }
 
 function ModalCloseButton({
@@ -116,12 +115,45 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
     staleTime: 60_000,
   });
 
-  const { data: popularCasts = [], isLoading: popularLoading } = useQuery({
-    queryKey: ["popular-casts", targetFid],
-    queryFn: () => fetchPopularCasts(targetFid!),
+  const {
+    data: userCastsPages,
+    isLoading: userCastsLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["profile-user-casts", targetFid],
+    queryFn: async ({ pageParam }) => {
+      let cursor = pageParam as string | undefined;
+      if (cursor && cursor.length > MAX_FEED_CURSOR_BYTES) cursor = undefined;
+      const params = new URLSearchParams({ fid: String(targetFid), limit: "25" });
+      if (cursor) params.set("cursor", cursor);
+      const res = await fetch(`/api/feed/user?${params}`);
+      if (!res.ok) throw new Error("Failed to load casts");
+      return (await res.json()) as UserCastsPage;
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage, allPages) => {
+      const cursor = lastPage.next?.cursor;
+      if (!cursor) return undefined;
+      const lastCasts = (lastPage.casts ?? []) as { hash?: string }[];
+      if (lastCasts.length === 0) return undefined;
+      const priorHashes = new Set(
+        allPages
+          .slice(0, -1)
+          .flatMap((p) => ((p.casts ?? []) as { hash?: string }[]).map((c) => c.hash))
+          .filter(Boolean)
+      );
+      const newCount = lastCasts.filter((c) => c.hash && !priorHashes.has(c.hash)).length;
+      if (newCount === 0) return undefined;
+      return cursor;
+    },
     enabled: targetFid != null && !!profile,
     staleTime: 120_000,
   });
+
+  const userCasts =
+    userCastsPages?.pages.flatMap((p) => p.casts ?? []) ?? [];
 
   const { data: columnsBadge } = useQuery({
     queryKey: ["columns-user", targetFid],
@@ -293,20 +325,20 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
             {targetFid != null && (
               <div className="mt-4 w-full border-t border-[var(--border)] pt-3 text-left">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)] mb-2 text-center">
-                  Top Recent Casts
+                  Casts
                 </p>
-                {popularLoading && (
+                {userCastsLoading && (
                   <div className="space-y-3 animate-pulse">
                     {[...Array(2)].map((_, i) => (
                       <div key={i} className="h-24 rounded-xl bg-[var(--surface-hover)]" />
                     ))}
                   </div>
                 )}
-                {!popularLoading && popularCasts.length === 0 && (
-                  <p className="text-xs text-center text-[var(--muted)]">No recent casts yet.</p>
+                {!userCastsLoading && userCasts.length === 0 && (
+                  <p className="text-xs text-center text-[var(--muted)]">No casts yet.</p>
                 )}
                 <ul className="space-y-0">
-                  {popularCasts.map((cast) => {
+                  {userCasts.map((cast) => {
                     const hash = cast.hash as string;
                     if (!hash) return null;
                     return (
@@ -316,6 +348,16 @@ export function ProfilePreviewModal({ viewerFid }: ProfilePreviewModalProps) {
                     );
                   })}
                 </ul>
+                {hasNextPage && (
+                  <button
+                    type="button"
+                    onClick={() => void fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                    className="mt-3 w-full py-2 rounded-xl border border-[var(--border)] text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50 transition-colors"
+                  >
+                    {isFetchingNextPage ? "Loading…" : "Load more"}
+                  </button>
+                )}
               </div>
             )}
           </div>

@@ -6,7 +6,7 @@ export async function upsertColumnsUser(params: {
   displayName?: string;
   /**
    * Full Columns app sign-in (allowlisted + managed signer).
-   * When true, grants the Columns User badge. Profile-only mini app users must not pass this.
+   * When true, grants the Columns Pro badge. Profile-only mini app users must not pass this.
    */
   grantBadge?: boolean;
 }): Promise<void> {

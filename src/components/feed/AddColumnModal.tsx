@@ -22,6 +22,13 @@ type InitialUserChip = {
   pfpUrl?: string | null;
 };
 
+interface MiniAppColumnMode {
+  existingColumns: FeedColumnConfig[];
+  maxColumns: number;
+  excludeTypes?: FeedColumnType[];
+  onSave: (column: FeedColumnConfig, mode: "add" | "edit") => void;
+}
+
 interface AddColumnModalProps {
   onClose: () => void;
   /** When provided, opens modal in edit mode pre-populated from the column config */
@@ -30,6 +37,8 @@ interface AddColumnModalProps {
   initialType?: FeedColumnType;
   /** Pre-populate the user chip (only used when initialType === "user") */
   initialUserChip?: InitialUserChip;
+  /** Mini app: bypass zustand store and persist via parent callback. */
+  miniAppMode?: MiniAppColumnMode;
 }
 
 const COLUMN_TYPES: { type: FeedColumnType; label: string; description: string }[] = [
@@ -314,10 +323,18 @@ function KeywordInput({
 }
 
 // ─── Modal ───────────────────────────────────────────────────────────────────
-export function AddColumnModal({ onClose, editColumn, initialType, initialUserChip }: AddColumnModalProps) {
-  const { addColumn, updateColumn, columns } = useColumnsStore();
+export function AddColumnModal({
+  onClose,
+  editColumn,
+  initialType,
+  initialUserChip,
+  miniAppMode,
+}: AddColumnModalProps) {
+  const store = useColumnsStore();
   const isEditMode = !!editColumn;
-  const atColumnLimit = !isEditMode && columns.length >= MAX_COLUMNS;
+  const columns = miniAppMode?.existingColumns ?? store.columns;
+  const columnLimit = miniAppMode?.maxColumns ?? MAX_COLUMNS;
+  const atColumnLimit = !isEditMode && columns.length >= columnLimit;
 
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -534,23 +551,40 @@ export function AddColumnModal({ onClose, editColumn, initialType, initialUserCh
   function handleSave() {
     const column = buildColumn();
     if (!column) return;
+    const savedColumn: FeedColumnConfig =
+      isEditMode && editColumn
+        ? {
+            ...editColumn,
+            type: column.type,
+            channelIds: column.channelIds,
+            targetFids: column.targetFids,
+            queries: column.queries,
+            rssUrl: column.rssUrl,
+            title: migrateChannelColumnTitle({
+              type: column.type,
+              title: editColumn.title || column.title,
+              channelIds: column.channelIds,
+            }),
+          }
+        : column;
+
+    if (miniAppMode) {
+      miniAppMode.onSave(savedColumn, isEditMode ? "edit" : "add");
+      onClose();
+      return;
+    }
+
     if (isEditMode && editColumn) {
-      updateColumn(editColumn.id, {
-        type: column.type,
-        channelIds: column.channelIds,
-        targetFids: column.targetFids,
-        queries: column.queries,
-        rssUrl: column.rssUrl,
-        // Always preserve the user's custom title — only use the auto-generated
-        // title if the column never had one (shouldn't happen in practice)
-        title: migrateChannelColumnTitle({
-          type: column.type,
-          title: editColumn.title || column.title,
-          channelIds: column.channelIds,
-        }),
+      store.updateColumn(editColumn.id, {
+        type: savedColumn.type,
+        channelIds: savedColumn.channelIds,
+        targetFids: savedColumn.targetFids,
+        queries: savedColumn.queries,
+        rssUrl: savedColumn.rssUrl,
+        title: savedColumn.title,
       });
     } else {
-      if (!addColumn(column)) return;
+      if (!store.addColumn(savedColumn)) return;
     }
     onClose();
   }
@@ -580,7 +614,7 @@ export function AddColumnModal({ onClose, editColumn, initialType, initialUserCh
 
         {atColumnLimit && (
           <p className="px-4 py-2 text-xs text-amber-200/90 border-b border-[var(--border)] bg-amber-500/10">
-            You&apos;ve reached the maximum of {MAX_COLUMNS} columns. Remove one to add another.
+            You&apos;ve reached the maximum of {columnLimit} column{columnLimit === 1 ? "" : "s"}. Remove one to add another.
           </p>
         )}
 
@@ -588,7 +622,9 @@ export function AddColumnModal({ onClose, editColumn, initialType, initialUserCh
         <div ref={bodyRef} className="overflow-y-auto flex-1 min-h-0">
           {/* Type picker */}
           <div className="p-3 space-y-1.5">
-            {COLUMN_TYPES.map(({ type, label, description }) => (
+            {COLUMN_TYPES.filter(
+              ({ type }) => !miniAppMode?.excludeTypes?.includes(type)
+            ).map(({ type, label, description }) => (
               <button
                 key={type}
                 onClick={() => setSelectedType(type === selectedType ? null : type)}
