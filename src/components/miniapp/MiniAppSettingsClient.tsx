@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "@/components/layout/Providers";
+import { MiniAppProBadgePanel } from "@/components/miniapp/MiniAppProBadgePanel";
 import { MiniAppProPanel } from "@/components/miniapp/MiniAppProPanel";
 import { MiniAppToolbar } from "@/components/miniapp/MiniAppToolbar";
 import { ColumnsBadge } from "@/components/profile/ColumnsBadge";
 import {
   columnsCommunityChannelUrl,
   columnsFarcasterProfileUrl,
+  getAppUrl,
 } from "@/lib/appUrl";
 import { miniappSession } from "@/lib/miniappSession";
 import type { SessionUser } from "@/types";
@@ -19,10 +21,18 @@ async function fetchSessionUser(): Promise<SessionUser | null> {
   return data.user ?? null;
 }
 
+async function fetchColumnsBadge(fid: number): Promise<boolean> {
+  const res = await fetch(`/api/columns-user?fid=${fid}`, { cache: "no-store" });
+  if (!res.ok) return false;
+  const data = (await res.json()) as { showBadge?: boolean };
+  return !!data.showBadge;
+}
+
 export function MiniAppSettingsClient() {
   const cached = miniappSession.read();
   const [viewer, setViewer] = useState<SessionUser | null>(cached?.viewer ?? null);
   const [isPro, setIsPro] = useState(cached?.allowed ?? false);
+  const [hasBadge, setHasBadge] = useState<boolean | null>(null);
   const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
@@ -31,18 +41,22 @@ export function MiniAppSettingsClient() {
       if (user) setViewer(user);
       const session = miniappSession.read();
       if (session) setIsPro(session.allowed);
+
+      const fid = user?.fid ?? session?.viewer.fid;
+      if (fid) setHasBadge(await fetchColumnsBadge(fid));
     })();
   }, []);
 
   const columnsUrl = columnsFarcasterProfileUrl();
   const communityUrl = columnsCommunityChannelUrl();
+  const desktopUrl = getAppUrl();
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-[var(--background)] text-[var(--foreground)] max-w-lg mx-auto w-full">
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="px-4 py-5 flex items-center gap-3">
           <h1 className="text-lg font-semibold">Settings</h1>
-          {isPro && <ColumnsBadge />}
+          {hasBadge && <ColumnsBadge />}
         </div>
 
         <div className="px-4 space-y-1">
@@ -60,6 +74,12 @@ export function MiniAppSettingsClient() {
             </span>
           </button>
         </div>
+
+        {isPro && hasBadge === false && (
+          <div className="px-4 mt-6">
+            <MiniAppProBadgePanel desktopUrl={desktopUrl} />
+          </div>
+        )}
 
         {!isPro && (
           <div className="px-4 mt-6">
