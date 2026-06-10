@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const users = await searchUsersProfile(q, LIMIT);
+    const users = await searchUsersProfile(q, LIMIT, session.user.fid);
     return NextResponse.json({ users });
   } catch (err: unknown) {
     return apiErrorFromHypersnap(err, "[/api/user/search]");

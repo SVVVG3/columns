@@ -125,24 +125,96 @@ export async function lookupUserByUsername(
   return lookupUserByUsernameProof(n);
 }
 
-function rankUsers(query: string, users: HsnapUser[]): HsnapUser[] {
+function usernameLocalPart(username: string): string {
+  return username.split(".")[0].toLowerCase();
+}
+
+/** Higher = better match for prefix / substring username search. */
+export function userSearchScore(query: string, user: HsnapUser): number {
   const q = normalizeUsernameQuery(query).toLowerCase();
-  const exact = users.filter((u) => u.username.toLowerCase() === q);
+  if (!q) return 0;
+  const username = user.username.toLowerCase();
+  const local = usernameLocalPart(user.username);
+  const display = (user.display_name ?? "").toLowerCase();
+
+  if (username === q) return 1000;
+  if (local === q) return 950;
+  if (username.startsWith(q)) return 900;
+  if (local.startsWith(q)) return 850;
+  if (username.includes(q)) return 600;
+  if (local.includes(q)) return 550;
+  if (display.startsWith(q)) return 400;
+  if (display.includes(q)) return 300;
+  return 100;
+}
+
+function rankUsers(query: string, users: HsnapUser[]): HsnapUser[] {
   const seen = new Set<number>();
   const out: HsnapUser[] = [];
-  for (const u of exact) {
-    if (!seen.has(u.fid)) {
-      out.push(u);
-      seen.add(u.fid);
-    }
-  }
-  for (const u of users) {
+  const sorted = [...users].sort(
+    (a, b) => userSearchScore(query, b) - userSearchScore(query, a)
+  );
+  for (const u of sorted) {
     if (!seen.has(u.fid)) {
       out.push(u);
       seen.add(u.fid);
     }
   }
   return out;
+}
+
+/** Neynar prefix search — much better username suggestions than Hypersnap fuzzy alone. */
+export async function searchUsersNeynar(
+  q: string,
+  limit: number,
+  viewerFid?: number
+): Promise<HsnapUser[]> {
+  const apiKey = process.env.NEYNAR_API_KEY?.trim();
+  if (!apiKey) return [];
+
+  const trimmed = normalizeUsernameQuery(q);
+  if (!trimmed || trimmed.length < 2) return [];
+
+  try {
+    const url = new URL("https://api.neynar.com/v2/farcaster/user/search");
+    url.searchParams.set("q", trimmed);
+    url.searchParams.set("limit", String(Math.min(limit, 25)));
+    if (viewerFid) url.searchParams.set("viewer_fid", String(viewerFid));
+
+    const res = await fetch(url.toString(), {
+      headers: { "x-api-key": apiKey, Accept: "application/json" },
+    });
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as {
+      users?: Array<{
+        fid?: number;
+        username?: string;
+        display_name?: string;
+        pfp_url?: string;
+      }>;
+      result?: {
+        users?: Array<{
+          fid?: number;
+          username?: string;
+          display_name?: string;
+          pfp_url?: string;
+        }>;
+      };
+    };
+
+    const rows = data.users ?? data.result?.users ?? [];
+    return rows
+      .filter((u) => u.fid && u.username)
+      .map((u) => ({
+        fid: u.fid!,
+        username: u.username!,
+        display_name: u.display_name,
+        pfp_url: u.pfp_url,
+      }));
+  } catch {
+    return [];
+  }
 }
 
 export async function lookupUserByFid(fid: number): Promise<HsnapUser | null> {
@@ -227,14 +299,18 @@ function mergeUsers(...groups: (HsnapUser | null | undefined)[][]): HsnapUser[] 
 /**
  * Profile search: username prefix, FID, ETH (verified + custody), and X handle.
  */
-export async function searchUsersProfile(q: string, limit = 25): Promise<HsnapUser[]> {
+export async function searchUsersProfile(
+  q: string,
+  limit = 25,
+  viewerFid?: number
+): Promise<HsnapUser[]> {
   const trimmed = q.trim();
   if (!trimmed) return [];
 
   const tasks: Promise<HsnapUser[]>[] = [];
 
   if (shouldRunUsernameSearch(trimmed)) {
-    tasks.push(safeUserSearchTask(() => searchUsersCombined(trimmed, limit)));
+    tasks.push(safeUserSearchTask(() => searchUsersCombined(trimmed, limit, viewerFid)));
   }
 
   if (isFidQuery(trimmed)) {
@@ -263,30 +339,41 @@ export async function searchUsersProfile(q: string, limit = 25): Promise<HsnapUs
   return rankUsers(trimmed, mergeUsers(...groups)).slice(0, limit);
 }
 
-/** Prefix search + exact by-username + username-proof fallback for ENS. */
+/** Prefix search + Neynar suggestions + exact by-username + username-proof fallback for ENS. */
 export async function searchUsersCombined(
   q: string,
-  limit = 25
+  limit = 25,
+  viewerFid?: number
 ): Promise<HsnapUser[]> {
   const trimmed = normalizeUsernameQuery(q);
   if (!trimmed) return [];
 
   const byFid = new Map<number, HsnapUser>();
 
-  const [fuzzy, exact] = await Promise.all([
+  const [fuzzy, exact, neynar] = await Promise.all([
     searchUsersFuzzy(trimmed, limit).catch(() => [] as HsnapUser[]),
     lookupUserByUsername(trimmed).catch(() => null),
+    searchUsersNeynar(trimmed, limit, viewerFid).catch(() => [] as HsnapUser[]),
   ]);
 
-  // Drop fuzzy hits that don't match an explicit .eth query (avoids marcgarcia vs marcgarcia.eth)
+  // Neynar already returns strong prefix matches — always merge those first.
+  for (const u of neynar) byFid.set(u.fid, u);
+
   for (const u of fuzzy) {
+    const score = userSearchScore(trimmed, u);
     if (trimmed.toLowerCase().endsWith(".eth")) {
-      if (usernameMatchesQuery(trimmed, u.username)) byFid.set(u.fid, u);
-    } else {
+      if (usernameMatchesQuery(trimmed, u.username) || score >= 550) byFid.set(u.fid, u);
+    } else if (score >= 550) {
       byFid.set(u.fid, u);
     }
   }
   if (exact) byFid.set(exact.fid, exact);
+
+  // Typed handle without .eth — resolve exact fname/ENS (e.g. "svvvg3" → svvvg3.eth).
+  if (!trimmed.includes(".") && trimmed.length >= 2) {
+    const ensGuess = await lookupUserByUsernameProof(`${trimmed}.eth`).catch(() => null);
+    if (ensGuess) byFid.set(ensGuess.fid, ensGuess);
+  }
 
   return rankUsers(trimmed, [...byFid.values()]).slice(0, limit);
 }

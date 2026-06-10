@@ -133,12 +133,7 @@ export function MiniAppColumnsManagerModal({
           aria-label="Manage columns"
         >
           <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-[var(--border)] shrink-0">
-            <div>
-              <h2 className="text-sm font-semibold text-[var(--foreground)]">My Columns</h2>
-              <p className="text-[11px] text-[var(--muted)] mt-0.5">
-                Home feed is always included · {customColumns.length}/{maxCustom} custom
-              </p>
-            </div>
+            <h2 className="text-sm font-semibold text-[var(--foreground)]">My Columns</h2>
             <button
               type="button"
               onClick={onClose}

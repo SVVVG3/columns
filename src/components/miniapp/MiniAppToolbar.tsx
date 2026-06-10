@@ -75,14 +75,14 @@ export function MiniAppToolbar({
   }
 
   const iconBtn =
-    "w-11 h-11 flex items-center justify-center rounded-full hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors";
+    "w-12 h-12 flex items-center justify-center rounded-full hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors";
 
   return (
     <>
-      <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] px-4 py-3 max-w-lg mx-auto w-full">
-        <div className="flex items-center justify-between gap-1">
+      <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] px-6 py-3 max-w-lg mx-auto w-full">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
           {/* Left: Settings + Search */}
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-3 justify-start">
             <Link
               href="/settings"
               className={`${iconBtn} ${
@@ -115,24 +115,26 @@ export function MiniAppToolbar({
           </div>
 
           {/* Center: Columns logo */}
-          <Link
-            href="/columns"
-            className={`w-14 h-14 flex items-center justify-center transition-all ${
-              activePage === "columns" ? "scale-105" : "hover:scale-105"
-            }`}
-            aria-label="My Columns"
-          >
-            <Image
-              src={columnsLogo}
-              alt="Columns"
-              width={48}
-              height={48}
-              className="rounded-xl object-cover"
-            />
-          </Link>
+          <div className="flex justify-center">
+            <Link
+              href="/columns"
+              className={`w-14 h-14 flex items-center justify-center transition-all ${
+                activePage === "columns" ? "scale-105" : "hover:scale-105"
+              }`}
+              aria-label="My Columns"
+            >
+              <Image
+                src={columnsLogo}
+                alt="Columns"
+                width={48}
+                height={48}
+                className="rounded-xl object-cover"
+              />
+            </Link>
+          </div>
 
           {/* Right: Add columns + Profile */}
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-3 justify-end">
             <button
               type="button"
               onClick={() => setManagerOpen(true)}
@@ -145,7 +147,7 @@ export function MiniAppToolbar({
             </button>
             <Link
               href="/profile/me"
-              className={`w-11 h-11 flex items-center justify-center rounded-full transition-colors ${
+              className={`w-12 h-12 flex items-center justify-center rounded-full transition-colors ${
                 activePage === "profile"
                   ? "ring-2 ring-[var(--brand)] ring-offset-2 ring-offset-[var(--background)]"
                   : "hover:opacity-80"
