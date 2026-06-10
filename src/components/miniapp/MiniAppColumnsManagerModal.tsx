@@ -46,22 +46,26 @@ export function MiniAppColumnsManagerModal({
   const [editColumn, setEditColumn] = useState<FeedColumnConfig | undefined>();
   const [saving, setSaving] = useState(false);
   const [upsellOpen, setUpsellOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<FeedColumnConfig | null>(null);
   const maxCustom = maxCustomColumnsForUser(isPro);
 
   useEffect(() => {
     if (open) {
       setCustomColumns(extractCustomColumns(savedColumns));
+      setPendingDelete(null);
     }
   }, [open, savedColumns]);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !addOpen) onClose();
+      if (e.key !== "Escape" || addOpen) return;
+      if (pendingDelete) setPendingDelete(null);
+      else onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [open, onClose, addOpen]);
+  }, [open, onClose, addOpen, pendingDelete]);
 
   const persist = useCallback(
     async (nextCustom: FeedColumnConfig[]) => {
@@ -104,6 +108,7 @@ export function MiniAppColumnsManagerModal({
   function handleDelete(id: string) {
     const next = customColumns.filter((c) => c.id !== id);
     setCustomColumns(next);
+    setPendingDelete(null);
     void persist(next);
   }
 
@@ -201,9 +206,9 @@ export function MiniAppColumnsManagerModal({
                     </button>
                     <button
                       type="button"
-                      disabled={saving}
-                      onClick={() => handleDelete(col.id)}
-                      className="p-1.5 text-[var(--muted)] hover:text-red-400"
+                      disabled={saving || pendingDelete != null}
+                      onClick={() => setPendingDelete(col)}
+                      className="p-1.5 text-[var(--muted)] hover:text-red-400 disabled:opacity-30"
                       aria-label="Delete"
                     >
                       ×
@@ -215,6 +220,36 @@ export function MiniAppColumnsManagerModal({
           </div>
 
           <div className="px-4 pb-4 pt-2 border-t border-[var(--border)] shrink-0 space-y-2">
+            {pendingDelete && (
+              <div className="p-3 rounded-xl border border-red-500/30 bg-red-500/10 space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-[var(--foreground)]">
+                    Delete &ldquo;{pendingDelete.title}&rdquo;?
+                  </p>
+                  <p className="text-[11px] text-[var(--muted)] mt-1">
+                    This column will be removed from your layout.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => setPendingDelete(null)}
+                    className="flex-1 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => handleDelete(pendingDelete.id)}
+                    className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white text-sm font-medium transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )}
             {customColumns.length >= maxCustom && !isPro && (
               <p className="text-[11px] text-amber-200/90 text-center">
                 Upgrade to Columns Pro for up to 10 custom columns.

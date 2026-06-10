@@ -76,13 +76,13 @@ export function MiniAppToolbar({
   }
 
   const iconBtn =
-    "w-11 h-11 flex items-center justify-center rounded-full hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors shrink-0";
+    "w-[52px] h-[52px] flex items-center justify-center rounded-full hover:bg-[var(--surface-hover)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors shrink-0";
 
   return (
     <>
-      <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] py-2.5 max-w-lg mx-auto w-full">
+      <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] py-3 max-w-lg mx-auto w-full">
         {/* Single centered row — avoids 1fr grid gaps that balloon on iPad */}
-        <div className="flex items-center justify-center gap-5 sm:gap-6 px-4">
+        <div className="flex items-center justify-center gap-[1.875rem] sm:gap-9 px-4">
           <Link
             href="/settings"
             className={`${iconBtn} ${
@@ -92,7 +92,7 @@ export function MiniAppToolbar({
             }`}
             aria-label="Settings"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -109,7 +109,7 @@ export function MiniAppToolbar({
             className={iconBtn}
             aria-label="Search"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </button>
@@ -124,9 +124,9 @@ export function MiniAppToolbar({
             <Image
               src={columnsLogo}
               alt="Columns"
-              width={44}
-              height={44}
-              className="w-11 h-11 rounded-xl object-cover"
+              width={52}
+              height={52}
+              className="w-[52px] h-[52px] rounded-xl object-cover"
             />
           </Link>
 
@@ -136,14 +136,14 @@ export function MiniAppToolbar({
             className={iconBtn}
             aria-label="Manage columns"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 4v16m8-8H4" />
             </svg>
           </button>
 
           <Link
             href="/profile/me"
-            className={`w-11 h-11 flex items-center justify-center rounded-full transition-colors shrink-0 ${
+            className={`w-[52px] h-[52px] flex items-center justify-center rounded-full transition-colors shrink-0 ${
               activePage === "profile"
                 ? "ring-2 ring-[var(--brand)] ring-offset-2 ring-offset-[var(--background)]"
                 : "hover:opacity-80"
@@ -155,12 +155,12 @@ export function MiniAppToolbar({
               <img
                 src={viewerPfp}
                 alt=""
-                width={40}
-                height={40}
-                className="w-10 h-10 rounded-full object-cover"
+                width={48}
+                height={48}
+                className="w-12 h-12 rounded-full object-cover"
               />
             ) : (
-              <div className="w-10 h-10 rounded-full bg-[var(--surface-hover)]" />
+              <div className="w-12 h-12 rounded-full bg-[var(--surface-hover)]" />
             )}
           </Link>
         </div>
