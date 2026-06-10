@@ -20,6 +20,10 @@ export function profileOgImageUrl(username: string): string {
 
 export const COLUMNS_FARCASTER_USERNAME = "columns";
 
+/** Farcaster client mini app directory link (desktop auth screen CTA). */
+export const COLUMNS_FARCASTER_MINIAPP_URL =
+  "https://farcaster.xyz/miniapps/1VQ3HHkd4Ahy/columns";
+
 export function columnsFarcasterProfileUrl(): string {
   return `https://farcaster.xyz/${COLUMNS_FARCASTER_USERNAME}`;
 }

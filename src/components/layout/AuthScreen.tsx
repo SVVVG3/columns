@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
+import { COLUMNS_FARCASTER_MINIAPP_URL } from "@/lib/appUrl";
 import columnsLogo from "../../../public/columns-logo.png";
 import farcasterLogoWhite from "../../../public/farcaster-logo-white.png";
 
@@ -360,8 +361,18 @@ export function AuthScreen({
             onSubmit={handleBetaSubmit}
             className="w-full flex flex-col items-center gap-4"
           >
-            <p className="text-xs text-[var(--muted)] text-center">
-              Columns is in private beta.
+            <p className="text-xs text-[var(--muted)] text-center leading-relaxed">
+              Columns is in private beta.{" "}
+              Try our{" "}
+              <a
+                href={COLUMNS_FARCASTER_MINIAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--accent)] hover:underline"
+              >
+                Mini App
+              </a>{" "}
+              on Farcaster!
             </p>
             <input
               type="password"
