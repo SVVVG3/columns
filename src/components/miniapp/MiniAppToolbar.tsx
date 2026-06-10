@@ -82,7 +82,7 @@ export function MiniAppToolbar({
     <>
       <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] py-3 max-w-lg mx-auto w-full">
         {/* Single centered row — avoids 1fr grid gaps that balloon on iPad */}
-        <div className="flex items-center justify-center gap-[1.875rem] sm:gap-9 px-6">
+        <div className="flex items-center justify-center gap-[1.875rem] sm:gap-9 px-6 overflow-visible">
           <Link
             href="/settings"
             className={`${iconBtn} ${
@@ -143,9 +143,9 @@ export function MiniAppToolbar({
 
           <Link
             href="/profile/me"
-            className={`w-[52px] h-[52px] flex items-center justify-center rounded-full transition-colors shrink-0 ${
+            className={`w-[52px] h-[52px] flex items-center justify-center rounded-full transition-colors shrink-0 overflow-visible ${
               activePage === "profile"
-                ? "ring-2 ring-[var(--brand)] ring-offset-2 ring-offset-[var(--background)]"
+                ? "ring-2 ring-[var(--brand)] ring-offset-1 ring-offset-[var(--background)]"
                 : "hover:opacity-80"
             }`}
             aria-label="My Profile"
@@ -155,12 +155,12 @@ export function MiniAppToolbar({
               <img
                 src={viewerPfp}
                 alt=""
-                width={48}
-                height={48}
-                className="w-12 h-12 rounded-full object-cover"
+                width={44}
+                height={44}
+                className="w-11 h-11 rounded-full object-cover"
               />
             ) : (
-              <div className="w-12 h-12 rounded-full bg-[var(--surface-hover)]" />
+              <div className="w-11 h-11 rounded-full bg-[var(--surface-hover)]" />
             )}
           </Link>
         </div>
