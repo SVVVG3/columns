@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { UserAvatar } from "@/components/ui/UserAvatar";
-import { useInfiniteQuery, useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueries,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { useUiStore } from "@/store/ui";
 import { profileSeedFromUnknown } from "@/lib/profilePreview";
 import { miniappFetch } from "@/lib/miniappFetch";
@@ -18,6 +24,7 @@ import {
   notificationBodyText,
   notificationContextLine,
   notificationFeedSuffix,
+  type HypersnapNotification,
   type NotificationActor,
   type NotificationFeedRow,
 } from "@/lib/notifications";
@@ -87,13 +94,18 @@ export function NotificationsPanel({
     hasNextPage,
     isFetchingNextPage,
     refetch,
-  } = useInfiniteQuery({
+  } = useInfiniteQuery<
+    NotificationsListPage,
+    Error,
+    InfiniteData<NotificationsListPage, string | undefined>,
+    (string | number)[],
+    string | undefined
+  >({
     queryKey: ["notifications", viewerFid, "list", listSession],
-    queryFn: async ({ pageParam }) =>
-      fetchNotificationsListPage(pageParam as string | undefined),
-    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) => fetchNotificationsListPage(pageParam),
+    initialPageParam: undefined,
     getNextPageParam: (last) => last.next?.cursor ?? undefined,
-    placeholderData: () => {
+    placeholderData: (): InfiniteData<NotificationsListPage, string | undefined> | undefined => {
       const peek = queryClient.getQueryData<{ notifications?: HypersnapNotification[] }>([
         "notifications",
         viewerFid,
@@ -102,7 +114,7 @@ export function NotificationsPanel({
       const peekItems = peek?.notifications ?? [];
       if (peekItems.length === 0) return undefined;
       return {
-        pages: [{ notifications: peekItems, next: null } satisfies NotificationsListPage],
+        pages: [{ notifications: peekItems, next: null }],
         pageParams: [undefined],
       };
     },
