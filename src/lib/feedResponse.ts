@@ -1,24 +1,19 @@
 import { normalizeCast } from "@/lib/normalizeCast";
 import {
-  annotateFeedCasts,
   annotateReplyCounts,
   annotateViewerContext,
   getFeedViewerContext,
-  hydrateFeedReactions,
   hydrateReplyCounts,
 } from "@/lib/viewerContext";
 
-/** Attach viewer liked/recasted state and accurate reaction counts to a feed page. */
+/** Attach viewer liked/recasted state. Counts stay on the cast payload. */
 export async function buildFeedCastsResponse(
   casts: Record<string, unknown>[],
   viewerFid: number
 ): Promise<Record<string, unknown>[]> {
   const normalized = casts.map(normalizeCast);
-  const [baseVc, hydration] = await Promise.all([
-    getFeedViewerContext(viewerFid),
-    hydrateFeedReactions(normalized, viewerFid),
-  ]);
-  return annotateFeedCasts(normalized, hydration, baseVc);
+  const vc = await getFeedViewerContext(viewerFid);
+  return annotateViewerContext(normalized, vc);
 }
 
 /** Lighter feed annotation for profile previews — batch liked state only, no per-cast reaction/cast. */
@@ -32,21 +27,17 @@ export async function buildFeedCastsResponseLight(
 }
 
 /**
- * Profile top casts (small N) — hydrate like/recast via reaction/cast and reply
- * counts via conversation. Popular feed payloads often have stale reaction fields.
+ * Profile top casts. Liked state comes from batch cast-interactions.
+ * Reply counts are filled in only when the payload count is missing or zero.
  */
 export async function buildProfilePopularCastsResponse(
   casts: Record<string, unknown>[],
   viewerFid: number
 ): Promise<Record<string, unknown>[]> {
   const normalized = casts.map(normalizeCast);
-  const [baseVc, hydration, replyCounts] = await Promise.all([
+  const [vc, replyCounts] = await Promise.all([
     getFeedViewerContext(viewerFid),
-    hydrateFeedReactions(normalized, viewerFid),
     hydrateReplyCounts(normalized),
   ]);
-  return annotateReplyCounts(
-    annotateFeedCasts(normalized, hydration, baseVc),
-    replyCounts
-  );
+  return annotateReplyCounts(annotateViewerContext(normalized, vc), replyCounts);
 }

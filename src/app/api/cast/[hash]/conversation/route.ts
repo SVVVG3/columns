@@ -44,8 +44,6 @@ export async function GET(
 
     const normalizedCast = normalizeCastTree(data.cast);
 
-    // Use per-cast reaction/cast lookups so liked state is accurate for ALL
-    // historical likes (not capped at the 100 most recent from reaction/user).
     const vc = await getConversationViewerContext(
       normalizedCast as Record<string, unknown>,
       session.user.fid

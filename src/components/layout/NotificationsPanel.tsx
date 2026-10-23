@@ -7,13 +7,12 @@ import { useUiStore } from "@/store/ui";
 import type { HypersnapNotification } from "@/lib/notifications";
 import { profileSeedFromUnknown } from "@/lib/profilePreview";
 import {
-  aggregateNotificationKey,
-  aggregateNotifications,
+  dedupeNotifications,
   formatNotificationTime,
+  notificationRowKey,
   isCastTargetNotification,
   latestNotificationTimestampMs,
   mergeNotificationsWithPeek,
-  isReactionNotification,
   notificationActionSuffix,
   notificationActor,
   notificationActorCount,
@@ -105,7 +104,7 @@ export function NotificationsPanel({
       "peek",
     ])?.notifications ?? [];
 
-  const listItems = aggregateNotifications(
+  const listItems = dedupeNotifications(
     data?.pages.flatMap((p) => p.notifications ?? []) ?? []
   );
 
@@ -243,7 +242,7 @@ export function NotificationsPanel({
       {!showSkeleton &&
         items.map((n) => (
           <NotificationRow
-            key={aggregateNotificationKey(n)}
+            key={notificationRowKey(n)}
             notification={n}
             onClick={() => handleClick(n)}
             onOpenProfile={(actor) => {
@@ -391,7 +390,7 @@ function NotificationSummaryLine({
   const count = notificationActorCount(n);
   const suffix = notificationActionSuffix(n, count);
   const canShowActors =
-    isReactionNotification(n) &&
+    notificationReactionType(n) != null &&
     count > 1 &&
     !!notificationCastHash(n);
 

@@ -122,8 +122,8 @@ async function hsnapFetchOnce<T>(
 
   for (let attempt = 0; attempt <= MAX_429_RETRIES; attempt++) {
     const res = await fetch(url.toString(), {
-      next: { revalidate: 30 },
       ...init,
+      cache: "no-store",
       headers: {
         Accept: "application/json",
         ...(init.headers as Record<string, string> | undefined),

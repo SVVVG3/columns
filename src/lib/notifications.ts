@@ -50,118 +50,63 @@ export async function fetchNotificationsPage(
 
   return {
     ...data,
-    notifications: aggregateNotifications(normalized),
+    notifications: normalized,
   };
 }
 
-/** Group key: same type + cast (likes/recasts) or follow bucket by hour. */
-export function aggregateNotificationKey(n: HypersnapNotification): string {
-  const type = n.type;
-  if (type === "follows" || type === "follow") {
-    const ms = notificationTimestampMs(n);
-    const hour = ms > 0 ? Math.floor(ms / 3_600_000) : 0;
-    return `follow:${hour}`;
+/** Identity for one server row. Does not merge separate notifications together. */
+export function notificationRowKey(n: HypersnapNotification): string {
+  const hash = typeof n.cast?.hash === "string" ? n.cast.hash : "";
+  const ts = notificationTimestampMs(n);
+  if (n.type === "follow" || n.type === "follows") {
+    const fid = notificationActor(n)?.fid ?? "";
+    return `${n.type}:${fid}:${ts}`;
   }
-  const hash = n.cast?.hash;
-  if (typeof hash === "string" && hash.length > 0) {
-    return `${type}:${hash}`;
-  }
-  return `${type}:${notificationTimestampMs(n)}`;
+  return `${n.type}:${hash}:${ts}`;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function dedupeActors(actors: Record<string, any>[]): Record<string, any>[] {
-  const seen = new Set<number>();
-  const out: Record<string, any>[] = [];
-  for (const a of actors) {
-    if (!a) continue;
-    const fid = a.fid as number | undefined;
-    if (fid != null) {
-      if (seen.has(fid)) continue;
-      seen.add(fid);
-    }
-    out.push(a);
+/** Drop a repeated server row. Does not combine people from different rows. */
+export function dedupeNotifications(
+  notifications: HypersnapNotification[]
+): HypersnapNotification[] {
+  const seen = new Set<string>();
+  const out: HypersnapNotification[] = [];
+  for (const n of notifications) {
+    const key = notificationRowKey(n);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(n);
   }
   return out;
 }
 
-/**
- * Merge duplicate rows from Hypersnap (e.g. many likes on one cast).
- * Server docs describe aggregation; the public node often returns one row per actor.
- */
-export function aggregateNotifications(
-  notifications: HypersnapNotification[]
-): HypersnapNotification[] {
-  const groups = new Map<string, HypersnapNotification>();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const actorsByKey = new Map<string, Record<string, any>[]>();
-  const order: string[] = [];
-
-  for (const n of notifications) {
-    const key = aggregateNotificationKey(n);
-    const ts = notificationTimestampMs(n);
-
-    if (!groups.has(key)) {
-      groups.set(key, { ...n });
-      actorsByKey.set(key, n.user ? [n.user] : []);
-      order.push(key);
-      continue;
-    }
-
-    const existing = groups.get(key)!;
-    const actors = actorsByKey.get(key)!;
-    if (n.user) actors.push(n.user);
-
-    if (ts > notificationTimestampMs(existing)) {
-      existing.timestamp = n.timestamp;
-      existing.most_recent_timestamp = n.most_recent_timestamp;
-    }
-  }
-
-  return order.map((key) => {
-    const n = groups.get(key)!;
-    const actors = dedupeActors(actorsByKey.get(key) ?? []);
-    const count = actors.length;
-
-    if (count <= 1) {
-      return { ...n, user: actors[0] ?? n.user };
-    }
-
-    if (n.type === "likes" || n.type === "recasts" || n.type === "reaction") {
-      return {
-        ...n,
-        user: actors[0],
-        reactions: actors.map((user) => ({ user })),
-      };
-    }
-
-    if (n.type === "follows" || n.type === "follow") {
-      return {
-        ...n,
-        user: actors[0],
-        follows: actors.map((user) => ({ user })),
-      };
-    }
-
-    // Replies / mentions: keep separate unless same key (unusual)
-    return { ...n, user: actors[0] };
-  });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function actorRecord(value: unknown): Record<string, any> | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, any>;
+  if (row.user && typeof row.user === "object") return row.user as Record<string, any>;
+  if (row.fid != null || typeof row.username === "string") return row;
+  return null;
 }
 
-/** Primary actor for this notification (liker, replier, follower). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function actorsFrom(list: unknown): Record<string, any>[] {
+  if (!Array.isArray(list)) return [];
+  return list.map(actorRecord).filter((actor): actor is Record<string, any> => actor != null);
+}
+
+/** Primary actor: reaction/follow aggregates, otherwise the triggering cast's author. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function notificationActor(n: HypersnapNotification): Record<string, any> | null {
-  if (n.user) return n.user;
-  const reactions = n.reactions;
-  if (Array.isArray(reactions) && reactions.length > 0) {
-    const first = reactions[0];
-    return first?.user ?? first ?? null;
+  if (n.type === "follow" || n.type === "follows") {
+    return actorsFrom(n.follows)[0] ?? n.user ?? null;
   }
-  const follows = n.follows;
-  if (Array.isArray(follows) && follows.length > 0) {
-    return follows[0]?.user ?? follows[0] ?? null;
+  if (isReactionNotification(n)) {
+    return actorsFrom(n.reactions)[0] ?? n.user ?? null;
   }
-  return null;
+  const author = n.cast?.author;
+  if (author && typeof author === "object") return author as Record<string, any>;
+  return n.user ?? null;
 }
 
 export function notificationActorCount(n: HypersnapNotification): number {
@@ -259,12 +204,15 @@ export function isReactionNotification(n: HypersnapNotification): boolean {
   return n.type === "likes" || n.type === "recasts" || n.type === "reaction";
 }
 
-/** Hypersnap uses separate `likes` / `recasts` types; legacy rows may use `reaction`. */
+/**
+ * Which liker list to open. A `reaction` row does not say like vs recast,
+ * so it does not open either list.
+ */
 export function notificationReactionType(
   n: HypersnapNotification
 ): "likes" | "recasts" | null {
   if (n.type === "recasts") return "recasts";
-  if (n.type === "likes" || n.type === "reaction") return "likes";
+  if (n.type === "likes") return "likes";
   return null;
 }
 
@@ -301,7 +249,7 @@ export function notificationParentHash(n: HypersnapNotification): string | null 
 
 /** Unix ms for comparing unread state. */
 export function notificationTimestampMs(n: HypersnapNotification): number {
-  const raw = n.timestamp ?? n.most_recent_timestamp;
+  const raw = n.most_recent_timestamp ?? n.timestamp;
   if (raw == null) return 0;
   const ms =
     typeof raw === "number"
@@ -334,10 +282,10 @@ export function mergeNotificationsWithPeek(
   if (peek.length === 0) return list;
   const byKey = new Map<string, HypersnapNotification>();
   for (const n of list) {
-    byKey.set(aggregateNotificationKey(n), n);
+    byKey.set(notificationRowKey(n), n);
   }
   for (const n of peek) {
-    const key = aggregateNotificationKey(n);
+    const key = notificationRowKey(n);
     const existing = byKey.get(key);
     if (
       !existing ||
@@ -348,7 +296,7 @@ export function mergeNotificationsWithPeek(
   }
   const merged = Array.from(byKey.values());
   merged.sort((a, b) => notificationTimestampMs(b) - notificationTimestampMs(a));
-  return aggregateNotifications(merged);
+  return merged;
 }
 
 export function countUnreadNotifications(
