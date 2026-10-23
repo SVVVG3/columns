@@ -83,10 +83,12 @@ export function ComposeModal({
   useEffect(() => {
     textareaRef.current?.focus();
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      e.stopImmediatePropagation();
+      onClose();
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
   }, [onClose]);
 
   useEffect(() => {
@@ -229,7 +231,7 @@ export function ComposeModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-[96] flex items-start justify-center pt-20 bg-black/70 backdrop-blur-sm"
       onClick={onClose}
     >
       <div

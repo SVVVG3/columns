@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { deleteCached, withCache } from "@/lib/feedCache";
-import { fetchNotificationsPage } from "@/lib/notifications";
+import { fetchNotificationsPage, type HypersnapNotification } from "@/lib/notifications";
 import { apiErrorFromHypersnap } from "@/lib/hypersnap";
+import { annotateViewerContext, getFeedViewerContext, normalizeCastHash } from "@/lib/viewerContext";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +33,37 @@ export async function GET(req: NextRequest) {
         : await withCache(cacheKey, TTL, () =>
             fetchNotificationsPage(fid, { cursor, limit })
           );
-    return NextResponse.json(data, { headers: NO_STORE });
+    const withReactions = await attachNotificationViewerContext(fid, data.notifications);
+    return NextResponse.json({ ...data, notifications: withReactions }, { headers: NO_STORE });
   } catch (err: unknown) {
     return apiErrorFromHypersnap(err, "[/api/notifications]");
+  }
+}
+
+/** Stamp liked/recasted onto each notification cast so the row actions start correct. */
+async function attachNotificationViewerContext(
+  fid: number,
+  notifications: HypersnapNotification[]
+): Promise<HypersnapNotification[]> {
+  const casts = notifications
+    .map((n) => n.cast)
+    .filter((cast): cast is Record<string, unknown> => !!cast && typeof cast.hash === "string");
+  if (casts.length === 0) return notifications;
+
+  try {
+    const viewer = await getFeedViewerContext(fid);
+    const annotated = annotateViewerContext(casts, viewer);
+    const byHash = new Map(
+      annotated.map((cast) => [normalizeCastHash(String(cast.hash)), cast])
+    );
+    return notifications.map((n) => {
+      const hash = n.cast?.hash;
+      if (typeof hash !== "string") return n;
+      const cast = byHash.get(normalizeCastHash(hash));
+      return cast ? { ...n, cast } : n;
+    });
+  } catch (err) {
+    console.warn("[/api/notifications] viewer context failed", err);
+    return notifications;
   }
 }

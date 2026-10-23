@@ -1,34 +1,51 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { UserAvatar } from "@/components/ui/UserAvatar";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import { useUiStore } from "@/store/ui";
-import type { HypersnapNotification } from "@/lib/notifications";
 import { profileSeedFromUnknown } from "@/lib/profilePreview";
+import { miniappFetch } from "@/lib/miniappFetch";
+import { ReplyModal } from "@/components/cast/ReplyModal";
 import {
+  applyReactionSplit,
   dedupeNotifications,
-  formatNotificationTime,
-  notificationRowKey,
-  isCastTargetNotification,
+  formatRelativeTime,
+  groupNotificationsForDisplay,
   latestNotificationTimestampMs,
   mergeNotificationsWithPeek,
-  notificationActionSuffix,
-  notificationActor,
-  notificationActorCount,
   notificationActorDisplayName,
-  notificationCastHash,
-  notificationReactionActors,
-  notificationReactionType,
+  notificationBodyText,
+  notificationContextLine,
+  notificationFeedSuffix,
+  type NotificationActor,
+  type NotificationFeedRow,
 } from "@/lib/notifications";
-import { NotificationCastPreview } from "@/components/notifications/NotificationCastPreview";
 import {
   fetchNotificationsListPage,
   type NotificationsListPage,
 } from "@/lib/fetchNotifications";
 
-function isFollowNotification(n: HypersnapNotification): boolean {
-  return n.type === "follows" || n.type === "follow";
+async function reactionFids(hash: string, types: "likes" | "recasts"): Promise<number[]> {
+  const res = await fetch(
+    `/api/reaction/cast?hash=${encodeURIComponent(hash)}&types=${types}&limit=100`
+  );
+  if (!res.ok) throw new Error("Failed to load reactions");
+  const data = (await res.json()) as {
+    reactions?: Array<{ user?: { fid?: number } }>;
+  };
+  return (data.reactions ?? [])
+    .map((reaction) => reaction.user?.fid)
+    .filter((fid): fid is number => typeof fid === "number" && fid > 0);
+}
+
+/** One cast lookup: who liked it, and who recasted it. */
+async function loadReactionSplit(hash: string): Promise<{ likes: number[]; recasts: number[] }> {
+  const [likes, recasts] = await Promise.all([
+    reactionFids(hash, "likes"),
+    reactionFids(hash, "recasts"),
+  ]);
+  return { likes, recasts };
 }
 
 interface NotificationsPanelProps {
@@ -109,6 +126,66 @@ export function NotificationsPanel({
   );
 
   const items = mergeNotificationsWithPeek(listItems, peekItems);
+  const grouped = useMemo(() => groupNotificationsForDisplay(items), [items]);
+  const pendingHashes = useMemo(() => {
+    const hashes: string[] = [];
+    const seen = new Set<string>();
+    for (const row of grouped) {
+      if (!row.pendingSplit || !row.castHash || seen.has(row.castHash)) continue;
+      seen.add(row.castHash);
+      hashes.push(row.castHash);
+    }
+    return hashes;
+  }, [grouped]);
+  const splitQueries = useQueries({
+    queries: pendingHashes.map((hash) => ({
+      queryKey: ["notification-reaction-split", hash],
+      queryFn: () => loadReactionSplit(hash),
+      staleTime: 60_000,
+      enabled: open,
+    })),
+  });
+  const rows = useMemo(() => {
+    const byHash = new Map<
+      string,
+      { likes: Set<number>; recasts: Set<number> } | "error" | "loading"
+    >();
+    pendingHashes.forEach((hash, index) => {
+      const query = splitQueries[index];
+      if (!query || query.isPending) {
+        byHash.set(hash, "loading");
+        return;
+      }
+      if (query.isError || !query.data) {
+        byHash.set(hash, "error");
+        return;
+      }
+      byHash.set(hash, {
+        likes: new Set(query.data.likes),
+        recasts: new Set(query.data.recasts),
+      });
+    });
+
+    const resolved: NotificationFeedRow[] = [];
+    for (const row of grouped) {
+      if (!row.pendingSplit || !row.castHash) {
+        resolved.push(row);
+        continue;
+      }
+      const split = byHash.get(row.castHash);
+      if (!split || split === "loading") {
+        resolved.push(row);
+        continue;
+      }
+      if (split === "error") {
+        resolved.push({ ...row, pendingSplit: false });
+        continue;
+      }
+      resolved.push(...applyReactionSplit(row, split.likes, split.recasts));
+    }
+    resolved.sort((a, b) => b.timestampMs - a.timestampMs);
+    return resolved;
+  }, [grouped, pendingHashes, splitQueries]);
 
   useEffect(() => {
     if (!open) {
@@ -177,20 +254,17 @@ export function NotificationsPanel({
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage, items.length]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, rows.length]);
 
-  function handleClick(n: HypersnapNotification) {
-    if (isFollowNotification(n)) {
-      const username = notificationActor(n)?.username;
-      if (username) {
+  function openRow(row: NotificationFeedRow) {
+    if (row.kind === "follow") {
+      const username = row.actors[0]?.username;
+      if (typeof username === "string" && username) {
         window.open(`https://farcaster.xyz/${username}`, "_blank", "noopener,noreferrer");
       }
       return;
     }
-    const hash = notificationCastHash(n);
-    if (hash) {
-      openConversation(hash);
-    }
+    if (row.castHash) openConversation(row.castHash);
   }
 
   if (!open) return null;
@@ -240,23 +314,22 @@ export function NotificationsPanel({
       )}
 
       {!showSkeleton &&
-        items.map((n) => (
+        rows.map((row) => (
           <NotificationRow
-            key={notificationRowKey(n)}
-            notification={n}
-            onClick={() => handleClick(n)}
+            key={row.key}
+            row={row}
+            viewerFid={viewerFid}
+            onOpen={() => openRow(row)}
             onOpenProfile={(actor) => {
               const seed = profileSeedFromUnknown(actor);
               if (seed) openProfilePreview(seed);
             }}
-            onShowReactionActors={(notification) => {
-              const hash = notificationCastHash(notification);
-              const type = notificationReactionType(notification);
-              if (!hash || !type) return;
+            onShowReactionActors={() => {
+              if ((row.kind !== "likes" && row.kind !== "recasts") || !row.castHash) return;
               openReactionActors({
-                castHash: hash,
-                type,
-                seedActors: notificationReactionActors(notification),
+                castHash: row.castHash,
+                type: row.kind,
+                seedActors: row.actors,
               });
             }}
           />
@@ -271,155 +344,317 @@ export function NotificationsPanel({
 }
 
 function NotificationRow({
-  notification: n,
-  onClick,
+  row,
+  viewerFid,
+  onOpen,
   onOpenProfile,
   onShowReactionActors,
 }: {
-  notification: HypersnapNotification;
-  onClick: () => void;
-  onOpenProfile: (actor: Record<string, unknown>) => void;
-  onShowReactionActors: (notification: HypersnapNotification) => void;
+  row: NotificationFeedRow;
+  viewerFid: number;
+  onOpen: () => void;
+  onOpenProfile: (actor: NotificationActor) => void;
+  onShowReactionActors: () => void;
 }) {
-  const actor = notificationActor(n);
-  const pfp = actor?.pfp_url ?? actor?.pfpUrl ?? "";
-  const clickable = !!notificationCastHash(n) || isFollowNotification(n);
-  const showCastPreview = isCastTargetNotification(n) && !!n.cast;
+  const actor = row.actors[0] ?? null;
+  const name = notificationActorDisplayName(actor);
+  const suffix = notificationFeedSuffix(row);
+  const context = notificationContextLine(row, viewerFid);
+  const body = notificationBodyText(row);
+  const canOpen = row.kind === "follow" ? !!actor?.username : !!row.castHash;
+  const canShowActors =
+    (row.kind === "likes" || row.kind === "recasts") && row.actors.length > 1 && !!row.castHash;
 
   return (
     <div
-      className={`w-full text-left px-3 py-3 border-b border-[var(--border)] transition-colors ${
-        clickable ? "hover:bg-[var(--surface-hover)]" : ""
+      role={canOpen ? "button" : undefined}
+      tabIndex={canOpen ? 0 : undefined}
+      onClick={canOpen ? onOpen : undefined}
+      onKeyDown={
+        canOpen
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onOpen();
+              }
+            }
+          : undefined
+      }
+      className={`w-full text-left px-3 py-2.5 border-b border-[var(--border)] transition-colors ${
+        canOpen ? "hover:bg-[var(--surface-hover)] cursor-pointer" : ""
       }`}
     >
-      <div
-        role={clickable ? "button" : undefined}
-        tabIndex={clickable ? 0 : undefined}
-        onClick={clickable ? onClick : undefined}
-        onKeyDown={
-          clickable
-            ? (e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onClick();
-                }
-              }
-            : undefined
-        }
-        className={clickable ? "cursor-pointer" : ""}
-      >
-        <div className="flex gap-2.5">
-            <NotificationActorAvatar
-            pfp={pfp}
-            username={actor?.username as string | undefined}
-            onOpenProfile={() => actor && onOpenProfile(actor as Record<string, unknown>)}
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-baseline justify-between gap-2">
-              <NotificationSummaryLine
-                notification={n}
-                onOpenProfile={() => actor && onOpenProfile(actor as Record<string, unknown>)}
-                onShowReactionActors={() => onShowReactionActors(n)}
-              />
-              <span className="text-[10px] text-[var(--muted)] shrink-0">
-                {formatNotificationTime(n)}
-              </span>
-            </div>
+      <div className="flex gap-2.5">
+        <ActorCluster actors={row.actors} onOpenProfile={onOpenProfile} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-sm text-[var(--foreground)] leading-snug min-w-0">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (actor) onOpenProfile(actor);
+                }}
+                className="font-medium text-[var(--accent)] hover:underline focus:outline-none"
+              >
+                {name}
+              </button>
+              {suffix ? (
+                canShowActors ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onShowReactionActors();
+                    }}
+                    className="hover:underline focus:outline-none"
+                  >
+                    {suffix}
+                  </button>
+                ) : (
+                  <span>{suffix}</span>
+                )
+              ) : null}
+            </p>
+            <span className="text-[10px] text-[var(--muted)] shrink-0">
+              {formatRelativeTime(row.timestampMs)}
+            </span>
           </div>
+          {context ? (
+            <p className="text-xs text-[var(--muted)] mt-0.5">{context}</p>
+          ) : null}
+          {body ? (
+            <p className="mt-1 text-sm text-[var(--foreground)] leading-snug line-clamp-3 break-words">
+              {body}
+            </p>
+          ) : null}
+          {(row.kind === "reply" || row.kind === "quote" || row.kind === "mention") && row.cast ? (
+            <NotificationCastActions cast={row.cast} viewerFid={viewerFid} />
+          ) : null}
         </div>
       </div>
-      {showCastPreview && (
-        <div
-          className={`pl-[46px] ${clickable ? "cursor-pointer" : ""}`}
-          role={clickable ? "button" : undefined}
-          tabIndex={clickable ? 0 : undefined}
-          onClick={clickable ? onClick : undefined}
-          onKeyDown={
-            clickable
-              ? (e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onClick();
-                  }
-                }
-              : undefined
-          }
-        >
-          <NotificationCastPreview notification={n} />
-        </div>
-      )}
     </div>
   );
 }
 
-function NotificationActorAvatar({
-  pfp,
-  username,
-  onOpenProfile,
+function countField(value: unknown): number {
+  return typeof value === "number" && value > 0 ? value : 0;
+}
+
+function formatActionCount(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+/** Like, recast, and reply on an incoming cast without leaving notifications. */
+function NotificationCastActions({
+  cast,
+  viewerFid,
 }: {
-  pfp: string;
-  username?: string;
-  onOpenProfile: () => void;
+  cast: Record<string, any>;
+  viewerFid: number;
 }) {
+  const queryClient = useQueryClient();
+  const authorFid = cast.author?.fid as number | undefined;
+  const hash = typeof cast.hash === "string" ? cast.hash : "";
+  const viewer = (cast.viewer_context ?? {}) as { liked?: boolean; recasted?: boolean };
+  const reactions = (cast.reactions ?? {}) as { likes_count?: number; recasts_count?: number };
+  const serverLiked = viewer.liked ?? false;
+  const serverRecasted = viewer.recasted ?? false;
+  const serverLikeCount = countField(reactions.likes_count);
+  const serverRecastCount = countField(reactions.recasts_count);
+  const replyCount = countField(cast.replies?.count);
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [liked, setLiked] = useState(serverLiked);
+  const [likeCount, setLikeCount] = useState(serverLikeCount);
+  const [recasted, setRecasted] = useState(serverRecasted);
+  const [recastCount, setRecastCount] = useState(serverRecastCount);
+
+  useEffect(() => {
+    setLiked(serverLiked);
+  }, [serverLiked]);
+  useEffect(() => {
+    setLikeCount(serverLikeCount);
+  }, [serverLikeCount]);
+  useEffect(() => {
+    setRecasted(serverRecasted);
+  }, [serverRecasted]);
+  useEffect(() => {
+    setRecastCount(serverRecastCount);
+  }, [serverRecastCount]);
+
+  const likeMutation = useMutation({
+    mutationFn: async (currentlyLiked: boolean) => {
+      const res = await miniappFetch("/api/reaction", {
+        method: currentlyLiked ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ type: "like", castHash: hash, castAuthorFid: authorFid }),
+      });
+      if (!res.ok) throw new Error("Reaction failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["feed"] });
+    },
+    onError: () => {
+      setLiked(serverLiked);
+      setLikeCount(serverLikeCount);
+    },
+  });
+
+  const recastMutation = useMutation({
+    mutationFn: async (currentlyRecasted: boolean) => {
+      const res = await miniappFetch("/api/reaction", {
+        method: currentlyRecasted ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ type: "recast", castHash: hash, castAuthorFid: authorFid }),
+      });
+      if (!res.ok) throw new Error("Reaction failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["feed"] });
+    },
+    onError: () => {
+      setRecasted(serverRecasted);
+      setRecastCount(serverRecastCount);
+    },
+  });
+
+  if (!hash) return null;
+
+  function toggleLike() {
+    if (!authorFid || likeMutation.isPending) return;
+    const next = !liked;
+    setLiked(next);
+    setLikeCount((c) => Math.max(0, c + (next ? 1 : -1)));
+    likeMutation.mutate(liked);
+  }
+
+  function toggleRecast() {
+    if (!authorFid || recastMutation.isPending) return;
+    const next = !recasted;
+    setRecasted(next);
+    setRecastCount((c) => Math.max(0, c + (next ? 1 : -1)));
+    recastMutation.mutate(recasted);
+  }
+
   return (
-    <button
-      type="button"
-      title={username ? `@${username}` : "Profile"}
-      onClick={(e) => {
-        e.stopPropagation();
-        onOpenProfile();
-      }}
-      className="shrink-0 rounded-full hover:ring-2 hover:ring-[var(--accent)] transition-shadow focus:outline-none"
-    >
-      <UserAvatar src={pfp} alt={username ? `@${username}` : ""} size="lg" />
-    </button>
+    <>
+      <div
+        className="flex items-center gap-4 mt-2"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={() => setReplyOpen(true)}
+          className="flex items-center gap-1 text-[var(--muted)] hover:text-[var(--accent)] transition-colors"
+          aria-label="Reply"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          {replyCount > 0 ? <span className="text-xs">{formatActionCount(replyCount)}</span> : null}
+        </button>
+        <button
+          type="button"
+          onClick={toggleRecast}
+          disabled={!authorFid}
+          className={`flex items-center gap-1 transition-colors disabled:opacity-40 ${
+            recasted ? "text-[var(--recast)]" : "text-[var(--muted)] hover:text-[var(--recast)]"
+          }`}
+          aria-label={recasted ? "Remove recast" : "Recast"}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {recastCount > 0 ? <span className="text-xs">{formatActionCount(recastCount)}</span> : null}
+        </button>
+        <button
+          type="button"
+          onClick={toggleLike}
+          disabled={!authorFid}
+          className={`flex items-center gap-1 transition-colors disabled:opacity-40 ${
+            liked ? "text-[var(--like)]" : "text-[var(--muted)] hover:text-[var(--like)]"
+          }`}
+          aria-label={liked ? "Unlike" : "Like"}
+        >
+          <svg className="w-3.5 h-3.5" fill={liked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          </svg>
+          {likeCount > 0 ? <span className="text-xs">{formatActionCount(likeCount)}</span> : null}
+        </button>
+      </div>
+      {replyOpen ? (
+        <ReplyModal
+          parentCast={cast}
+          viewerFid={viewerFid}
+          threadRootHash={typeof cast.parent_hash === "string" ? cast.parent_hash : hash}
+          onClose={() => setReplyOpen(false)}
+        />
+      ) : null}
+    </>
   );
 }
 
-function NotificationSummaryLine({
-  notification: n,
+function ActorCluster({
+  actors,
   onOpenProfile,
-  onShowReactionActors,
 }: {
-  notification: HypersnapNotification;
-  onOpenProfile: () => void;
-  onShowReactionActors: () => void;
+  actors: NotificationActor[];
+  onOpenProfile: (actor: NotificationActor) => void;
 }) {
-  const actor = notificationActor(n);
-  const name = notificationActorDisplayName(actor);
-  const count = notificationActorCount(n);
-  const suffix = notificationActionSuffix(n, count);
-  const canShowActors =
-    notificationReactionType(n) != null &&
-    count > 1 &&
-    !!notificationCastHash(n);
-
-  return (
-    <p className="text-xs font-medium text-[var(--foreground)] leading-snug">
+  const shown = actors.slice(0, actors.length === 1 ? 1 : 4);
+  if (shown.length === 0) {
+    return <UserAvatar alt="" size="lg" />;
+  }
+  if (shown.length === 1) {
+    const actor = shown[0];
+    const username = typeof actor.username === "string" ? actor.username : undefined;
+    return (
       <button
         type="button"
+        title={username ? `@${username}` : "Profile"}
         onClick={(e) => {
           e.stopPropagation();
-          onOpenProfile();
+          onOpenProfile(actor);
         }}
-        className="text-[var(--accent)] hover:underline focus:outline-none"
+        className="shrink-0 rounded-full hover:ring-2 hover:ring-[var(--accent)] transition-shadow focus:outline-none"
       >
-        {name}
+        <UserAvatar
+          src={(actor.pfp_url ?? actor.pfpUrl) as string | undefined}
+          alt={username ? `@${username}` : ""}
+          size="lg"
+        />
       </button>
-      {canShowActors ? (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onShowReactionActors();
-          }}
-          className="hover:underline focus:outline-none text-inherit"
-        >
-          {suffix}
-        </button>
-      ) : (
-        <span>{suffix}</span>
-      )}
-    </p>
+    );
+  }
+
+  return (
+    <div className="flex shrink-0 items-center pl-0.5">
+      {shown.map((actor, index) => {
+        const username = typeof actor.username === "string" ? actor.username : undefined;
+        return (
+          <button
+            key={typeof actor.fid === "number" ? actor.fid : `${username ?? "actor"}-${index}`}
+            type="button"
+            title={username ? `@${username}` : "Profile"}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenProfile(actor);
+            }}
+            className={`rounded-full ring-2 ring-[var(--surface)] focus:outline-none ${
+              index === 0 ? "" : "-ml-2"
+            }`}
+          >
+            <UserAvatar
+              src={(actor.pfp_url ?? actor.pfpUrl) as string | undefined}
+              alt=""
+              size="sm"
+            />
+          </button>
+        );
+      })}
+    </div>
   );
 }
