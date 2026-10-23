@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getIronSession } from "iron-session";
 import { canUseMiniAppColumns, isBetaGateEnabled } from "@/lib/betaGate";
-import { sessionOptions, type SessionData } from "@/lib/session";
+import { sessionOptions, touchSession, type SessionData } from "@/lib/session";
 
 /** Routes that work before beta password or full sign-in. */
 const BETA_PUBLIC_API = [
@@ -64,28 +64,27 @@ function isMiniAppWriteApi(pathname: string, method: string): boolean {
 }
 
 export async function middleware(request: NextRequest) {
-  if (!isBetaGateEnabled()) {
-    return NextResponse.next();
+  const response = NextResponse.next();
+  const session = await getIronSession<SessionData>(request, response, sessionOptions);
+  const { pathname } = request.nextUrl;
+  if (!pathname.startsWith("/api/auth/")) {
+    await touchSession(session);
   }
 
-  const { pathname } = request.nextUrl;
+  if (!isBetaGateEnabled()) {
+    return response;
+  }
+
   if (!pathname.startsWith("/api/")) {
-    return NextResponse.next();
+    return response;
   }
 
   if (
     BETA_PUBLIC_API.some((p) => pathname.startsWith(p)) ||
     isProfilePublicRead(pathname, request.method)
   ) {
-    return NextResponse.next();
+    return response;
   }
-
-  const response = NextResponse.next();
-  const session = await getIronSession<SessionData>(
-    request,
-    response,
-    sessionOptions
-  );
 
   if (session.user?.profileOnly) {
     if (isProfileOnlyAllowedApi(pathname)) {
@@ -119,5 +118,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: "/api/:path*",
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico)$).*)",
+  ],
 };

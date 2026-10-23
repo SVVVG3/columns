@@ -13,11 +13,18 @@ interface AuthScreenProps {
   betaUnlocked: boolean;
 }
 
-interface PendingSigner {
+interface PendingSiwf {
+  kind: "siwf";
+  url: string;
+}
+
+interface PendingApproval {
+  kind: "approval";
   signer_uuid: string;
-  status: string;
   signer_approval_url: string | null;
 }
+
+type PendingAuth = PendingSiwf | PendingApproval;
 
 interface ApprovedSignerUser {
   fid: number;
@@ -45,7 +52,7 @@ export function AuthScreen({
 
   const [signInLoading, setSignInLoading] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
-  const [pendingSigner, setPendingSigner] = useState<PendingSigner | null>(null);
+  const [pendingAuth, setPendingAuth] = useState<PendingAuth | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/beta", { cache: "no-store" })
@@ -88,13 +95,13 @@ export function AuthScreen({
             setAllowlistError(
               `Columns is invite-only. You signed in as ${handle} (FID ${data.fid ?? user.fid}). Ask the team to add your FID to the allowlist.`
             );
-            setPendingSigner(null);
+            setPendingAuth(null);
             return;
           }
           if (data.error === "beta_required") {
             setBetaUnlocked(false);
             setPasswordError("Enter the beta password before signing in.");
-            setPendingSigner(null);
+            setPendingAuth(null);
             return;
           }
           setSignInError("Could not sign in. Please try again.");
@@ -139,16 +146,85 @@ export function AuthScreen({
     [establishSession]
   );
 
-  useEffect(() => {
-    if (!pendingSigner?.signer_uuid) return;
+  const pollSiwf = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/siwf", { cache: "no-store" });
+      const data = (await res.json().catch(() => ({}))) as {
+        status?: string;
+        signer_uuid?: string;
+        signer_approval_url?: string | null;
+        error?: string;
+        fid?: number;
+        username?: string;
+      };
 
-    const signerUuid = pendingSigner.signer_uuid;
+      if (data.error === "not_allowed") {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        const handle = data.username ? `@${data.username}` : "your account";
+        setAllowlistError(
+          `Columns is invite-only. You signed in as ${handle} (FID ${data.fid ?? "?"}). Ask the team to add your FID to the allowlist.`
+        );
+        setPendingAuth(null);
+        return;
+      }
+
+      if (!res.ok) {
+        if (
+          data.error === "siwf_invalid" ||
+          data.error === "signer_create_failed" ||
+          data.error === "signer_lookup_failed"
+        ) {
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+          setSignInError("Could not sign in. Please try again.");
+          setPendingAuth(null);
+        }
+        return;
+      }
+
+      if (data.status === "signed_in") {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        router.refresh();
+        return;
+      }
+
+      if (data.status === "needs_approval" && data.signer_uuid) {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        setPendingAuth({
+          kind: "approval",
+          signer_uuid: data.signer_uuid,
+          signer_approval_url: data.signer_approval_url ?? null,
+        });
+      }
+    } catch {
+      // keep polling
+    }
+  }, [router]);
+
+  useEffect(() => {
+    if (!pendingAuth) return;
+
+    const poll =
+      pendingAuth.kind === "approval"
+        ? () => pollSigner(pendingAuth.signer_uuid)
+        : () => pollSiwf();
 
     const startPolling = () => {
       if (pollIntervalRef.current) return;
-      void pollSigner(signerUuid);
+      void poll();
       pollIntervalRef.current = setInterval(() => {
-        void pollSigner(signerUuid);
+        void poll();
       }, 2000);
     };
 
@@ -171,7 +247,7 @@ export function AuthScreen({
       document.removeEventListener("visibilitychange", onVisibility);
       stopPolling();
     };
-  }, [pendingSigner, pollSigner]);
+  }, [pendingAuth, pollSigner, pollSiwf]);
 
   async function handleSignIn() {
     setSignInError(null);
@@ -179,36 +255,23 @@ export function AuthScreen({
     sessionAttemptedRef.current = false;
 
     try {
-      const res = await fetch("/api/auth/signer", { method: "POST" });
+      const res = await fetch("/api/auth/siwf", { method: "POST" });
       const data = (await res.json().catch(() => ({}))) as {
-        signer_uuid?: string;
-        status?: string;
-        signer_approval_url?: string | null;
+        url?: string;
         error?: string;
-        message?: string;
       };
 
-      if (!res.ok) {
-        if (data.error === "signer_not_configured") {
-          setSignInError(
-            "Columns sign-in is not configured on the server. Contact the team."
-          );
+      if (!res.ok || !data.url) {
+        if (data.error === "beta_required") {
+          setBetaUnlocked(false);
+          setPasswordError("Enter the beta password before signing in.");
         } else {
           setSignInError("Could not start sign-in. Please try again.");
         }
         return;
       }
 
-      if (!data.signer_uuid) {
-        setSignInError("Could not start sign-in. Please try again.");
-        return;
-      }
-
-      setPendingSigner({
-        signer_uuid: data.signer_uuid,
-        status: data.status ?? "pending_approval",
-        signer_approval_url: data.signer_approval_url ?? null,
-      });
+      setPendingAuth({ kind: "siwf", url: data.url });
     } catch {
       setSignInError("Could not start sign-in. Please try again.");
     } finally {
@@ -278,25 +341,37 @@ export function AuthScreen({
           </div>
         ) : showSignIn ? (
           <div className="w-full flex flex-col items-center gap-4">
-            {pendingSigner?.signer_approval_url ? (
+            {pendingAuth &&
+            (pendingAuth.kind === "siwf" || pendingAuth.signer_approval_url) ? (
               <div className="w-full flex flex-col items-center gap-4">
                 <p className="text-sm text-white text-center">
-                  Approve Columns in Farcaster to finish signing in.
+                  {pendingAuth.kind === "approval"
+                    ? "One-time approval so Columns can post and like for you."
+                    : "Scan with Farcaster to sign in."}
                 </p>
 
-                {/* Desktop: show QR code to scan with phone */}
                 <div className="hidden sm:flex flex-col items-center gap-3">
                   <div className="rounded-xl bg-white p-3">
-                    <QRCodeSVG value={pendingSigner.signer_approval_url} size={180} />
+                    <QRCodeSVG
+                      value={
+                        pendingAuth.kind === "siwf"
+                          ? pendingAuth.url
+                          : pendingAuth.signer_approval_url ?? ""
+                      }
+                      size={180}
+                    />
                   </div>
                   <p className="text-xs text-[var(--muted)] text-center">
                     Scan with your phone's camera or Farcaster app
                   </p>
                 </div>
 
-                {/* Mobile: tap-to-open button (QR isn't useful on the same device) */}
                 <a
-                  href={pendingSigner.signer_approval_url}
+                  href={
+                    pendingAuth.kind === "siwf"
+                      ? pendingAuth.url
+                      : pendingAuth.signer_approval_url ?? undefined
+                  }
                   className="sm:hidden w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[var(--accent)] text-white text-sm font-semibold text-center"
                 >
                   <Image
@@ -307,16 +382,20 @@ export function AuthScreen({
                     className="object-contain shrink-0"
                     aria-hidden
                   />
-                  Open in Farcaster to approve
+                  {pendingAuth.kind === "approval"
+                    ? "Open in Farcaster to approve"
+                    : "Open in Farcaster to sign in"}
                 </a>
 
                 <p className="text-xs text-[var(--muted)] text-center">
-                  Waiting for approval…
+                  {pendingAuth.kind === "approval"
+                    ? "Waiting for approval…"
+                    : "Waiting for sign-in…"}
                 </p>
                 <button
                   type="button"
                   onClick={() => {
-                    setPendingSigner(null);
+                    setPendingAuth(null);
                     setSignInError(null);
                     sessionAttemptedRef.current = false;
                   }}
@@ -350,9 +429,10 @@ export function AuthScreen({
             {signInError && (
               <p className="text-xs text-red-400 text-center w-full">{signInError}</p>
             )}
-            {!pendingSigner && (
+            {!pendingAuth && (
               <p className="text-xs text-[var(--muted)] text-center">
-                Sign in with your Farcaster account to grant Columns permissions.
+                Scan to sign back in. The first time, Farcaster also asks you to
+                approve Columns.
               </p>
             )}
           </div>

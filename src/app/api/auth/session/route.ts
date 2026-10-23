@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { saveDesktopUserSession } from "@/lib/desktopSession";
 import { getSession } from "@/lib/session";
 import { verifyCsrf } from "@/lib/csrf";
 import { upsertColumnsUser } from "@/lib/columnsRegistry";
 import { neynar } from "@/lib/neynar";
 import { upsertUserSigner } from "@/lib/signerRegistry";
-import {
-  isAllowlistEnforced,
-  isBetaGateEnabled,
-  isFidAllowed,
-} from "@/lib/betaGate";
+import { isAllowlistEnforced, isBetaGateEnabled, isFidAllowed } from "@/lib/betaGate";
 
 /** GET /api/auth/session — return current session user (or null) */
 export async function GET() {
@@ -84,22 +81,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "signer_lookup_failed" }, { status: 502 });
   }
 
-  session.user = {
+  const saved = await saveDesktopUserSession({
     fid: fidNum,
-    signerUuid,
-    username,
-    displayName,
-    pfpUrl,
-    profileOnly: false,
-  };
-  await session.save();
-
-  await upsertColumnsUser({
-    fid: fidNum,
-    username: username ?? undefined,
-    displayName: displayName ?? undefined,
-    grantBadge: true,
+    signerUuid: String(signerUuid),
+    username: username ?? "",
+    displayName: displayName ?? "",
+    pfpUrl: pfpUrl ?? "",
   });
+  if (!saved.ok) {
+    return NextResponse.json(saved.body, { status: saved.status });
+  }
 
   await upsertUserSigner({
     fid: fidNum,
@@ -119,6 +110,9 @@ export async function DELETE(req: NextRequest) {
 
   const session = await getSession();
   delete session.user;
+  delete session.siwf;
+  delete session.siwfClaimed;
+  delete session.approval;
   await session.save();
 
   return NextResponse.json({ ok: true });
