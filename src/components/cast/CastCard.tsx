@@ -339,6 +339,7 @@ export function CastCard({
   // Source-of-truth from server (viewer_context annotated by our API routes)
   const serverLiked: boolean = viewerReactions.liked ?? false;
   const serverRecasted: boolean = viewerReactions.recasted ?? false;
+  const serverReplied: boolean = viewerReactions.replied ?? false;
   const serverLikeCount: number = reactions.likes_count ?? 0;
   const serverRecastCount: number = reactions.recasts_count ?? 0;
   const replyCount: number = cast.replies?.count ?? 0;
@@ -348,6 +349,7 @@ export function CastCard({
   const [likeCount, setLikeCount] = useState(serverLikeCount);
   const [recasted, setRecasted] = useState(serverRecasted);
   const [recastCount, setRecastCount] = useState(serverRecastCount);
+  const [replied, setReplied] = useState(serverReplied);
 
   const invalidateFeedQueries = () => {
     queryClient.invalidateQueries({ queryKey: ["feed"] });
@@ -409,6 +411,9 @@ export function CastCard({
   useEffect(() => {
     setRecastCount(serverRecastCount);
   }, [serverRecastCount]);
+  useEffect(() => {
+    setReplied(serverReplied);
+  }, [serverReplied]);
 
   function handleLike() {
     if (likeMutation.isPending) return;
@@ -687,7 +692,9 @@ export function CastCard({
               {/* Reply */}
               <button
                 onClick={(e) => { e.stopPropagation(); setReplyOpen(true); }}
-                className={`flex items-center gap-1.5 text-[var(--muted)] hover:text-[var(--accent)] transition-colors ${touchFriendly ? "p-1 -m-0.5" : ""}`}
+                className={`flex items-center gap-1.5 transition-colors ${touchFriendly ? "p-1 -m-0.5" : ""} ${
+                  replied ? "text-[var(--accent)]" : "text-[var(--muted)] hover:text-[var(--accent)]"
+                }`}
               >
                 <svg className={touchFriendly ? "w-5 h-5" : "w-3.5 h-3.5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -824,6 +831,7 @@ export function CastCard({
           parentCast={cast}
           viewerFid={viewerFid}
           onClose={() => setReplyOpen(false)}
+          onPosted={() => setReplied(true)}
           threadRootHash={threadRootHash}
         />
       )}

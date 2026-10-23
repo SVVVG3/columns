@@ -70,6 +70,8 @@ export async function POST(req: NextRequest) {
     });
 
     invalidateFeedCaches(session.user.fid);
+    deleteCached(`viewer:${session.user.fid}:replies`);
+    deleteCached(`batch-interactions:${session.user.fid}`);
 
     // Bust the server-side conversation cache so the new reply is visible
     // immediately when the panel refetches. threadRootHash targets the root

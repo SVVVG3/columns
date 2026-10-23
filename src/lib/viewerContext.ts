@@ -10,7 +10,7 @@
  */
 
 import { hsnap, hsnapPost } from "@/lib/hypersnap";
-import { withCache } from "@/lib/feedCache";
+import { getCached, setCached, withCache } from "@/lib/feedCache";
 
 const REACTION_TTL = 60_000; // 60 s
 const CAST_REACTION_TTL = 30_000; // 30 s (per-cast liker lists)
@@ -55,15 +55,70 @@ async function fetchReactionHashes(
 export interface ViewerContext {
   liked: Set<string>;
   recasted: Set<string>;
+  replied: Set<string>;
 }
 
-/** Fetch the current user's recent likes and recasts in parallel. */
+/** Fetch the current user's recent likes, recasts, and replies in parallel. */
 export async function getViewerContext(fid: number): Promise<ViewerContext> {
-  const [liked, recasted] = await Promise.all([
+  const [liked, recasted, replied] = await Promise.all([
     fetchReactionHashes(fid, "likes"),
     fetchReactionHashes(fid, "recasts"),
+    fetchRepliedParentHashes(fid),
   ]);
-  return { liked, recasted };
+  return { liked, recasted, replied };
+}
+
+interface RepliesFeedResponse {
+  casts?: Array<{ parent_hash?: string }>;
+}
+
+/** Parent hashes of the viewer's recent replies. Those casts are ones they answered. */
+async function fetchRepliedParentHashes(fid: number): Promise<Set<string>> {
+  const cacheKey = `viewer:${fid}:replies`;
+  const data = await withCache<RepliesFeedResponse>(cacheKey, REACTION_TTL, () =>
+    hsnap<RepliesFeedResponse>("/v2/farcaster/feed/user/replies_and_recasts", {
+      fid,
+      limit: PAGE_SIZE,
+    })
+  );
+  const hashes = new Set<string>();
+  for (const cast of data.casts ?? []) {
+    if (typeof cast.parent_hash === "string" && cast.parent_hash.length > 0) {
+      hashes.add(normalizeCastHash(cast.parent_hash));
+    }
+  }
+  return hashes;
+}
+
+/** True when a batch row is the documented `{ hash, liked, recasted, replied }` shape. */
+export function batchInteractionUsable(item: unknown): item is BatchCastInteraction {
+  if (!item || typeof item !== "object") return false;
+  const row = item as BatchCastInteraction;
+  return typeof row.hash === "string" && row.hash.length > 0;
+}
+
+/**
+ * Parse POST /batch/cast-interactions.
+ * Returns null when the node sends rows with no cast hash — that payload cannot mark likes or replies.
+ */
+export function parseBatchInteractions(data: unknown, fid: number): ViewerContext | null {
+  if (!data || typeof data !== "object") return null;
+  const record = data as Record<string, unknown>;
+  const rows = record[String(fid)];
+  if (!Array.isArray(rows)) return null;
+  if (rows.length > 0 && !rows.some(batchInteractionUsable)) return null;
+
+  const liked = new Set<string>();
+  const recasted = new Set<string>();
+  const replied = new Set<string>();
+  for (const item of rows) {
+    if (!batchInteractionUsable(item)) continue;
+    const hash = normalizeCastHash(item.hash);
+    if (item.liked) liked.add(hash);
+    if (item.recasted) recasted.add(hash);
+    if (item.replied) replied.add(hash);
+  }
+  return { liked, recasted, replied };
 }
 
 interface BatchCastInteraction {
@@ -73,44 +128,38 @@ interface BatchCastInteraction {
   replied?: boolean;
 }
 
-type BatchCastInteractionsResponse = Record<string, BatchCastInteraction[]>;
+const BATCH_SKIP_TTL = 5 * 60_000;
 
-function interactionsForFid(
-  data: BatchCastInteractionsResponse,
-  fid: number
-): BatchCastInteraction[] {
-  const key = String(fid);
-  return data[key] ?? data[fid as unknown as string] ?? [];
-}
+/** Viewer liked/recasted/replied state from Hypersnap batch cast-interactions. Null when the payload has no hashes. */
+export async function getBatchViewerContext(fid: number): Promise<ViewerContext | null> {
+  const skipKey = `batch-interactions:${fid}:skip`;
+  if (getCached(skipKey)) return null;
 
-/** Viewer liked/recasted state from Hypersnap batch cast-interactions. */
-export async function getBatchViewerContext(fid: number): Promise<ViewerContext> {
   const cacheKey = `batch-interactions:${fid}`;
-  const data = await withCache<BatchCastInteractionsResponse>(cacheKey, REACTION_TTL, () =>
-    hsnapPost<BatchCastInteractionsResponse>("/v2/farcaster/batch/cast-interactions", {
-      fids: [fid],
-    })
-  );
+  const cached = getCached(cacheKey);
+  if (cached) return cached as ViewerContext;
 
-  const liked = new Set<string>();
-  const recasted = new Set<string>();
-  for (const item of interactionsForFid(data, fid)) {
-    if (!item.hash) continue;
-    const h = normalizeCastHash(item.hash);
-    if (item.liked) liked.add(h);
-    if (item.recasted) recasted.add(h);
+  const data = await hsnapPost<unknown>("/v2/farcaster/batch/cast-interactions", {
+    fids: [fid],
+  });
+  const parsed = parseBatchInteractions(data, fid);
+  if (!parsed) {
+    setCached(skipKey, true, BATCH_SKIP_TTL);
+    return null;
   }
-  return { liked, recasted };
+  setCached(cacheKey, parsed, REACTION_TTL);
+  return parsed;
 }
 
-/** Batch interactions when available; otherwise recent reaction/user (100 cap). */
+/** Batch interactions when the payload is usable; otherwise recent likes, recasts, and replies. */
 export async function getFeedViewerContext(fid: number): Promise<ViewerContext> {
   try {
-    return await getBatchViewerContext(fid);
+    const batch = await getBatchViewerContext(fid);
+    if (batch) return batch;
   } catch (err) {
     console.warn("[viewerContext] batch cast-interactions failed, using reaction/user", err);
-    return getViewerContext(fid);
   }
+  return getViewerContext(fid);
 }
 
 const REACTION_FETCH_CONCURRENCY = 6;
@@ -199,6 +248,7 @@ export function annotateViewerContext(
       viewer_context: {
         liked: liked.has(hash),
         recasted: recasted.has(hash),
+        replied: replied.has(hash),
       },
     };
   });
@@ -221,6 +271,7 @@ export function annotateViewerContextTree(
     viewer_context: {
       liked: vc.liked.has(hash),
       recasted: vc.recasted.has(hash),
+      replied: vc.replied.has(hash),
     },
     direct_replies: directReplies,
   };
@@ -322,6 +373,7 @@ export async function getConversationViewerContext(
   return {
     liked,
     recasted,
+    replied: baseVc.replied,
     likeCounts: new Map(likerEntries.map(([hash, fids]) => [hash, fids.length])),
     recastCounts: new Map(recasterEntries.map(([hash, fids]) => [hash, fids.length])),
   };
@@ -353,6 +405,7 @@ export function annotateConversationTree(
     viewer_context: {
       liked: vc.liked.has(hash),
       recasted: vc.recasted.has(hash),
+      replied: vc.replied.has(hash),
     },
     direct_replies: directReplies,
   };

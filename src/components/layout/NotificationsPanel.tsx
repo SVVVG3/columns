@@ -469,10 +469,15 @@ function NotificationCastActions({
   const queryClient = useQueryClient();
   const authorFid = cast.author?.fid as number | undefined;
   const hash = typeof cast.hash === "string" ? cast.hash : "";
-  const viewer = (cast.viewer_context ?? {}) as { liked?: boolean; recasted?: boolean };
+  const viewer = (cast.viewer_context ?? {}) as {
+    liked?: boolean;
+    recasted?: boolean;
+    replied?: boolean;
+  };
   const reactions = (cast.reactions ?? {}) as { likes_count?: number; recasts_count?: number };
   const serverLiked = viewer.liked ?? false;
   const serverRecasted = viewer.recasted ?? false;
+  const serverReplied = viewer.replied ?? false;
   const serverLikeCount = countField(reactions.likes_count);
   const serverRecastCount = countField(reactions.recasts_count);
   const replyCount = countField(cast.replies?.count);
@@ -481,6 +486,7 @@ function NotificationCastActions({
   const [likeCount, setLikeCount] = useState(serverLikeCount);
   const [recasted, setRecasted] = useState(serverRecasted);
   const [recastCount, setRecastCount] = useState(serverRecastCount);
+  const [replied, setReplied] = useState(serverReplied);
 
   useEffect(() => {
     setLiked(serverLiked);
@@ -494,6 +500,9 @@ function NotificationCastActions({
   useEffect(() => {
     setRecastCount(serverRecastCount);
   }, [serverRecastCount]);
+  useEffect(() => {
+    setReplied(serverReplied);
+  }, [serverReplied]);
 
   const likeMutation = useMutation({
     mutationFn: async (currentlyLiked: boolean) => {
@@ -560,8 +569,10 @@ function NotificationCastActions({
         <button
           type="button"
           onClick={() => setReplyOpen(true)}
-          className="flex items-center gap-1 text-[var(--muted)] hover:text-[var(--accent)] transition-colors"
-          aria-label="Reply"
+          className={`flex items-center gap-1 transition-colors ${
+            replied ? "text-[var(--accent)]" : "text-[var(--muted)] hover:text-[var(--accent)]"
+          }`}
+          aria-label={replied ? "You replied" : "Reply"}
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -602,6 +613,7 @@ function NotificationCastActions({
           parentCast={cast}
           viewerFid={viewerFid}
           threadRootHash={typeof cast.parent_hash === "string" ? cast.parent_hash : hash}
+          onPosted={() => setReplied(true)}
           onClose={() => setReplyOpen(false)}
         />
       ) : null}

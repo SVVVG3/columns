@@ -23,6 +23,8 @@ interface ComposeModalProps {
   quoteCast?: Record<string, unknown>;
   /** Root cast hash of the conversation being replied in — used to bust the server + client cache. */
   threadRootHash?: string;
+  /** Called only after the cast is published. */
+  onPosted?: () => void;
 }
 
 function withHexPrefix(hash: string): string {
@@ -42,6 +44,7 @@ export function ComposeModal({
   parentCast,
   quoteCast,
   threadRootHash,
+  onPosted,
 }: ComposeModalProps) {
   const [text, setText] = useState("");
   const [images, setImages] = useState<PendingImage[]>([]);
@@ -214,6 +217,7 @@ export function ComposeModal({
       }
       skipSaveRef.current = true;
       deleteCastDraft(localStorage, draftKey);
+      onPosted?.();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
