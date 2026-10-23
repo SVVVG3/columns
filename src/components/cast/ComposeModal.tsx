@@ -3,12 +3,20 @@
 import { useState, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { MAX_CAST_IMAGES, isHeicImage } from "@/lib/castImageConstants";
+import {
+  castDraftStorageKey,
+  deleteCastDraft,
+  readCastDraft,
+  writeCastDraft,
+} from "@/lib/castDrafts";
 import { buildCastPublishEmbeds } from "@/lib/composeEmbeds";
 import { compressCastImageForUpload } from "@/lib/compressCastImage";
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 
 interface ComposeModalProps {
   onClose: () => void;
+  /** Keeps this account's draft separate from another account on the same browser. */
+  viewerFid?: number;
   parentHash?: string;
   parentCast?: Record<string, unknown>;
   /** Cast to embed as a quote (no parent — publishes a new cast with cast_id embed). */
@@ -27,7 +35,14 @@ interface PendingImage {
   previewUrl: string;
 }
 
-export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threadRootHash }: ComposeModalProps) {
+export function ComposeModal({
+  onClose,
+  viewerFid,
+  parentHash,
+  parentCast,
+  quoteCast,
+  threadRootHash,
+}: ComposeModalProps) {
   const [text, setText] = useState("");
   const [images, setImages] = useState<PendingImage[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,7 +50,35 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textRef = useRef(text);
+  const hydratedRef = useRef(false);
+  const skipSaveRef = useRef(false);
   const queryClient = useQueryClient();
+  const quoteHash =
+    quoteCast?.hash != null ? String(quoteCast.hash) : undefined;
+  const draftKey = castDraftStorageKey({ fid: viewerFid, parentHash, quoteHash });
+
+  textRef.current = text;
+
+  useEffect(() => {
+    hydratedRef.current = false;
+    skipSaveRef.current = false;
+    const saved = readCastDraft(localStorage, draftKey);
+    if (saved) setText(saved);
+    hydratedRef.current = true;
+    return () => {
+      if (skipSaveRef.current || !hydratedRef.current) return;
+      writeCastDraft(localStorage, draftKey, textRef.current);
+    };
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    const handle = window.setTimeout(() => {
+      writeCastDraft(localStorage, draftKey, text);
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [draftKey, text]);
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -167,6 +210,8 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
       if (threadRootHash) {
         queryClient.invalidateQueries({ queryKey: ["conversation", threadRootHash] });
       }
+      skipSaveRef.current = true;
+      deleteCastDraft(localStorage, draftKey);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -296,6 +341,7 @@ export function ComposeModal({ onClose, parentHash, parentCast, quoteCast, threa
               <span className={`text-xs ${overLimit ? "text-red-400" : "text-[var(--muted)]"}`}>
                 {charCount}/{maxChars}
                 {images.length > 0 && ` · ${images.length}/${MAX_CAST_IMAGES} photos`}
+                {text.trim().length > 0 && " · Draft kept on this browser"}
               </span>
             )}
           </div>

@@ -819,9 +819,20 @@ export function CastCard({
         </div>
       </article>
 
-      {replyOpen && <ReplyModal parentCast={cast} onClose={() => setReplyOpen(false)} threadRootHash={threadRootHash} />}
+      {replyOpen && (
+        <ReplyModal
+          parentCast={cast}
+          viewerFid={viewerFid}
+          onClose={() => setReplyOpen(false)}
+          threadRootHash={threadRootHash}
+        />
+      )}
       {quoteComposeOpen && (
-        <ComposeModal quoteCast={cast} onClose={() => setQuoteComposeOpen(false)} />
+        <ComposeModal
+          quoteCast={cast}
+          viewerFid={viewerFid}
+          onClose={() => setQuoteComposeOpen(false)}
+        />
       )}
       {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
     </>

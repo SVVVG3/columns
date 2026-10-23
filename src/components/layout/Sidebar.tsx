@@ -220,7 +220,9 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
         }
       />
 
-      {composeOpen && <ComposeModal onClose={() => setComposeOpen(false)} />}
+      {composeOpen && (
+        <ComposeModal viewerFid={user.fid} onClose={() => setComposeOpen(false)} />
+      )}
       {searchOpen && <ProfileSearchModal open onClose={() => setSearchOpen(false)} />}
       {addColumnOpen && <AddColumnModal onClose={() => setAddColumnOpen(false)} />}
       {importColumnOpen && <ImportColumnModal onClose={() => setImportColumnOpen(false)} />}

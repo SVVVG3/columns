@@ -78,7 +78,7 @@ export function TopBar({ user, onLogout }: TopBarProps) {
       </header>
 
       {composeOpen && (
-        <ComposeModal onClose={() => setComposeOpen(false)} />
+        <ComposeModal viewerFid={user.fid} onClose={() => setComposeOpen(false)} />
       )}
       {addColumnOpen && (
         <AddColumnModal onClose={() => setAddColumnOpen(false)} />

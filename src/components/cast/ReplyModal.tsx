@@ -7,12 +7,14 @@ interface ReplyModalProps {
   parentCast: any;
   onClose: () => void;
   threadRootHash?: string;
+  viewerFid?: number;
 }
 
-export function ReplyModal({ parentCast, onClose, threadRootHash }: ReplyModalProps) {
+export function ReplyModal({ parentCast, onClose, threadRootHash, viewerFid }: ReplyModalProps) {
   return (
     <ComposeModal
       onClose={onClose}
+      viewerFid={viewerFid}
       parentHash={parentCast.hash}
       parentCast={parentCast}
       threadRootHash={threadRootHash}
