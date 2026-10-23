@@ -2,7 +2,7 @@
  * Viewer context hydration.
  *
  * Feed routes use `getFeedViewerContext` (batch cast-interactions, with a
- * reaction/user fallback) and keep like/recast counts from the cast payload.
+ * recent reactionsByFid fallback) and keep like/recast counts from the cast payload.
  *
  * Conversation routes do the same, and call `reaction/cast` only for casts
  * whose like or recast count is missing or zero. A positive count on the cast
@@ -15,7 +15,8 @@ import { getCached, setCached, withCache } from "@/lib/feedCache";
 const REACTION_TTL = 60_000; // 60 s
 const CAST_REACTION_TTL = 30_000; // 30 s (per-cast liker lists)
 
-// Hypersnap caps reaction/user at 100 items and does not support cursor pagination.
+// v2 reaction/user is oldest-first and has no cursor, so it never contains recent likes.
+// v1 reactionsByFid with reverse=true is newest-first. Page size matches the replies window.
 const PAGE_SIZE = 100;
 
 /** Normalize cast hash for Set lookups (strip 0x, lowercase). */
@@ -24,12 +25,39 @@ export function normalizeCastHash(hash: string): string {
   return h.startsWith("0x") ? h.slice(2) : h;
 }
 
-interface ReactionResponse {
-  reactions: Array<{ cast: { hash: string } }>;
+interface ReactionsByFidResponse {
+  messages?: Array<{
+    data?: {
+      type?: string;
+      reactionBody?: {
+        targetCastId?: { hash?: string };
+      };
+    };
+  }>;
 }
 
 interface CastReactionResponse {
   reactions: Array<{ user: { fid: number } }>;
+}
+
+/**
+ * Casts the viewer currently likes or recasted, from the newest reactions.
+ * A later remove for the same cast wins over an earlier add.
+ */
+export function hashesFromReactionMessages(
+  messages: ReactionsByFidResponse["messages"]
+): Set<string> {
+  const hashes = new Set<string>();
+  const seen = new Set<string>();
+  for (const message of messages ?? []) {
+    const raw = message.data?.reactionBody?.targetCastId?.hash;
+    if (typeof raw !== "string" || raw.length === 0) continue;
+    const hash = normalizeCastHash(raw);
+    if (seen.has(hash)) continue;
+    seen.add(hash);
+    if (message.data?.type === "MESSAGE_TYPE_REACTION_ADD") hashes.add(hash);
+  }
+  return hashes;
 }
 
 async function fetchReactionHashes(
@@ -37,19 +65,16 @@ async function fetchReactionHashes(
   type: "likes" | "recasts"
 ): Promise<Set<string>> {
   const cacheKey = `viewer:${fid}:${type}`;
-  const data = await withCache<ReactionResponse>(cacheKey, REACTION_TTL, () =>
-    hsnap<ReactionResponse>("/v2/farcaster/reaction/user", {
+  const reactionType = type === "likes" ? "Like" : "Recast";
+  const data = await withCache<ReactionsByFidResponse>(cacheKey, REACTION_TTL, () =>
+    hsnap<ReactionsByFidResponse>("/v1/reactionsByFid", {
       fid,
-      type,
-      limit: PAGE_SIZE,
+      reaction_type: reactionType,
+      reverse: "true",
+      page_size: PAGE_SIZE,
     })
   );
-  return new Set(
-    (data.reactions ?? [])
-      .map((r) => r.cast?.hash)
-      .filter(Boolean)
-      .map((h) => normalizeCastHash(h as string))
-  );
+  return hashesFromReactionMessages(data.messages);
 }
 
 export interface ViewerContext {
@@ -157,7 +182,7 @@ export async function getFeedViewerContext(fid: number): Promise<ViewerContext> 
     const batch = await getBatchViewerContext(fid);
     if (batch) return batch;
   } catch (err) {
-    console.warn("[viewerContext] batch cast-interactions failed, using reaction/user", err);
+    console.warn("[viewerContext] batch cast-interactions failed, using reactionsByFid", err);
   }
   return getViewerContext(fid);
 }
