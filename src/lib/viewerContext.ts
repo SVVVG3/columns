@@ -239,7 +239,7 @@ export function annotateReplyCounts(
 
 export function annotateViewerContext(
   casts: Record<string, unknown>[],
-  { liked, recasted }: ViewerContext
+  { liked, recasted, replied }: ViewerContext
 ): Record<string, unknown>[] {
   return casts.map((cast) => {
     const hash = normalizeCastHash(cast.hash as string);
